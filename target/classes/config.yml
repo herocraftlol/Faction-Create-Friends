@@ -1,0 +1,28 @@
+faction:
+  max-name-length: 20
+  min-name-length: 3
+  max-members: 50
+  actionbar-update-interval: 20  # en ticks (1 seconde)
+  actionbar-range: 200  # distance max en blocs pour détecter un membre proche
+
+messages:
+  prefix: "&8[&6Faction&8] &r"
+  faction-created: "&aFaction &e%name% &acréée avec succès !"
+  faction-disbanded: "&cFaction &e%name% &cdissoute."
+  faction-not-found: "&cFaction introuvable."
+  already-in-faction: "&cTu es déjà dans une faction."
+  not-in-faction: "&cTu n'es pas dans une faction."
+  not-chef: "&cTu n'es pas le chef de cette faction."
+  player-not-found: "&cJoueur introuvable."
+  invite-sent: "&aInvitation envoyée à &e%player%&a."
+  invite-received: "&e%player% &at'invite dans la faction &e%faction%&a. Tape &b/faction join %faction% &apour rejoindre."
+  joined-faction: "&aTu as rejoint la faction &e%name%&a."
+  left-faction: "&cTu as quitté la faction &e%name%&c."
+  chef-set: "&e%player% &aest maintenant chef de la faction."
+  name-too-short: "&cLe nom de faction est trop court (min %min% caractères)."
+  name-too-long: "&cLe nom de faction est trop long (max %max% caractères)."
+  faction-already-exists: "&cUne faction avec ce nom existe déjà."
+  no-invite: "&cTu n'as pas d'invitation pour cette faction."
+  faction-full: "&cLa faction est complète."
+  cannot-invite-self: "&cTu ne peux pas t'inviter toi-même."
+  player-already-in-faction: "&c%player% est déjà dans une faction."

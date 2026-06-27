@@ -1,0 +1,7 @@
+fr/faction/managers/ActionBarManager$NearestResult.class
+fr/faction/listeners/PlayerListener.class
+fr/faction/managers/ActionBarManager.class
+fr/faction/managers/FactionManager.class
+fr/faction/models/Faction.class
+fr/faction/commands/FactionCommand.class
+fr/faction/FactionPlugin.class
