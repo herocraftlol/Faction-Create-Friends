@@ -1,12 +1,12 @@
 name: FactionPlugin
-version: 1.0.0
+version: 2.0.0
 main: fr.faction.FactionPlugin
 api-version: 1.20
 author: FactionDev
-description: Plugin de gestion de factions avec actionbar
+description: Plugin de gestion de factions avec actionbar, coffre partage, TP et GUI
 
 commands:
   faction:
     description: Commande principale des factions
-    usage: /faction <create|invite|join|leave|setchef|info|list|disband>
+    usage: /faction [create|invite|join|leave|kick|setchef|tp|coffre|info|list|disband|menu]
     aliases: [f, fac]

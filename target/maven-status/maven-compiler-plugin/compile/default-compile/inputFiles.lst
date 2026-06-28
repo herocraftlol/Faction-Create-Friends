@@ -1,6 +1,9 @@
-/workspace/FactionPlugin/src/main/java/fr/faction/managers/FactionManager.java
-/workspace/FactionPlugin/src/main/java/fr/faction/commands/FactionCommand.java
-/workspace/FactionPlugin/src/main/java/fr/faction/FactionPlugin.java
-/workspace/FactionPlugin/src/main/java/fr/faction/managers/ActionBarManager.java
-/workspace/FactionPlugin/src/main/java/fr/faction/models/Faction.java
-/workspace/FactionPlugin/src/main/java/fr/faction/listeners/PlayerListener.java
+/workspace/repo_temp/src/main/java/fr/faction/listeners/PlayerListener.java
+/workspace/repo_temp/src/main/java/fr/faction/gui/FactionGUI.java
+/workspace/repo_temp/src/main/java/fr/faction/managers/SharedInventoryManager.java
+/workspace/repo_temp/src/main/java/fr/faction/managers/ActionBarManager.java
+/workspace/repo_temp/src/main/java/fr/faction/models/Faction.java
+/workspace/repo_temp/src/main/java/fr/faction/commands/FactionCommand.java
+/workspace/repo_temp/src/main/java/fr/faction/FactionPlugin.java
+/workspace/repo_temp/src/main/java/fr/faction/managers/FactionManager.java
+/workspace/repo_temp/src/main/java/fr/faction/managers/FactionTeleportManager.java
