@@ -1,87 +1,83 @@
 package fr.faction;
 
 import fr.faction.commands.FactionCommand;
-import fr.faction.commands.PowerCommand;
 import fr.faction.gui.FactionGUI;
 import fr.faction.gui.FactionRankingGUI;
 import fr.faction.listeners.PlayerListener;
 import fr.faction.managers.ActionBarManager;
 import fr.faction.managers.FactionManager;
 import fr.faction.managers.FactionTeleportManager;
+import fr.faction.managers.PlayerStatsManager;
+import fr.faction.managers.PlaytimeTracker;
 import fr.faction.managers.SharedInventoryManager;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PowerBridgeListener;
-import fr.factionstats.managers.StatsManager;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FactionPlugin extends JavaPlugin {
 
     private FactionManager factionManager;
+    private PlayerStatsManager statsManager;
     private ActionBarManager actionBarManager;
     private SharedInventoryManager sharedInventoryManager;
     private FactionTeleportManager teleportManager;
     private FactionGUI factionGUI;
     private FactionPowerManager powerManager;
     private FactionRankingGUI rankingGUI;
+    private PlaytimeTracker playtimeTracker;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
-        // ── Managers de base ─────────────────────────────────────────────────
+        // Managers de base
         factionManager         = new FactionManager(this);
+        statsManager           = new PlayerStatsManager(this);
         sharedInventoryManager = new SharedInventoryManager(this, factionManager);
         teleportManager        = new FactionTeleportManager(this, factionManager);
 
-        // ── Integration FactionStats (optionnelle) ───────────────────────────
-        StatsManager statsManager = null;
-        Plugin statsPlugin = getServer().getPluginManager().getPlugin("FactionStats");
-        if (statsPlugin != null && statsPlugin.isEnabled()) {
-            statsManager = ((fr.factionstats.FactionStats) statsPlugin).getStatsManager();
-            getLogger().info("[FactionPlugin] Integration FactionStats detectee !");
-        } else {
-            getLogger().warning("[FactionPlugin] FactionStats non detecte — puissance basee sur les membres uniquement.");
-        }
-
-        // ── Système de puissance et rangs ────────────────────────────────────
+        // Système de puissance (intégré, sans dépendance externe)
         powerManager = new FactionPowerManager(this, factionManager, statsManager);
         powerManager.start();
 
-        // ── GUIs ─────────────────────────────────────────────────────────────
-        factionGUI   = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
-        rankingGUI   = new FactionRankingGUI(this, factionManager, powerManager);
+        // GUIs
+        factionGUI       = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
+        rankingGUI       = new FactionRankingGUI(this, factionManager, powerManager);
         actionBarManager = new ActionBarManager(this, factionManager);
 
-        // ── Commandes ────────────────────────────────────────────────────────
-        FactionCommand factionCommand = new FactionCommand(this, factionManager, sharedInventoryManager, teleportManager, factionGUI, rankingGUI);
+        // Commandes — uniquement /faction
+        FactionCommand factionCommand = new FactionCommand(this, factionManager, statsManager,
+                sharedInventoryManager, teleportManager, factionGUI, rankingGUI, powerManager);
         getCommand("faction").setExecutor(factionCommand);
         getCommand("faction").setTabCompleter(factionCommand);
 
-        PowerCommand powerCommand = new PowerCommand(factionManager, powerManager);
-        getCommand("power").setExecutor(powerCommand);
-        getCommand("power").setTabCompleter(powerCommand);
+        // Listeners
+        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager, statsManager), this);
+        getServer().getPluginManager().registerEvents(new PowerBridgeListener(factionManager, powerManager, statsManager), this);
 
-        // ── Listeners ────────────────────────────────────────────────────────
-        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager), this);
-        getServer().getPluginManager().registerEvents(new PowerBridgeListener(factionManager, powerManager), this);
-
-        // ── ActionBar ────────────────────────────────────────────────────────
+        // ActionBar
         actionBarManager.start();
 
-        getLogger().info("FactionPlugin v2.0 active avec systeme de puissance et rangs !");
+        // Suivi du temps de jeu (tâche périodique, ~1x/seconde)
+        playtimeTracker = new PlaytimeTracker(this, statsManager);
+        playtimeTracker.start();
+
+        getLogger().info("FactionPlugin v3.1 actif — commande unique /faction (stats & classements joueurs intégrés) !");
     }
 
     @Override
     public void onDisable() {
-        if (actionBarManager != null)      actionBarManager.stop();
-        if (powerManager != null)          powerManager.stop();
+        if (actionBarManager != null)       actionBarManager.stop();
+        if (playtimeTracker != null)        playtimeTracker.stop();
+        if (powerManager != null)           powerManager.stop();
         if (sharedInventoryManager != null) sharedInventoryManager.saveInventories();
-        if (factionManager != null)        factionManager.saveFactions();
-        getLogger().info("FactionPlugin desactive. Donnees sauvegardees.");
+        if (statsManager != null)           statsManager.saveAll();
+        if (factionManager != null)         factionManager.saveFactions();
+        getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 
     public FactionManager getFactionManager()             { return factionManager; }
+    public PlayerStatsManager getStatsManager()           { return statsManager; }
     public ActionBarManager getActionBarManager()         { return actionBarManager; }
     public SharedInventoryManager getSharedInvManager()  { return sharedInventoryManager; }
     public FactionTeleportManager getTeleportManager()    { return teleportManager; }

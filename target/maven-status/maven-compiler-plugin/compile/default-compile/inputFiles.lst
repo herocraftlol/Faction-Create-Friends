@@ -1,8 +1,7 @@
+/workspace/FactionPlugin/src/main/java/fr/faction/models/PlayerStats.java
 /workspace/FactionPlugin/src/main/java/fr/faction/ranking/FactionRank.java
 /workspace/FactionPlugin/src/main/java/fr/faction/power/PlayerPowerCalculator.java
-/workspace/FactionPlugin/src/main/java/fr/faction/commands/PowerCommand.java
-/workspace/FactionPlugin/src/main/java/fr/factionstats/models/PlayerStats.java
-/workspace/FactionPlugin/src/main/java/fr/factionstats/managers/StatsManager.java
+/workspace/FactionPlugin/src/main/java/fr/faction/managers/PlaytimeTracker.java
 /workspace/FactionPlugin/src/main/java/fr/faction/gui/FactionRankingGUI.java
 /workspace/FactionPlugin/src/main/java/fr/faction/commands/FactionCommand.java
 /workspace/FactionPlugin/src/main/java/fr/faction/gui/FactionGUI.java
@@ -11,8 +10,9 @@
 /workspace/FactionPlugin/src/main/java/fr/faction/managers/ActionBarManager.java
 /workspace/FactionPlugin/src/main/java/fr/faction/power/PowerBridgeListener.java
 /workspace/FactionPlugin/src/main/java/fr/faction/listeners/PlayerListener.java
+/workspace/FactionPlugin/src/main/java/fr/faction/managers/PlayerStatsManager.java
 /workspace/FactionPlugin/src/main/java/fr/faction/managers/FactionManager.java
-/workspace/FactionPlugin/src/main/java/fr/factionstats/FactionStats.java
 /workspace/FactionPlugin/src/main/java/fr/faction/managers/FactionTeleportManager.java
+/workspace/FactionPlugin/src/main/java/fr/faction/managers/StatsMessageUtil.java
 /workspace/FactionPlugin/src/main/java/fr/faction/FactionPlugin.java
 /workspace/FactionPlugin/src/main/java/fr/faction/models/Faction.java

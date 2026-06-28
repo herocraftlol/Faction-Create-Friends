@@ -4,8 +4,14 @@ import fr.faction.gui.FactionGUI;
 import fr.faction.gui.FactionRankingGUI;
 import fr.faction.managers.FactionManager;
 import fr.faction.managers.FactionTeleportManager;
+import fr.faction.managers.PlayerStatsManager;
 import fr.faction.managers.SharedInventoryManager;
+import fr.faction.managers.StatsMessageUtil;
 import fr.faction.models.Faction;
+import fr.faction.models.PlayerStats;
+import fr.faction.power.FactionPowerManager;
+import fr.faction.power.PlayerPowerCalculator;
+import fr.faction.ranking.FactionRank;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -16,57 +22,95 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
+/**
+ * Commande unique : /faction <sous-commande>
+ *
+ * Gestion de faction :
+ *   create, disband, invite, join, leave, kick, setchef, info, list, tp, coffre, menu
+ *
+ * Classement & puissance :
+ *   /faction top                      → leaderboard des factions (texte)
+ *   /faction power [joueur]           → puissance individuelle + faction
+ *   /faction stats [joueur]           → statistiques personnelles détaillées
+ *   /faction classement               → GUI classement factions (par puissance)
+ *   /faction classementjoueurs <cat>  → Top 10 joueurs par catégorie de statistique
+ *   /faction rangs                    → GUI guide des rangs
+ */
 public class FactionCommand implements CommandExecutor, TabCompleter {
+
+    private static final List<String> STATS_CATEGORIES = Arrays.asList(
+            "mobs", "pvp", "advancements", "morts", "blocs", "temps", "dommages", "kd"
+    );
 
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
+    private final PlayerStatsManager statsManager;
     private final SharedInventoryManager sharedInvManager;
     private final FactionTeleportManager teleportManager;
     private final FactionGUI factionGUI;
     private final FactionRankingGUI rankingGUI;
+    private final FactionPowerManager powerManager;
 
-    public FactionCommand(JavaPlugin plugin, FactionManager factionManager,
-                          SharedInventoryManager sharedInvManager,
-                          FactionTeleportManager teleportManager,
-                          FactionGUI factionGUI, FactionRankingGUI rankingGUI) {
+    public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
+                          SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
+                          FactionGUI factionGUI, FactionRankingGUI rankingGUI, FactionPowerManager powerManager) {
         this.plugin = plugin;
         this.factionManager = factionManager;
+        this.statsManager = statsManager;
         this.sharedInvManager = sharedInvManager;
         this.teleportManager = teleportManager;
         this.factionGUI = factionGUI;
         this.rankingGUI = rankingGUI;
+        this.powerManager = powerManager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "Commande reservee aux joueurs.");
+            sender.sendMessage(ChatColor.RED + "Commande réservée aux joueurs.");
             return true;
         }
 
-        if (args.length == 0) { factionGUI.openMainMenu(player); return true; }
+        if (args.length == 0) {
+            factionGUI.openMainMenu(player);
+            return true;
+        }
 
         switch (args[0].toLowerCase()) {
-            case "create"   -> handleCreate(player, args);
-            case "disband"  -> handleDisband(player);
-            case "invite"   -> handleInvite(player, args);
-            case "join"     -> handleJoin(player, args);
-            case "leave"    -> handleLeave(player);
-            case "setchef"  -> handleSetChef(player, args);
-            case "info"     -> handleInfo(player, args);
-            case "list"     -> handleList(player);
-            case "kick"     -> handleKick(player, args);
-            case "coffre", "chest" -> sharedInvManager.openSharedInventory(player);
-            case "tp"       -> handleTp(player, args);
-            case "menu", "gui" -> factionGUI.openMainMenu(player);
-            case "classement", "top", "ranking" -> rankingGUI.openRankingGUI(player);
-            case "rangs", "ranks" -> rankingGUI.openRankInfoGUI(player);
-            default -> sendHelp(player);
+            // ── Gestion de faction ──────────────────────────────────────────────
+            case "create"                    -> handleCreate(player, args);
+            case "disband"                   -> handleDisband(player);
+            case "invite"                    -> handleInvite(player, args);
+            case "join"                      -> handleJoin(player, args);
+            case "leave"                     -> handleLeave(player);
+            case "setchef"                   -> handleSetChef(player, args);
+            case "info"                      -> handleInfo(player, args);
+            case "list"                      -> handleList(player);
+            case "kick"                      -> handleKick(player, args);
+            case "coffre", "chest"           -> sharedInvManager.openSharedInventory(player);
+            case "tp"                        -> handleTp(player, args);
+            case "menu", "gui", "m"          -> factionGUI.openMainMenu(player);
+
+            // ── Classement & puissance ───────────────────────────────────────────
+            case "classement", "ranking"     -> rankingGUI.openRankingGUI(player);
+            case "rangs", "ranks"            -> rankingGUI.openRankInfoGUI(player);
+            case "top"                       -> handleTop(player);
+            case "power", "puissance", "pw"  -> handlePower(player, args);
+            case "stats"                     -> handleStats(player, args);
+            case "classementjoueurs", "cj"   -> handlePlayerLeaderboard(player, args);
+
+            default                          -> sendHelp(player);
         }
         return true;
     }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // GESTION DE FACTION
+    // ════════════════════════════════════════════════════════════════════════════
 
     private void handleCreate(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction create <nom>"); return; }
@@ -74,9 +118,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         String name = args[1];
         int min = plugin.getConfig().getInt("faction.min-name-length", 3);
         int max = plugin.getConfig().getInt("faction.max-name-length", 20);
-        if (name.length() < min) { player.sendMessage(prefix() + msg("name-too-short").replace("%min%", "" + min)); return; }
-        if (name.length() > max) { player.sendMessage(prefix() + msg("name-too-long").replace("%max%", "" + max)); return; }
-        if (!name.matches("[a-zA-Z0-9_\\-]+")) { player.sendMessage(prefix() + ChatColor.RED + "Nom invalide."); return; }
+        if (name.length() < min) { player.sendMessage(prefix() + ChatColor.RED + "Nom trop court (min " + min + " caractères)."); return; }
+        if (name.length() > max) { player.sendMessage(prefix() + ChatColor.RED + "Nom trop long (max " + max + " caractères)."); return; }
+        if (!name.matches("[a-zA-Z0-9_\\-]+")) { player.sendMessage(prefix() + ChatColor.RED + "Nom invalide (lettres, chiffres, _ et - uniquement)."); return; }
         if (!factionManager.createFaction(name, player.getUniqueId())) { player.sendMessage(prefix() + msg("faction-already-exists")); return; }
         player.sendMessage(prefix() + msg("faction-created").replace("%name%", name));
     }
@@ -88,7 +132,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         String name = faction.getName();
         for (UUID uuid : new ArrayList<>(faction.getMembers())) {
             Player m = Bukkit.getPlayer(uuid);
-            if (m != null && !m.equals(player)) m.sendMessage(prefix() + ChatColor.RED + "La faction " + name + " a ete dissoute.");
+            if (m != null && !m.equals(player)) m.sendMessage(prefix() + ChatColor.RED + "La faction " + name + " a été dissoute.");
         }
         sharedInvManager.deleteFactionInventory(name);
         factionManager.disbandFaction(name);
@@ -102,8 +146,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) { player.sendMessage(prefix() + msg("player-not-found")); return; }
-        if (target.equals(player)) { player.sendMessage(prefix() + msg("cannot-invite-self")); return; }
-        if (factionManager.isInFaction(target.getUniqueId())) { player.sendMessage(prefix() + msg("player-already-in-faction").replace("%player%", target.getName())); return; }
+        if (target.equals(player)) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas t'inviter toi-même."); return; }
+        if (factionManager.isInFaction(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + target.getName() + " est déjà dans une faction."); return; }
         if (faction.getMemberCount() >= plugin.getConfig().getInt("faction.max-members", 50)) { player.sendMessage(prefix() + msg("faction-full")); return; }
         factionManager.addInvite(faction.getName(), target.getUniqueId());
         player.sendMessage(prefix() + msg("invite-sent").replace("%player%", target.getName()));
@@ -126,11 +170,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
         if (faction.isChef(player.getUniqueId()) && faction.getMemberCount() > 1) {
-            player.sendMessage(prefix() + ChatColor.RED + "Transfere d abord le role chef : /faction setchef <joueur>");
+            player.sendMessage(prefix() + ChatColor.RED + "Transfère d'abord le rôle de chef : /faction setchef <joueur>");
             return;
         }
         String name = faction.getName();
-        notifyMembers(faction, player, ChatColor.YELLOW + player.getName() + " a quitte la faction.");
+        notifyMembers(faction, player, ChatColor.YELLOW + player.getName() + " a quitté la faction.");
         factionManager.removeMember(name, player.getUniqueId());
         player.sendMessage(prefix() + msg("left-faction").replace("%name%", name));
     }
@@ -142,7 +186,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) { player.sendMessage(prefix() + msg("player-not-found")); return; }
-        if (!faction.isMember(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + target.getName() + " n est pas dans ta faction."); return; }
+        if (!faction.isMember(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + target.getName() + " n'est pas dans ta faction."); return; }
         factionManager.setChef(faction.getName(), target.getUniqueId());
         player.sendMessage(prefix() + msg("chef-set").replace("%player%", target.getName()));
         target.sendMessage(prefix() + ChatColor.GOLD + "Tu es maintenant chef de la faction " + faction.getName() + " !");
@@ -155,13 +199,13 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
         @SuppressWarnings("deprecation") OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-        if (!faction.isMember(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + args[1] + " n est pas dans ta faction."); return; }
-        if (target.getUniqueId().equals(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas te kick toi-meme."); return; }
+        if (!faction.isMember(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + args[1] + " n'est pas dans ta faction."); return; }
+        if (target.getUniqueId().equals(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas te kick toi-même."); return; }
         String tName = target.getName() != null ? target.getName() : args[1];
         factionManager.removeMember(faction.getName(), target.getUniqueId());
-        player.sendMessage(prefix() + ChatColor.YELLOW + tName + " expulse de la faction.");
-        if (target.isOnline() && target.getPlayer() != null) target.getPlayer().sendMessage(prefix() + ChatColor.RED + "Tu as ete expulse de la faction " + faction.getName() + ".");
-        notifyMembers(faction, player, ChatColor.RED + tName + " a ete expulse de la faction.");
+        player.sendMessage(prefix() + ChatColor.YELLOW + tName + " expulsé de la faction.");
+        if (target.isOnline() && target.getPlayer() != null) target.getPlayer().sendMessage(prefix() + ChatColor.RED + "Tu as été expulsé de la faction " + faction.getName() + ".");
+        notifyMembers(faction, player, ChatColor.RED + tName + " a été expulsé de la faction.");
     }
 
     private void handleTp(Player player, String[] args) {
@@ -170,10 +214,15 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleInfo(Player player, String[] args) {
-        Faction faction = args.length >= 2 ? factionManager.getFaction(args[1]) : factionManager.getPlayerFaction(player.getUniqueId());
+        Faction faction = args.length >= 2
+                ? factionManager.getFaction(args[1])
+                : factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + (args.length >= 2 ? msg("faction-not-found") : msg("not-in-faction"))); return; }
-        player.sendMessage(ChatColor.GOLD + "====== " + ChatColor.YELLOW + faction.getName() + ChatColor.GOLD + " ======");
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + faction.getName() + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "Chef : " + ChatColor.WHITE + getPlayerName(faction.getChef()));
+        FactionRank rank = powerManager.getFactionRank(faction.getName());
+        player.sendMessage(ChatColor.GRAY + "Rang  : " + rank.getLabel());
+        player.sendMessage(ChatColor.GRAY + "Puissance : " + ChatColor.GOLD + formatPower(powerManager.getFactionPower(faction.getName())) + " ⚡");
         player.sendMessage(ChatColor.GRAY + "Membres (" + faction.getMemberCount() + ") :");
         for (UUID uuid : faction.getMembers()) {
             Player m = Bukkit.getPlayer(uuid);
@@ -185,25 +234,290 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private void handleList(Player player) {
         Map<String, Faction> all = factionManager.getAllFactions();
         if (all.isEmpty()) { player.sendMessage(prefix() + ChatColor.GRAY + "Aucune faction existante."); return; }
-        player.sendMessage(ChatColor.GOLD + "====== " + ChatColor.YELLOW + "Factions (" + all.size() + ")" + ChatColor.GOLD + " ======");
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Factions (" + all.size() + ")" + ChatColor.GOLD + " ══════");
         for (Faction f : all.values()) {
             long online = f.getMembers().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).count();
-            player.sendMessage(ChatColor.YELLOW + f.getName() + ChatColor.GRAY + " - " + f.getMemberCount() + " membres " + ChatColor.GREEN + "(" + online + " en ligne)");
+            FactionRank rank = powerManager.getFactionRank(f.getName());
+            player.sendMessage(rank.couleur + f.getName() + ChatColor.GRAY + " — " + f.getMemberCount() + " membres " + ChatColor.GREEN + "(" + online + " en ligne)");
         }
     }
 
-    private void sendHelp(Player player) {
-        player.sendMessage(ChatColor.GOLD + "====== " + ChatColor.YELLOW + "Aide Factions" + ChatColor.GOLD + " ======");
-        player.sendMessage(ChatColor.YELLOW + "/faction " + ChatColor.GRAY + "- Menu graphique");
-        player.sendMessage(ChatColor.YELLOW + "/faction create <nom>" + ChatColor.GRAY + " - Creer");
-        player.sendMessage(ChatColor.YELLOW + "/faction invite/join/leave" + ChatColor.GRAY + " - Gestion membres");
-        player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]" + ChatColor.GRAY + " - Teleportation");
-        player.sendMessage(ChatColor.YELLOW + "/faction coffre" + ChatColor.GRAY + " - Coffre partage");
-        player.sendMessage(ChatColor.YELLOW + "/faction classement" + ChatColor.GRAY + " - Classement factions");
-        player.sendMessage(ChatColor.YELLOW + "/faction rangs" + ChatColor.GRAY + " - Guide des rangs");
-        player.sendMessage(ChatColor.YELLOW + "/power" + ChatColor.GRAY + " - Votre puissance individuelle");
-        player.sendMessage(ChatColor.YELLOW + "/power top" + ChatColor.GRAY + " - Top 10 factions");
+    // ════════════════════════════════════════════════════════════════════════════
+    // CLASSEMENT & PUISSANCE
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /** /faction top — leaderboard texte des factions */
+    private void handleTop(Player player) {
+        List<Map.Entry<String, Double>> lb = powerManager.getLeaderboard();
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "⚡ TOP Factions" + ChatColor.GOLD + " ══════");
+        if (lb.isEmpty()) { player.sendMessage(ChatColor.GRAY + "  Aucune faction enregistrée."); }
+        for (int i = 0; i < Math.min(10, lb.size()); i++) {
+            Map.Entry<String, Double> e = lb.get(i);
+            FactionRank rank = powerManager.getFactionRank(e.getKey());
+            String medal = i == 0 ? ChatColor.GOLD + "①" : i == 1 ? ChatColor.WHITE + "②" : i == 2 ? ChatColor.GOLD + "③" : ChatColor.GRAY + "#" + (i + 1);
+            player.sendMessage("  " + medal + " " + rank.getLabel() + ChatColor.WHITE + " " + e.getKey()
+                    + ChatColor.GRAY + " — " + ChatColor.GOLD + formatPower(e.getValue()) + " ⚡");
+        }
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        player.sendMessage("");
     }
+
+    /** /faction power [joueur] — puissance individuelle */
+    private void handlePower(Player player, String[] args) {
+        Player target = player;
+        if (args.length >= 2) {
+            target = Bukkit.getPlayer(args[1]);
+            if (target == null) { player.sendMessage(prefix() + msg("player-not-found")); return; }
+        }
+
+        double pi = powerManager.getPlayerPower(target.getUniqueId());
+        PlayerPowerCalculator.PowerBreakdown bd = powerManager.getPlayerBreakdown(target.getUniqueId());
+        Faction faction = factionManager.getPlayerFaction(target.getUniqueId());
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "⚡ Puissance de " + target.getName() + ChatColor.GOLD + " ══════");
+        player.sendMessage(ChatColor.GRAY + "  Puissance individuelle : " + ChatColor.GOLD + ChatColor.BOLD + formatPower(pi) + " ⚡");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "  Breakdown :");
+        player.sendMessage(ChatColor.RED   + "    ⚔ PvP         : " + ChatColor.WHITE + formatPower(bd.pvp()));
+        player.sendMessage(ChatColor.YELLOW + "    ⛏ Survie      : " + ChatColor.WHITE + formatPower(bd.survie()));
+        player.sendMessage(ChatColor.GREEN  + "    ★ Progression : " + ChatColor.WHITE + formatPower(bd.progression()));
+        player.sendMessage(ChatColor.AQUA   + "    ⏱ Activité    : " + ChatColor.WHITE + formatPower(bd.activite()));
+
+        if (faction != null) {
+            FactionRank rank = powerManager.getFactionRank(faction.getName());
+            double fp = powerManager.getFactionPower(faction.getName());
+            int pos = powerManager.getFactionPosition(faction.getName());
+            player.sendMessage("");
+            player.sendMessage(ChatColor.GRAY + "  Faction : " + ChatColor.WHITE + ChatColor.BOLD + faction.getName());
+            player.sendMessage(ChatColor.GRAY + "  Rang    : " + rank.getLabel());
+            player.sendMessage(ChatColor.GRAY + "  PG      : " + ChatColor.GOLD + formatPower(fp) + " ⚡  " + ChatColor.GRAY + "Classement : " + ChatColor.WHITE + "#" + pos);
+            player.sendMessage(ChatColor.GRAY + "  " + rank.progressBar(fp));
+        }
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════════════");
+        player.sendMessage("");
+    }
+
+    /** /faction stats [joueur] — statistiques personnelles détaillées (façon ex-plugin FactionStats) */
+    private void handleStats(Player player, String[] args) {
+        PlayerStats s;
+
+        if (args.length >= 2) {
+            String nomCible = args[1];
+            s = statsManager.resolveStats(nomCible);
+            if (s == null) {
+                player.sendMessage(prefix() + ChatColor.RED + "Joueur introuvable ou jamais connecté : " + ChatColor.YELLOW + nomCible);
+                return;
+            }
+        } else {
+            s = statsManager.getOrCreateStats(player.getUniqueId(), player.getName());
+        }
+
+        String displayName = s.getPlayerName() != null ? s.getPlayerName() : player.getName();
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+
+        int rangMobs = statsManager.getRank(s.getUuid(), "mobs");
+        int rangPvP  = statsManager.getRank(s.getUuid(), "pvp");
+        int rangAdv  = statsManager.getRank(s.getUuid(), "advancements");
+
+        player.sendMessage("");
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §6§l⚔ §r§eStatistiques de §6§l" + displayName + "§r§8  ✦ Faction Survie"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+
+        player.sendMessage(StatsMessageUtil.colorize("  §8» §7Première connexion : §f" + sdf.format(new Date(s.getFirstJoin()))));
+        player.sendMessage(StatsMessageUtil.colorize("  §8» §7Dernière connexion  : §f" + sdf.format(new Date(s.getLastJoin()))));
+        player.sendMessage(StatsMessageUtil.colorize("  §8» §7Temps de jeu total  : §b" + s.getFormattedPlaytime()));
+        player.sendMessage("");
+
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §c§l⚔ §r§cCOMBAT" + (rangPvP > 0 ? " §8(classement PvP: §6#" + rangPvP + "§8)" : "")));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separatorShort()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Mobs hostiles tués    : §c" + StatsMessageUtil.formatNumber(s.getMobsKilled())
+                        + (rangMobs > 0 ? "  §8(#" + rangMobs + ")" : "")));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Joueurs/entités tués  : §c" + StatsMessageUtil.formatNumber(s.getKills())
+                        + (rangPvP > 0 ? "  §8(#" + rangPvP + ")" : "")));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Morts                 : §c" + StatsMessageUtil.formatNumber(s.getDeaths())));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Ratio K/D             : §e" + s.getKDR()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Dégâts infligés       : §c" + String.format("%.0f", s.getDamageDealt()) + " ❤"));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Dégâts reçus          : §c" + String.format("%.0f", s.getDamageTaken()) + " ❤"));
+        player.sendMessage("");
+
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §a§l★ §r§aAVANCEMENTS" + (rangAdv > 0 ? " §8(classement: §6#" + rangAdv + "§8)" : "")));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separatorShort()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Progrès accomplis     : §a" + StatsMessageUtil.formatNumber(s.getAdvancements())
+                        + (rangAdv > 0 ? "  §8(#" + rangAdv + ")" : "")));
+        player.sendMessage("");
+
+        player.sendMessage(StatsMessageUtil.colorize("  §e§l⛏ §r§eSURVIE & CONSTRUCTION"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separatorShort()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Blocs cassés          : §e" + StatsMessageUtil.formatNumber(s.getBlocksBroken())));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Blocs placés          : §e" + StatsMessageUtil.formatNumber(s.getBlocksPlaced())));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Distance parcourue    : §e" + String.format("%.0f", s.getDistanceTravelled()) + " blocs"));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Items craftés         : §e" + StatsMessageUtil.formatNumber(s.getItemsCrafted())));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8› §7Items ramassés        : §e" + StatsMessageUtil.formatNumber(s.getItemsPickedUp())));
+
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8Utilisez §7/faction classementjoueurs §8pour voir les classements."));
+        player.sendMessage("");
+    }
+
+    /** /faction classementjoueurs <categorie> — Top 10 joueurs par statistique (ex-plugin FactionStats) */
+    private void handlePlayerLeaderboard(Player player, String[] args) {
+        if (args.length < 2) {
+            afficherMenuClassementJoueurs(player);
+            return;
+        }
+
+        String categorie = args[1].toLowerCase();
+
+        switch (categorie) {
+            case "mobs" -> afficherClassementJoueurs(player,
+                    "Mobs Hostiles Tués", "⚔", "§c",
+                    statsManager.getTopMobsKilled(10),
+                    s -> StatsMessageUtil.formatNumber(s.getMobsKilled()) + " mobs");
+
+            case "pvp", "joueurs" -> afficherClassementJoueurs(player,
+                    "Joueurs/Entités Tués (PvP)", "☠", "§c",
+                    statsManager.getTopKills(10),
+                    s -> StatsMessageUtil.formatNumber(s.getKills()) + " kills");
+
+            case "advancements", "progres" -> afficherClassementJoueurs(player,
+                    "Progrès Accomplis", "★", "§a",
+                    statsManager.getTopAdvancements(10),
+                    s -> StatsMessageUtil.formatNumber(s.getAdvancements()) + " progrès");
+
+            case "morts" -> afficherClassementJoueurs(player,
+                    "Nombre de Morts", "💀", "§7",
+                    statsManager.getTopDeaths(10),
+                    s -> StatsMessageUtil.formatNumber(s.getDeaths()) + " morts");
+
+            case "blocs" -> afficherClassementJoueurs(player,
+                    "Blocs Cassés", "⛏", "§e",
+                    statsManager.getTopBlocksBroken(10),
+                    s -> StatsMessageUtil.formatNumber(s.getBlocksBroken()) + " blocs");
+
+            case "temps" -> afficherClassementJoueurs(player,
+                    "Temps de Jeu", "⏱", "§b",
+                    statsManager.getTopPlaytime(10),
+                    PlayerStats::getFormattedPlaytime);
+
+            case "dommages" -> afficherClassementJoueurs(player,
+                    "Dégâts Infligés", "❤", "§c",
+                    statsManager.getTopDamageDealt(10),
+                    s -> String.format("%.0f", s.getDamageDealt()) + " ❤");
+
+            case "kd" -> afficherClassementJoueurs(player,
+                    "Ratio K/D", "⚖", "§e",
+                    statsManager.getTopKDR(10),
+                    s -> "K/D: §e" + s.getKDR());
+
+            default -> {
+                player.sendMessage(prefix() + ChatColor.RED + "Catégorie inconnue : " + ChatColor.YELLOW + categorie);
+                afficherMenuClassementJoueurs(player);
+            }
+        }
+    }
+
+    private void afficherMenuClassementJoueurs(Player player) {
+        player.sendMessage("");
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize("  §6§l⚔ §r§6CLASSEMENT JOUEURS §8— §7Faction Survie"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize("  §7Choisissez une catégorie :"));
+        player.sendMessage("");
+        player.sendMessage(StatsMessageUtil.colorize("  §c» §f/faction classementjoueurs mobs        §8─ §7Mobs hostiles tués"));
+        player.sendMessage(StatsMessageUtil.colorize("  §c» §f/faction classementjoueurs pvp         §8─ §7Joueurs tués (PvP)"));
+        player.sendMessage(StatsMessageUtil.colorize("  §c» §f/faction classementjoueurs kd          §8─ §7Ratio Kills/Deaths"));
+        player.sendMessage(StatsMessageUtil.colorize("  §a» §f/faction classementjoueurs advancements§8─ §7Progrès accomplis"));
+        player.sendMessage(StatsMessageUtil.colorize("  §e» §f/faction classementjoueurs blocs       §8─ §7Blocs cassés"));
+        player.sendMessage(StatsMessageUtil.colorize("  §7» §f/faction classementjoueurs morts       §8─ §7Nombre de morts"));
+        player.sendMessage(StatsMessageUtil.colorize("  §b» §f/faction classementjoueurs temps       §8─ §7Temps de jeu"));
+        player.sendMessage(StatsMessageUtil.colorize("  §c» §f/faction classementjoueurs dommages    §8─ §7Dégâts infligés"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage("");
+    }
+
+    @FunctionalInterface
+    private interface StatExtractor {
+        String extract(PlayerStats stats);
+    }
+
+    private void afficherClassementJoueurs(Player player, String titre, String icone, String couleur,
+                                            List<PlayerStats> classement, StatExtractor extractor) {
+        player.sendMessage("");
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  " + couleur + "§l" + icone + " §r" + couleur + "CLASSEMENT — " + titre.toUpperCase()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8Top " + Math.min(10, classement.size()) + " joueurs depuis le début du serveur"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+
+        if (classement.isEmpty()) {
+            player.sendMessage(StatsMessageUtil.colorize("  §7Aucune donnée disponible pour le moment."));
+        } else {
+            for (int i = 0; i < classement.size(); i++) {
+                PlayerStats stats = classement.get(i);
+                int rang = i + 1;
+                String nom = stats.getPlayerName() != null ? stats.getPlayerName() : getPlayerName(stats.getUuid());
+                String ligne = "  " + StatsMessageUtil.getMedaille(rang) + "§f" + nom +
+                        " §8— " + couleur + extractor.extract(stats);
+                player.sendMessage(StatsMessageUtil.colorize(ligne));
+            }
+        }
+
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8Utilisez §7/faction stats <joueur> §8pour voir les détails."));
+        player.sendMessage("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // AIDE
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void sendHelp(Player player) {
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
+        player.sendMessage(ChatColor.GRAY + "— Gestion —");
+        player.sendMessage(ChatColor.YELLOW + "/faction create <nom>   " + ChatColor.GRAY + "Créer une faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction disband        " + ChatColor.GRAY + "Dissoudre la faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction invite <joueur>" + ChatColor.GRAY + " Inviter");
+        player.sendMessage(ChatColor.YELLOW + "/faction join <nom>     " + ChatColor.GRAY + "Rejoindre");
+        player.sendMessage(ChatColor.YELLOW + "/faction leave          " + ChatColor.GRAY + "Quitter");
+        player.sendMessage(ChatColor.YELLOW + "/faction kick <joueur>  " + ChatColor.GRAY + "Expulser");
+        player.sendMessage(ChatColor.YELLOW + "/faction setchef <joueur>" + ChatColor.GRAY + "Transférer le chef");
+        player.sendMessage(ChatColor.YELLOW + "/faction info [nom]     " + ChatColor.GRAY + "Info faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction list           " + ChatColor.GRAY + "Liste des factions");
+        player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]    " + ChatColor.GRAY + "Téléportation");
+        player.sendMessage(ChatColor.YELLOW + "/faction coffre         " + ChatColor.GRAY + "Coffre partagé");
+        player.sendMessage(ChatColor.GRAY + "— Classement & Stats —");
+        player.sendMessage(ChatColor.YELLOW + "/faction top            " + ChatColor.GRAY + "Top 10 factions (texte)");
+        player.sendMessage(ChatColor.YELLOW + "/faction classement     " + ChatColor.GRAY + "Classement factions GUI");
+        player.sendMessage(ChatColor.YELLOW + "/faction rangs          " + ChatColor.GRAY + "Guide des rangs GUI");
+        player.sendMessage(ChatColor.YELLOW + "/faction power [joueur] " + ChatColor.GRAY + "Puissance individuelle");
+        player.sendMessage(ChatColor.YELLOW + "/faction stats [joueur] " + ChatColor.GRAY + "Statistiques personnelles");
+        player.sendMessage(ChatColor.YELLOW + "/faction classementjoueurs <cat>" + ChatColor.GRAY + " Top 10 joueurs par stat");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // UTILS
+    // ════════════════════════════════════════════════════════════════════════════
 
     private void notifyMembers(Faction faction, Player exclude, String message, Player... extra) {
         Set<Player> excl = new HashSet<>(Arrays.asList(extra));
@@ -221,21 +535,51 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         return op.getName() != null ? op.getName() : uuid.toString().substring(0, 8);
     }
 
+    private String formatPower(double val) {
+        if (val >= 1000) return String.format("%.1fk", val / 1000);
+        return String.format("%.1f", val);
+    }
+
     private String prefix() {
-        return ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix", "&8[&6Faction&8] &r"));
+        return ChatColor.translateAlternateColorCodes('&',
+                plugin.getConfig().getString("messages.prefix", "&8[&6Faction&8] &r"));
     }
 
     private String msg(String key) {
-        return ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages." + key, "&cMessage manquant: " + key));
+        return ChatColor.translateAlternateColorCodes('&',
+                plugin.getConfig().getString("messages." + key, "&cMessage manquant: " + key));
     }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // TAB COMPLETE
+    // ════════════════════════════════════════════════════════════════════════════
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1)
-            return Arrays.asList("create","disband","invite","join","leave","kick","setchef","info","list","tp","coffre","classement","rangs","menu");
-        if (args.length == 2) switch (args[0].toLowerCase()) {
-            case "info","join" -> { List<String> l = new ArrayList<>(); factionManager.getAllFactions().values().forEach(f -> l.add(f.getName())); return l; }
-            case "invite","kick","setchef","tp" -> { List<String> l = new ArrayList<>(); Bukkit.getOnlinePlayers().forEach(p -> l.add(p.getName())); return l; }
+        if (args.length == 1) {
+            List<String> subs = Arrays.asList(
+                    "create","disband","invite","join","leave","kick","setchef",
+                    "info","list","tp","coffre","menu",
+                    "top","classement","rangs","power","stats","classementjoueurs"
+            );
+            return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
+        }
+        if (args.length == 2) {
+            return switch (args[0].toLowerCase()) {
+                case "info", "join" -> factionManager.getAllFactions().values().stream()
+                        .map(f -> f.getName())
+                        .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "invite", "kick", "setchef", "tp", "power", "stats" ->
+                        Bukkit.getOnlinePlayers().stream()
+                                .map(Player::getName)
+                                .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
+                                .collect(Collectors.toList());
+                case "classementjoueurs", "cj" -> STATS_CATEGORIES.stream()
+                        .filter(c -> c.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                default -> Collections.emptyList();
+            };
         }
         return Collections.emptyList();
     }

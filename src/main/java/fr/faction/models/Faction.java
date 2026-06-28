@@ -19,63 +19,18 @@ public class Faction {
         this.members.add(chef);
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public UUID getChef() {
-        return chef;
-    }
-
-    public void setChef(UUID chef) {
-        this.chef = chef;
-    }
-
-    public List<UUID> getMembers() {
-        return members;
-    }
-
-    public boolean isMember(UUID uuid) {
-        return members.contains(uuid);
-    }
-
-    public boolean isChef(UUID uuid) {
-        return chef.equals(uuid);
-    }
-
-    public void addMember(UUID uuid) {
-        if (!members.contains(uuid)) {
-            members.add(uuid);
-        }
-    }
-
-    public void removeMember(UUID uuid) {
-        members.remove(uuid);
-    }
-
-    public List<UUID> getPendingInvites() {
-        return pendingInvites;
-    }
-
-    public void addInvite(UUID uuid) {
-        if (!pendingInvites.contains(uuid)) {
-            pendingInvites.add(uuid);
-        }
-    }
-
-    public void removeInvite(UUID uuid) {
-        pendingInvites.remove(uuid);
-    }
-
-    public boolean hasInvite(UUID uuid) {
-        return pendingInvites.contains(uuid);
-    }
-
-    public int getMemberCount() {
-        return members.size();
-    }
+    public String getName()                   { return name; }
+    public void setName(String name)          { this.name = name; }
+    public UUID getChef()                     { return chef; }
+    public void setChef(UUID chef)            { this.chef = chef; }
+    public List<UUID> getMembers()            { return members; }
+    public boolean isMember(UUID uuid)        { return members.contains(uuid); }
+    public boolean isChef(UUID uuid)          { return chef.equals(uuid); }
+    public void addMember(UUID uuid)          { if (!members.contains(uuid)) members.add(uuid); }
+    public void removeMember(UUID uuid)       { members.remove(uuid); }
+    public List<UUID> getPendingInvites()     { return pendingInvites; }
+    public void addInvite(UUID uuid)          { if (!pendingInvites.contains(uuid)) pendingInvites.add(uuid); }
+    public void removeInvite(UUID uuid)       { pendingInvites.remove(uuid); }
+    public boolean hasInvite(UUID uuid)       { return pendingInvites.contains(uuid); }
+    public int getMemberCount()               { return members.size(); }
 }

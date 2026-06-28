@@ -23,8 +23,6 @@ public class FactionManager {
         loadFactions();
     }
 
-    // ─── CRUD ───────────────────────────────────────────────────────────────────
-
     public boolean createFaction(String name, UUID chef) {
         if (factions.containsKey(name.toLowerCase())) return false;
         Faction faction = new Faction(name, chef);
@@ -37,9 +35,7 @@ public class FactionManager {
     public boolean disbandFaction(String name) {
         Faction faction = factions.get(name.toLowerCase());
         if (faction == null) return false;
-        for (UUID member : faction.getMembers()) {
-            playerFactionMap.remove(member);
-        }
+        for (UUID member : faction.getMembers()) playerFactionMap.remove(member);
         factions.remove(name.toLowerCase());
         saveFactions();
         return true;
@@ -60,7 +56,6 @@ public class FactionManager {
         if (faction == null) return false;
         faction.removeMember(player);
         playerFactionMap.remove(player);
-        // Si le chef quitte, on dissout ou on change le chef
         if (faction.isChef(player)) {
             if (faction.getMembers().isEmpty()) {
                 disbandFaction(factionName);
@@ -82,12 +77,8 @@ public class FactionManager {
 
     public void addInvite(String factionName, UUID player) {
         Faction faction = factions.get(factionName.toLowerCase());
-        if (faction != null) {
-            faction.addInvite(player);
-        }
+        if (faction != null) faction.addInvite(player);
     }
-
-    // ─── GETTERS ────────────────────────────────────────────────────────────────
 
     public Faction getFaction(String name) {
         return factions.get(name.toLowerCase());
@@ -95,8 +86,7 @@ public class FactionManager {
 
     public Faction getPlayerFaction(UUID player) {
         String name = playerFactionMap.get(player);
-        if (name == null) return null;
-        return factions.get(name);
+        return name == null ? null : factions.get(name);
     }
 
     public boolean isInFaction(UUID player) {
@@ -107,42 +97,34 @@ public class FactionManager {
         return Collections.unmodifiableMap(factions);
     }
 
-    // ─── PERSISTENCE ────────────────────────────────────────────────────────────
-
     public void saveFactions() {
         if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
         dataConfig = new YamlConfiguration();
-
         for (Map.Entry<String, Faction> entry : factions.entrySet()) {
             String key = "factions." + entry.getKey();
             Faction f = entry.getValue();
             dataConfig.set(key + ".name", f.getName());
             dataConfig.set(key + ".chef", f.getChef().toString());
-
             List<String> memberStrings = new ArrayList<>();
             for (UUID uuid : f.getMembers()) memberStrings.add(uuid.toString());
             dataConfig.set(key + ".members", memberStrings);
         }
-
         try {
             dataConfig.save(dataFile);
         } catch (IOException e) {
-            plugin.getLogger().severe("Erreur lors de la sauvegarde des factions : " + e.getMessage());
+            plugin.getLogger().severe("Erreur sauvegarde factions : " + e.getMessage());
         }
     }
 
     public void loadFactions() {
         if (!dataFile.exists()) return;
         dataConfig = YamlConfiguration.loadConfiguration(dataFile);
-
         if (!dataConfig.contains("factions")) return;
-
         for (String key : Objects.requireNonNull(dataConfig.getConfigurationSection("factions")).getKeys(false)) {
             String path = "factions." + key;
             String name = dataConfig.getString(path + ".name");
             UUID chef = UUID.fromString(Objects.requireNonNull(dataConfig.getString(path + ".chef")));
             List<String> memberStrings = dataConfig.getStringList(path + ".members");
-
             Faction faction = new Faction(name, chef);
             faction.getMembers().clear();
             for (String uuidStr : memberStrings) {
