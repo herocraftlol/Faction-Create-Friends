@@ -3,10 +3,24 @@ version: 2.0.0
 main: fr.faction.FactionPlugin
 api-version: 1.20
 author: FactionDev
-description: Plugin de gestion de factions avec actionbar, coffre partage, TP et GUI
+description: Plugin de factions avec puissance, rangs, classement, coffre partage, TP et GUI
+softdepend:
+  - FactionStats
 
 commands:
   faction:
     description: Commande principale des factions
-    usage: /faction [create|invite|join|leave|kick|setchef|tp|coffre|info|list|disband|menu]
+    usage: /faction [sous-commande]
     aliases: [f, fac]
+  power:
+    description: Affiche la puissance individuelle et de faction
+    usage: /power [top|faction <nom>|<joueur>]
+    aliases: [puissance, pw]
+
+permissions:
+  faction.use:
+    description: Utiliser les commandes de faction
+    default: true
+  faction.admin:
+    description: Commandes admin
+    default: op
