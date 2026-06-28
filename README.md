@@ -4,28 +4,29 @@ Plugin Minecraft de gestion de factions pour serveur Spigot/Paper 1.20.4
 
 ## Description
 
-FactionPlugin est un plugin Minecraft qui permet la gestion complète des factions sur votre serveur. Il inclut des fonctionnalités avancées telles que la création de factions, la gestion des membres, les interfaces graphiques (GUI), la téléportation et la gestion d'inventaire partagé.
+FactionPlugin est un plugin Minecraft avancé qui permet la gestion complète des factions sur votre serveur. Il inclut un système unique de **Puissance de Faction** avec des rangs et des avantages passifs pour récompenser les factions les plus actives !
 
 ## Fonctionnalités
 
+### ⚡ Système de Puissance (Power System)
+- **Puissance Individuelle (PI)** : Chaque joueur génère de la puissance basée sur ses stats PvP, survie, progression et activité
+- **Puissance Globale (PG)** : La somme des PI des membres + bonus de taille
+- **7 Rangs de Faction** : Pierre, Bronze, Argent, Or, Diamant, Emeraude, Légendaire
+- **Effets passifs** : Plus votre faction monte en rang, plus vous obtenez d'avantages (Speed, Haste, Force, Regen, etc.)
+- **Aura de soin** : Au rang Légendaire, les alliés proches reçoivent Regeneration
+
+### 📊 Classement & GUI
+- **Classement en temps réel** : Voir le top 10 des factions par puissance
+- **Interface de classement** : GUI interactif pour parcourir le classement
+- **Breakdown des stats** : Détail de votre puissance par catégorie
+
 ### 🔧 Fonctionnalités de base
 - **Création de factions** : Créez votre propre faction avec une commande simple
-- **Gestion des membres** : Invitez et gérez les membres de votre faction
-- **Système de chat** : Communication entre membres de faction
+- **Gestion des membres** : Invitez, expulsez, nommez un nouveau chef
+- **Système de téléportation** : TP vers les membres de votre faction
+- **Inventaire partagé** : Un coffre commun pour tous les membres
+- **Interface GUI** : Menu interactif complet pour gérer votre faction
 - **ActionBar notifications** : Notifications en jeu pour les événements importants
-
-### ✨ Nouveautés v1.1.0
-- **Interface Graphique (GUI)** : Menu interactif complet pour gérer votre faction
-  - Menu principal avec toutes les options
-  - Gestion des membres (voir, expulser, nommer chef)
-  - Menu de téléportation vers les membres
-- **Système de Téléportation** : Téléportez-vous vers n'importe quel membre de votre faction
-  - Téléportation vers un membre spécifique
-  - Téléportation vers le membre le plus proche
-- **Inventaire Partagé** : Un coffre commun pour tous les membres de la faction
-  - Accès via le GUI ou commande
-  - Tous les membres peuvent accéder au même inventaire
-- **Confirmation de sécurité** : Confirmation avant les actions irréversibles (dissoudre la faction, quitter)
 
 ## Installation
 
@@ -68,10 +69,11 @@ Le JAR compilée sera dans `target/FactionPlugin-1.0.0.jar`
 
 ## Télécharger
 
-📦 **[Télécharger FactionPlugin-1.1.0.jar](../../releases/download/v1.1.0/FactionPlugin-1.1.0.jar)**
+📦 **[Télécharger FactionPlugin-2.0.0.jar](../../releases/download/v2.0.0/FactionPlugin-2.0.0.jar)**
 
 ## Version
 
+- **v2.0.0** : Système de Puissance, Rangs et Classement
 - **v1.1.0** : Ajout du GUI, téléportation et inventaire partagé
 - **v1.0.0** : Version initiale avec les fonctionnalités de base
 
