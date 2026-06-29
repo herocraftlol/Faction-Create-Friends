@@ -1,9 +1,9 @@
 name: FactionPlugin
-version: 3.1.0
+version: 3.2.0
 main: fr.faction.FactionPlugin
 api-version: 1.20
 author: FactionDev
-description: Plugin de factions complet — commande unique /faction (stats et classements joueurs intégrés)
+description: Plugin de factions complet — claim, banque émeraudes, troc, stats, classements
 
 commands:
   faction:
@@ -16,5 +16,5 @@ permissions:
     description: Utiliser les commandes de faction
     default: true
   faction.admin:
-    description: Commandes admin faction
+    description: Commandes admin faction (bypass claim)
     default: op

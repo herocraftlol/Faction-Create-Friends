@@ -1,5 +1,8 @@
 package fr.faction.commands;
 
+import fr.faction.claim.ClaimManager;
+import fr.faction.claim.ClaimPermissionGUI;
+import fr.faction.economy.BankGUI;
 import fr.faction.gui.FactionGUI;
 import fr.faction.gui.FactionRankingGUI;
 import fr.faction.managers.FactionManager;
@@ -12,8 +15,11 @@ import fr.faction.models.PlayerStats;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PlayerPowerCalculator;
 import fr.faction.ranking.FactionRank;
+import fr.faction.trade.TradeGUI;
+import fr.faction.trade.TradeManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Chunk;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -33,12 +39,16 @@ import java.util.stream.Collectors;
  *   create, disband, invite, join, leave, kick, setchef, info, list, tp, coffre, menu
  *
  * Classement & puissance :
- *   /faction top                      → leaderboard des factions (texte)
- *   /faction power [joueur]           → puissance individuelle + faction
- *   /faction stats [joueur]           → statistiques personnelles détaillées
- *   /faction classement               → GUI classement factions (par puissance)
- *   /faction classementjoueurs <cat>  → Top 10 joueurs par catégorie de statistique
- *   /faction rangs                    → GUI guide des rangs
+ *   /faction top / classement / rangs / power / stats / classementjoueurs
+ *
+ * Économie & territoire :
+ *   /faction claim          → Claimer le chunk actuel (coût en émeraudes)
+ *   /faction unclaim        → Retirer le claim du chunk actuel
+ *   /faction claims         → Voir les claims de ta faction
+ *   /faction perms          → Gérer les permissions du chunk claimé (GUI)
+ *   /faction banque         → Ouvrir la banque d'émeraudes (GUI)
+ *   /faction troc <joueur>  → Proposer un troc à un joueur
+ *   /faction accepter       → Accepter une invitation de troc
  */
 public class FactionCommand implements CommandExecutor, TabCompleter {
 
@@ -54,10 +64,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final FactionGUI factionGUI;
     private final FactionRankingGUI rankingGUI;
     private final FactionPowerManager powerManager;
+    private final ClaimManager claimManager;
+    private final ClaimPermissionGUI claimPermissionGUI;
+    private final BankGUI bankGUI;
+    private final TradeManager tradeManager;
+    private final TradeGUI tradeGUI;
 
     public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
-                          FactionGUI factionGUI, FactionRankingGUI rankingGUI, FactionPowerManager powerManager) {
+                          FactionGUI factionGUI, FactionRankingGUI rankingGUI, FactionPowerManager powerManager,
+                          ClaimManager claimManager, ClaimPermissionGUI claimPermissionGUI,
+                          BankGUI bankGUI, TradeManager tradeManager, TradeGUI tradeGUI) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.statsManager = statsManager;
@@ -66,6 +83,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.factionGUI = factionGUI;
         this.rankingGUI = rankingGUI;
         this.powerManager = powerManager;
+        this.claimManager = claimManager;
+        this.claimPermissionGUI = claimPermissionGUI;
+        this.bankGUI = bankGUI;
+        this.tradeManager = tradeManager;
+        this.tradeGUI = tradeGUI;
     }
 
     @Override
@@ -102,6 +124,15 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "power", "puissance", "pw"  -> handlePower(player, args);
             case "stats"                     -> handleStats(player, args);
             case "classementjoueurs", "cj"   -> handlePlayerLeaderboard(player, args);
+
+            // ── Territoire & économie ────────────────────────────────────────────
+            case "claim"                     -> handleClaim(player);
+            case "unclaim"                   -> handleUnclaim(player);
+            case "claims"                    -> handleClaims(player);
+            case "perms", "permissions"      -> handlePerms(player);
+            case "banque", "bank"            -> bankGUI.openMainBankMenu(player);
+            case "troc", "trade"             -> handleTradeInvite(player, args);
+            case "accepter", "accepttrade"   -> handleTradeAccept(player);
 
             default                          -> sendHelp(player);
         }
@@ -489,30 +520,182 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    // CLAIM — TERRITOIRE
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleClaim(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu dois être dans une faction pour claimer."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut claimer un chunk."); return; }
+
+        Chunk chunk = player.getLocation().getChunk();
+        if (claimManager.isClaimed(chunk)) {
+            ClaimManager.ClaimData existing = claimManager.getClaim(chunk);
+            player.sendMessage(prefix() + ChatColor.RED + "Ce chunk est déjà claimé par §e" + existing.getFactionName() + ChatColor.RED + ".");
+            return;
+        }
+
+        int cost = claimManager.getNextClaimCost(faction.getName());
+        long balance = ((fr.faction.FactionPlugin) plugin).getBankManager().getFactionBalance(faction.getName());
+
+        if (balance < cost) {
+            player.sendMessage(prefix() + ChatColor.RED + "Fonds insuffisants ! Ce claim coûte §e" + cost
+                    + " 💎§c et le coffre faction contient §e" + balance + " 💎§c.");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Utilisez §e/faction banque §7pour déposer des émeraudes dans le coffre faction.");
+            return;
+        }
+
+        // Déduire le coût
+        ((fr.faction.FactionPlugin) plugin).getBankManager().withdrawFaction(faction.getName(), cost);
+        claimManager.addClaim(faction.getName(), chunk);
+
+        player.sendMessage(prefix() + ChatColor.GREEN + "✔ Chunk [" + chunk.getX() + ", " + chunk.getZ() + "] claimé pour §e"
+                + faction.getName() + ChatColor.GREEN + " ! Coût : §a" + cost + " 💎");
+        player.sendMessage(prefix() + ChatColor.GRAY + "Prochain claim : §e"
+                + claimManager.getNextClaimCost(faction.getName()) + " 💎");
+        notifyMembers(faction, player,
+                ChatColor.GREEN + "Le chef a claimé un chunk ! (" + claimManager.getClaimCount(faction.getName()) + " claims total)");
+    }
+
+    private void handleUnclaim(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut retirer un claim."); return; }
+
+        Chunk chunk = player.getLocation().getChunk();
+        if (!claimManager.isClaimed(chunk)) { player.sendMessage(prefix() + ChatColor.RED + "Ce chunk n'est pas claimé."); return; }
+
+        ClaimManager.ClaimData data = claimManager.getClaim(chunk);
+        if (!data.getFactionName().equalsIgnoreCase(faction.getName())) {
+            player.sendMessage(prefix() + ChatColor.RED + "Ce chunk appartient à §e" + data.getFactionName() + ChatColor.RED + ".");
+            return;
+        }
+
+        claimManager.removeClaim(faction.getName(), chunk);
+        player.sendMessage(prefix() + ChatColor.YELLOW + "Chunk [" + chunk.getX() + ", " + chunk.getZ() + "] libéré.");
+    }
+
+    private void handleClaims(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+
+        int count = claimManager.getClaimCount(faction.getName());
+        int nextCost = claimManager.getNextClaimCost(faction.getName());
+        player.sendMessage(ChatColor.GOLD + "══════ Claims de §e" + faction.getName() + ChatColor.GOLD + " ══════");
+        player.sendMessage(ChatColor.GRAY + "Total : §e" + count + " chunk(s) claimé(s)");
+        player.sendMessage(ChatColor.GRAY + "Prochain claim : §a" + nextCost + " 💎 émeraudes");
+
+        List<ClaimManager.ChunkKey> keys = claimManager.getFactionClaims(faction.getName());
+        if (keys.isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "Aucun chunk claimé pour le moment.");
+        } else {
+            player.sendMessage(ChatColor.GRAY + "Liste (monde : x,z) :");
+            int shown = 0;
+            for (ClaimManager.ChunkKey k : keys) {
+                if (shown++ >= 15) { player.sendMessage(ChatColor.DARK_GRAY + "  ... et " + (keys.size() - 15) + " de plus."); break; }
+                player.sendMessage(ChatColor.DARK_GRAY + "  • §7" + k.world() + " §8: §f" + k.cx() + "§8, §f" + k.cz());
+            }
+        }
+    }
+
+    private void handlePerms(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut gérer les permissions."); return; }
+
+        Chunk chunk = player.getLocation().getChunk();
+        if (!claimManager.isClaimed(chunk)) { player.sendMessage(prefix() + ChatColor.RED + "Ce chunk n'est pas claimé."); return; }
+
+        ClaimManager.ClaimData data = claimManager.getClaim(chunk);
+        if (!data.getFactionName().equalsIgnoreCase(faction.getName())) {
+            player.sendMessage(prefix() + ChatColor.RED + "Ce chunk appartient à §e" + data.getFactionName() + ChatColor.RED + ".");
+            return;
+        }
+
+        claimPermissionGUI.openPermGUI(player, chunk);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // TROC
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleTradeInvite(Player player, String[] args) {
+        if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction troc <joueur>"); return; }
+        if (tradeManager.inTrade(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Tu es déjà dans un troc actif."); return; }
+
+        Player target = Bukkit.getPlayer(args[1]);
+        if (target == null || target.equals(player)) { player.sendMessage(prefix() + ChatColor.RED + "Joueur introuvable."); return; }
+        if (tradeManager.inTrade(target.getUniqueId())) {
+            player.sendMessage(prefix() + ChatColor.RED + target.getName() + " est déjà dans un troc.");
+            return;
+        }
+
+        tradeManager.sendInvite(player.getUniqueId(), target.getUniqueId());
+        player.sendMessage(prefix() + ChatColor.YELLOW + "Invitation de troc envoyée à §e" + target.getName() + ChatColor.YELLOW + ".");
+        target.sendMessage(prefix() + ChatColor.AQUA + "§e" + player.getName() + ChatColor.AQUA
+                + " te propose un troc ! Tape §e/faction accepter §bpour accepter.");
+    }
+
+    private void handleTradeAccept(Player player) {
+        UUID inviter = tradeManager.getInviterFor(player.getUniqueId());
+        if (inviter == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'as pas d'invitation de troc en attente."); return; }
+
+        Player inviterPlayer = Bukkit.getPlayer(inviter);
+        if (inviterPlayer == null) {
+            tradeManager.removeInvite(inviter);
+            player.sendMessage(prefix() + ChatColor.RED + "L'inviteur s'est déconnecté.");
+            return;
+        }
+        if (tradeManager.inTrade(inviter) || tradeManager.inTrade(player.getUniqueId())) {
+            player.sendMessage(prefix() + ChatColor.RED + "L'un de vous est déjà dans un troc.");
+            return;
+        }
+
+        tradeManager.removeInvite(inviter);
+        tradeManager.createSession(inviter, player.getUniqueId());
+
+        player.sendMessage(prefix() + ChatColor.GREEN + "✔ Troc accepté avec §e" + inviterPlayer.getName() + ChatColor.GREEN + " !");
+        inviterPlayer.sendMessage(prefix() + ChatColor.GREEN + "✔ §e" + player.getName() + ChatColor.GREEN + " a accepté le troc !");
+
+        tradeGUI.openTradeGUI(inviterPlayer);
+        tradeGUI.openTradeGUI(player);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     // AIDE
     // ════════════════════════════════════════════════════════════════════════════
 
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "— Gestion —");
-        player.sendMessage(ChatColor.YELLOW + "/faction create <nom>   " + ChatColor.GRAY + "Créer une faction");
-        player.sendMessage(ChatColor.YELLOW + "/faction disband        " + ChatColor.GRAY + "Dissoudre la faction");
-        player.sendMessage(ChatColor.YELLOW + "/faction invite <joueur>" + ChatColor.GRAY + " Inviter");
-        player.sendMessage(ChatColor.YELLOW + "/faction join <nom>     " + ChatColor.GRAY + "Rejoindre");
-        player.sendMessage(ChatColor.YELLOW + "/faction leave          " + ChatColor.GRAY + "Quitter");
-        player.sendMessage(ChatColor.YELLOW + "/faction kick <joueur>  " + ChatColor.GRAY + "Expulser");
-        player.sendMessage(ChatColor.YELLOW + "/faction setchef <joueur>" + ChatColor.GRAY + "Transférer le chef");
-        player.sendMessage(ChatColor.YELLOW + "/faction info [nom]     " + ChatColor.GRAY + "Info faction");
-        player.sendMessage(ChatColor.YELLOW + "/faction list           " + ChatColor.GRAY + "Liste des factions");
-        player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]    " + ChatColor.GRAY + "Téléportation");
-        player.sendMessage(ChatColor.YELLOW + "/faction coffre         " + ChatColor.GRAY + "Coffre partagé");
+        player.sendMessage(ChatColor.YELLOW + "/faction create <nom>        " + ChatColor.GRAY + "Créer une faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction disband             " + ChatColor.GRAY + "Dissoudre la faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction invite <joueur>     " + ChatColor.GRAY + "Inviter un joueur");
+        player.sendMessage(ChatColor.YELLOW + "/faction join <nom>          " + ChatColor.GRAY + "Rejoindre une faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction leave               " + ChatColor.GRAY + "Quitter sa faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction kick <joueur>       " + ChatColor.GRAY + "Expulser un membre");
+        player.sendMessage(ChatColor.YELLOW + "/faction setchef <joueur>    " + ChatColor.GRAY + "Transférer le chef");
+        player.sendMessage(ChatColor.YELLOW + "/faction info [nom]          " + ChatColor.GRAY + "Info faction");
+        player.sendMessage(ChatColor.YELLOW + "/faction list                " + ChatColor.GRAY + "Liste des factions");
+        player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]         " + ChatColor.GRAY + "Téléportation");
+        player.sendMessage(ChatColor.YELLOW + "/faction coffre              " + ChatColor.GRAY + "Coffre partagé");
         player.sendMessage(ChatColor.GRAY + "— Classement & Stats —");
-        player.sendMessage(ChatColor.YELLOW + "/faction top            " + ChatColor.GRAY + "Top 10 factions (texte)");
-        player.sendMessage(ChatColor.YELLOW + "/faction classement     " + ChatColor.GRAY + "Classement factions GUI");
-        player.sendMessage(ChatColor.YELLOW + "/faction rangs          " + ChatColor.GRAY + "Guide des rangs GUI");
-        player.sendMessage(ChatColor.YELLOW + "/faction power [joueur] " + ChatColor.GRAY + "Puissance individuelle");
-        player.sendMessage(ChatColor.YELLOW + "/faction stats [joueur] " + ChatColor.GRAY + "Statistiques personnelles");
-        player.sendMessage(ChatColor.YELLOW + "/faction classementjoueurs <cat>" + ChatColor.GRAY + " Top 10 joueurs par stat");
+        player.sendMessage(ChatColor.YELLOW + "/faction top                 " + ChatColor.GRAY + "Top 10 factions (texte)");
+        player.sendMessage(ChatColor.YELLOW + "/faction classement          " + ChatColor.GRAY + "Classement factions GUI");
+        player.sendMessage(ChatColor.YELLOW + "/faction rangs               " + ChatColor.GRAY + "Guide des rangs GUI");
+        player.sendMessage(ChatColor.YELLOW + "/faction power [joueur]      " + ChatColor.GRAY + "Puissance individuelle");
+        player.sendMessage(ChatColor.YELLOW + "/faction stats [joueur]      " + ChatColor.GRAY + "Statistiques personnelles");
+        player.sendMessage(ChatColor.YELLOW + "/faction classementjoueurs   " + ChatColor.GRAY + "Top 10 joueurs par stat");
+        player.sendMessage(ChatColor.GRAY + "— Territoire (Claims) —");
+        player.sendMessage(ChatColor.GREEN  + "/faction claim               " + ChatColor.GRAY + "Claimer le chunk sous tes pieds (cout croissant en emeral.)");
+        player.sendMessage(ChatColor.GREEN  + "/faction unclaim             " + ChatColor.GRAY + "Retirer le claim du chunk actuel");
+        player.sendMessage(ChatColor.GREEN  + "/faction claims              " + ChatColor.GRAY + "Voir les claims de ta faction");
+        player.sendMessage(ChatColor.GREEN  + "/faction perms               " + ChatColor.GRAY + "Gerer les acces a ce chunk claim (GUI)");
+        player.sendMessage(ChatColor.GRAY + "— Economie —");
+        player.sendMessage(ChatColor.AQUA   + "/faction banque              " + ChatColor.GRAY + "Banque emeraudes personnelle / faction (GUI)");
+        player.sendMessage(ChatColor.GRAY + "— Troc —");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction troc <joueur>       " + ChatColor.GRAY + "Proposer un troc a un joueur (GUI)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction accepter            " + ChatColor.GRAY + "Accepter une invitation de troc");
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -560,7 +743,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             List<String> subs = Arrays.asList(
                     "create","disband","invite","join","leave","kick","setchef",
                     "info","list","tp","coffre","menu",
-                    "top","classement","rangs","power","stats","classementjoueurs"
+                    "top","classement","rangs","power","stats","classementjoueurs",
+                    "claim","unclaim","claims","perms","banque","troc","accepter"
             );
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
@@ -570,7 +754,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .map(f -> f.getName())
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
-                case "invite", "kick", "setchef", "tp", "power", "stats" ->
+                case "invite", "kick", "setchef", "tp", "power", "stats", "troc" ->
                         Bukkit.getOnlinePlayers().stream()
                                 .map(Player::getName)
                                 .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))

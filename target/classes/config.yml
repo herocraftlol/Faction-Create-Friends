@@ -26,3 +26,16 @@ messages:
   faction-full: "&cLa faction est complete."
   cannot-invite-self: "&cTu ne peux pas t inviter toi-meme."
   player-already-in-faction: "&c%player% est deja dans une faction."
+
+# ── Système de Claims ────────────────────────────────────────────────────────
+claims:
+  # Coût de base en émeraudes pour le 1er claim d'une faction
+  base-cost: 5
+  # Supplément par claim déjà possédé : coût = base + (nb_claims * increment)
+  # Exemple par défaut : 1er=5, 2e=8, 3e=11, 4e=14 ...
+  cost-increment: 3
+
+# ── Banque d'émeraudes ───────────────────────────────────────────────────────
+bank:
+  # Seul le chef peut retirer du coffre faction (true) ou tous les membres (false)
+  only-chef-can-withdraw-faction: true
