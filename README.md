@@ -4,34 +4,43 @@ Plugin Minecraft de gestion de factions pour serveur Spigot/Paper 1.20.4
 
 ## Description
 
-FactionPlugin est un plugin Minecraft tout-en-un qui combine gestion de factions, statistiques joueurs et système de puissance ! Tout est intégré dans une **commande unique `/faction`** — plus besoin de plugin séparé pour les stats.
+FactionPlugin est un plugin Minecraft tout-en-un qui combine gestion de factions, statistiques joueurs, système de puissance, **banque d'émeraudes**, **système de claims** et **commerce entre joueurs** !
 
 ## Fonctionnalités
+
+### 🏦 Banque de Faction (Emerald Bank)
+- **Coffre partagé** : Déposez et retirez des émeraudes dans la banque de votre faction
+- **Interface GUI intuitive** pour gérer les dépôts/retraits
+- **Accès réservé aux membres autorisés**
+
+### 🗺️ Système de Claims
+- **Réclamez des chunks** pour votre faction
+- **Permissions par joueur** : Configurez qui peut construire/casser dans les zones réclamées
+- **Protection du territoire** : Interdiction d'accès aux non-membres
+- **GUI de gestion des permissions**
+
+### 💱 Commerce Entre Joueurs (Trade)
+- **Échange sécurisé** d'items entre deux joueurs
+- **Interface GUI** avec slots pour proposer des items et des émeraudes
+- **Confirmation des deux parties** requise pour finaliser l'échange
+- **Annulation possible** à tout moment
 
 ### ⚡ Système de Puissance (Power System)
 - **Puissance Individuelle (PI)** : Chaque joueur génère de la puissance basée sur ses stats PvP, survie, progression et activité
 - **Puissance Globale (PG)** : La somme des PI des membres + bonus de taille
 - **7 Rangs de Faction** : Pierre, Bronze, Argent, Or, Diamant, Emeraude, Légendaire
-- **Effets passifs** : Plus votre faction monte en rang, plus vous obtenez d'avantages (Speed, Haste, Force, Regen, etc.)
-- **Aura de soin** : Au rang Légendaire, les alliés proches reçoivent Regeneration
+- **Effets passifs** : Plus votre faction monte en rang, plus vous obtenez d'avantages
 
 ### 📊 Statistiques Joueurs Intégrées
-- **`/faction stats [joueur]`** : Stats complètes avec kills, morts, mobs, dégâts, blocs, temps de jeu, K/D ratio
+- **`/faction stats [joueur]`** : Stats complètes avec kills, mobs, dégâts, blocs, temps de jeu, K/D ratio
 - **`/faction classementjoueurs`** : Classement des top 10 joueurs par catégorie
-- Suivi automatique du temps de jeu en temps réel
-- Fonctionne pour les joueurs en ligne ET hors ligne
-
-### 🏆 Classement Factions
-- **`/faction classement`** : Classement GUI des factions par puissance
-- Top 10 interactif avec GUI
 
 ### 🔧 Fonctionnalités de base
-- **Création de factions** : Créez votre propre faction avec `/faction create`
+- **Création de factions** : `/faction create`
 - **Gestion des membres** : Invitez, expulsez, nommez un nouveau chef
-- **Système de téléportation** : TP vers les membres de votre faction
-- **Inventaire partagé** : Un coffre commun pour tous les membres
-- **Interface GUI** : Menu interactif complet pour gérer votre faction
-- **ActionBar notifications** : Notifications en jeu pour les événements importants
+- **Système de téléportation** : TP vers les membres
+- **Inventaire partagé** : Un coffre commun
+- **Interface GUI** : Menu interactif complet
 
 ## Installation
 
@@ -74,10 +83,11 @@ Le JAR compilée sera dans `target/FactionPlugin-1.0.0.jar`
 
 ## Télécharger
 
-📦 **[Télécharger FactionPlugin-3.1.0.jar](../../releases/download/v3.1.0/FactionPlugin-3.1.0.jar)**
+📦 **[Télécharger FactionPlugin-3.2.0.jar](../../releases/download/v3.2.0/FactionPlugin-3.2.0.jar)**
 
 ## Version
 
+- **v3.2.0** : Banque d'émeraudes, Système de Claims et Commerce entre joueurs
 - **v3.1.0** : Fusion FactionPlugin + FactionStats - Stats joueurs intégrées + Classement
 - **v2.0.0** : Système de Puissance, Rangs et Classement Factions
 - **v1.1.0** : Ajout du GUI, téléportation et inventaire partagé
