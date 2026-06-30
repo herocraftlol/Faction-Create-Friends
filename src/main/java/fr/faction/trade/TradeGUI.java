@@ -160,14 +160,22 @@ public class TradeGUI implements Listener {
         // Slots "leur offre" ou bordure → rien
         if (isTheirSlot(slot) || isBorderSlot(slot) || slot == SLOT_INFO) return;
 
-        // Slots "mon offre" → drag depuis l'inventaire du joueur
+        // Slots "mon offre" → géré par onInventoryClickMySlot
         if (isMySlot(slot)) {
-            // Si le joueur clique dans le GUI sur son slot = rien (les items viennent de l'inventaire bas)
             return;
         }
 
         // Inventaire bas du joueur (slots 54+) → il veut ajouter un item à son offre
-        if (slot >= 54) {
+        // Le slot ≥ 54 couvre l'inventaire (54-80) et la barre de raccourci (81-89)
+        boolean isPlayerInv = slot >= 54;
+        // Shift-click depuis l'inventaire joueur : getRawSlot() peut renvoyer le slot dans
+        // l'inventaire joueur même si < 54 quand clickedInventory != topInventory
+        if (!isPlayerInv && event.getClickedInventory() != null
+                && event.getClickedInventory().equals(player.getInventory())) {
+            isPlayerInv = true;
+        }
+
+        if (isPlayerInv) {
             if (session.hasConfirmed(player.getUniqueId())) {
                 player.sendMessage(ChatColor.RED + "Annule ta confirmation avant de modifier l'offre.");
                 return;
@@ -182,7 +190,11 @@ public class TradeGUI implements Listener {
                 return;
             }
             myOffer.add(clicked.clone());
-            event.setCurrentItem(null); // retire de l'inventaire
+
+            // Retirer l'item directement depuis l'inventaire du joueur
+            // (event.setCurrentItem(null) ne fonctionne pas sur les slots joueur quand l'event est cancelled)
+            int playerInvSlot = event.getSlot(); // getSlot() donne le slot relatif à l'inventaire cliqué
+            player.getInventory().setItem(playerInvSlot, null);
 
             // Déconfirme si besoin
             session.unconfirm();
