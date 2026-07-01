@@ -83,10 +83,11 @@ Le JAR compilée sera dans `target/FactionPlugin-1.0.0.jar`
 
 ## Télécharger
 
-📦 **[Télécharger FactionPlugin-3.2.0.jar](../../releases/download/v3.2.0/FactionPlugin-3.2.0.jar)**
+📦 **[Télécharger FactionPlugin-3.2.1.jar](../../releases/download/v3.2.1/FactionPlugin-3.2.1.jar)**
 
 ## Version
 
+- **v3.2.1** : Corrections et améliorations du système de Trade
 - **v3.2.0** : Banque d'émeraudes, Système de Claims et Commerce entre joueurs
 - **v3.1.0** : Fusion FactionPlugin + FactionStats - Stats joueurs intégrées + Classement
 - **v2.0.0** : Système de Puissance, Rangs et Classement Factions
