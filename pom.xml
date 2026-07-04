@@ -6,11 +6,11 @@
 
     <groupId>fr.faction</groupId>
     <artifactId>FactionPlugin</artifactId>
-    <version>3.0.0</version>
+    <version>3.2.1</version>
     <packaging>jar</packaging>
 
     <name>FactionPlugin</name>
-    <description>Plugin de factions complet — commande unique /faction</description>
+    <description>Plugin Minecraft complet de gestion de factions pour serveur Spigot/Paper 1.20.4 — Factions, Claims, Banque d'émeraudes, Commerce entre joueurs, Système de Puissance et Statistiques.</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
