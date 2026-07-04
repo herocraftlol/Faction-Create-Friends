@@ -4,7 +4,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -15,6 +14,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
 
@@ -43,9 +43,17 @@ import java.util.*;
  * INTERACTIONS SUPPORTÉES :
  *  - Clic gauche / droit sur l'inventaire joueur (bas) → ajoute l'item dans MY_SLOTS
  *  - Shift-clic depuis l'inventaire joueur → ajoute l'item dans MY_SLOTS
- *  - Drag depuis l'inventaire joueur vers un MY_SLOT → place l'item
+ *  - Drag (glisser-déposer) depuis l'inventaire joueur vers un ou plusieurs MY_SLOT → place l'item
  *  - Clic sur un MY_SLOT occupé → rend l'item à l'inventaire joueur
  *  - Clic CONFIRM / CANCEL
+ *
+ * IMPORTANT (fix v3.2.1) : l'inventaire Bukkit n'est créé et ouvert (player.openInventory)
+ * qu'UNE SEULE FOIS par session/joueur. Toutes les mises à jour suivantes (après un clic,
+ * un drag, ou une action de l'autre joueur) modifient le contenu du MÊME objet Inventory
+ * déjà affiché (via inv.setItem), sans jamais rappeler player.openInventory().
+ * Rouvrir l'inventaire à chaque interaction cassait le glisser-déposer côté client
+ * (le client annule/renvoie l'item quand la fenêtre est fermée puis rouverte immédiatement
+ * après un drag) — c'est la cause du bug « le troc ne veut pas faire glisser les items ».
  */
 public class TradeGUI implements Listener {
 
@@ -73,12 +81,23 @@ public class TradeGUI implements Listener {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // OUVERTURE / RENDU
+    // OUVERTURE (une seule fois par session)
     // ══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Ouvre le GUI de troc pour ce joueur. Si un GUI de troc est déjà ouvert pour
+     * lui (même session), ne fait que rafraîchir son contenu SANS le rouvrir.
+     */
     public void openTradeGUI(Player player) {
         TradeManager.TradeSession session = tradeManager.getSession(player.getUniqueId());
         if (session == null) return;
+
+        Inventory existing = openInventories.get(player.getUniqueId());
+        if (existing != null) {
+            // Déjà ouvert : on met juste à jour le contenu, pas de reopen.
+            renderDynamicContent(player, session, existing);
+            return;
+        }
 
         UUID other = session.getOther(player.getUniqueId());
         Player otherPlayer = Bukkit.getPlayer(other);
@@ -87,20 +106,61 @@ public class TradeGUI implements Listener {
         String title = TITLE_PREFIX + " §8— §7" + otherName;
         Inventory inv = Bukkit.createInventory(null, 54, title);
 
-        // ── Bordure ──────────────────────────────────────────────────────────
+        drawStaticFrame(inv);
+        renderDynamicContent(player, session, inv);
+
+        openInventories.put(player.getUniqueId(), inv);
+        player.openInventory(inv);
+    }
+
+    /**
+     * Rafraîchit le contenu d'un GUI déjà ouvert (sans jamais le rouvrir).
+     * Ne fait rien si le joueur n'a pas de GUI de troc ouvert.
+     */
+    private void refresh(Player player) {
+        Inventory inv = openInventories.get(player.getUniqueId());
+        if (inv == null) return;
+        TradeManager.TradeSession session = tradeManager.getSession(player.getUniqueId());
+        if (session == null) return;
+        renderDynamicContent(player, session, inv);
+    }
+
+    private void refreshBoth(TradeManager.TradeSession session) {
+        Player a = Bukkit.getPlayer(session.playerA);
+        Player b = Bukkit.getPlayer(session.playerB);
+        if (a != null) refresh(a);
+        if (b != null) refresh(b);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // RENDU
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** Éléments fixes qui ne changent jamais après l'ouverture : bordure + séparateur. */
+    private void drawStaticFrame(Inventory inv) {
         ItemStack border = makeItemRaw(Material.PURPLE_STAINED_GLASS_PANE, BORDER_NAME);
         for (int i = 0; i < 9; i++) inv.setItem(i, border);
         for (int i = 45; i < 54; i++) inv.setItem(i, border);
         for (int i = 9; i < 45; i += 9)  inv.setItem(i, border);
         for (int i = 17; i < 45; i += 9) inv.setItem(i, border);
 
-        // ── Séparateur ───────────────────────────────────────────────────────
         ItemStack sep = makeItemRaw(Material.GRAY_STAINED_GLASS_PANE, ChatColor.GRAY + "│");
         for (int s : SEP_SLOTS) inv.setItem(s, sep);
+    }
 
-        // ── Info ─────────────────────────────────────────────────────────────
+    /**
+     * Éléments qui changent au fil du troc : info, mes slots, leurs slots, boutons.
+     * Met à jour le contenu du MÊME Inventory (déjà ouvert côté client) sans le remplacer.
+     */
+    private void renderDynamicContent(Player player, TradeManager.TradeSession session, Inventory inv) {
+        UUID other = session.getOther(player.getUniqueId());
+        Player otherPlayer = Bukkit.getPlayer(other);
+        String otherName = otherPlayer != null ? otherPlayer.getName() : "???";
+
         boolean myConfirm    = session.hasConfirmed(player.getUniqueId());
         boolean theirConfirm = session.hasConfirmed(other);
+
+        // ── Info ─────────────────────────────────────────────────────────────
         inv.setItem(SLOT_INFO, makeItem(Material.BOOK,
                 ChatColor.LIGHT_PURPLE + "Troc avec §e" + otherName,
                 ChatColor.GRAY + "◄ Tes items à gauche  |  Leur offre à droite ►",
@@ -113,13 +173,11 @@ public class TradeGUI implements Listener {
                 ChatColor.GRAY + "Glisse des items dans la zone gauche.",
                 ChatColor.GRAY + "Clique sur un item dans la zone gauche pour le reprendre."));
 
-        // ── Mes slots (éditables — laissés VIDES pour permettre le drag) ─────
+        // ── Mes slots (éditables) — on efface explicitement les slots vides ────
         List<ItemStack> myOffer = session.getMyOffer(player.getUniqueId());
         for (int i = 0; i < MY_SLOTS.length; i++) {
-            if (i < myOffer.size() && myOffer.get(i) != null) {
-                inv.setItem(MY_SLOTS[i], myOffer.get(i).clone());
-            }
-            // Slots vides → rien (null) pour permettre le vrai drag Minecraft
+            ItemStack item = (i < myOffer.size()) ? myOffer.get(i) : null;
+            inv.setItem(MY_SLOTS[i], (item != null && item.getType() != Material.AIR) ? item.clone() : null);
         }
 
         // ── Leurs slots (lecture seule) ───────────────────────────────────────
@@ -128,10 +186,8 @@ public class TradeGUI implements Listener {
                 ChatColor.GRAY + "Offre de " + otherName,
                 READONLY_TAG);
         for (int i = 0; i < THEIR_SLOTS.length; i++) {
-            if (i < theirOffer.size() && theirOffer.get(i) != null)
-                inv.setItem(THEIR_SLOTS[i], theirOffer.get(i).clone());
-            else
-                inv.setItem(THEIR_SLOTS[i], readOnly);
+            ItemStack item = (i < theirOffer.size()) ? theirOffer.get(i) : null;
+            inv.setItem(THEIR_SLOTS[i], (item != null && item.getType() != Material.AIR) ? item.clone() : readOnly);
         }
 
         // ── Boutons ───────────────────────────────────────────────────────────
@@ -145,9 +201,6 @@ public class TradeGUI implements Listener {
         inv.setItem(SLOT_CANCEL, makeItem(Material.BARRIER,
                 ChatColor.RED + "✘ Annuler le troc",
                 ChatColor.GRAY + "Tes items te seront rendus."));
-
-        openInventories.put(player.getUniqueId(), inv);
-        player.openInventory(inv);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -286,22 +339,38 @@ public class TradeGUI implements Listener {
             }
         }
 
-        // Tous les slots sont des MY_SLOTS valides
         if (session.hasConfirmed(player.getUniqueId())) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "Annule ta confirmation avant de modifier ton offre.");
             return;
         }
 
-        // On laisse Minecraft gérer le drag naturellement (les items vont dans les MY_SLOTS).
-        // Mais on doit synchroniser l'offre session APRÈS que l'event ait été résolu.
+        List<ItemStack> myOffer = session.getMyOffer(player.getUniqueId());
+
+        // Combien de NOUVEAUX stacks ce drag va-t-il créer dans des slots actuellement vides ?
+        Inventory topInv = event.getView().getTopInventory();
+        int newStacksCount = 0;
+        for (int gs : guiSlots) {
+            ItemStack current = topInv.getItem(gs);
+            if (current == null || current.getType() == Material.AIR) newStacksCount++;
+        }
+        if (myOffer.size() + newStacksCount > MY_SLOTS.length) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "Offre pleine ! (max " + MY_SLOTS.length + " stacks)");
+            return;
+        }
+
+        // On laisse Minecraft placer les items dans les MY_SLOTS (on ne cancel pas).
+        // On relit l'inventaire un tick plus tard, une fois le drag réellement appliqué
+        // par le serveur, pour synchroniser l'offre de session avec exactitude
+        // (gère aussi les stacks partiellement fusionnés dans un slot déjà occupé).
         Bukkit.getScheduler().runTask(plugin, () -> syncOfferFromGUI(player, session));
     }
 
     /**
      * Lit les items actuellement dans les MY_SLOTS du GUI ouvert
-     * et synchronise la liste d'offre de la session.
-     * Appelé après un drag pour capturer le résultat.
+     * et synchronise la liste d'offre de la session, puis rafraîchit
+     * les DEUX joueurs sans jamais rouvrir leur inventaire.
      */
     private void syncOfferFromGUI(Player player, TradeManager.TradeSession session) {
         Inventory inv = openInventories.get(player.getUniqueId());
@@ -318,16 +387,7 @@ public class TradeGUI implements Listener {
         }
 
         session.unconfirm();
-        // Rafraîchir seulement l'autre joueur pour ne pas interrompre le drag
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            UUID other = session.getOther(player.getUniqueId());
-            Player otherPlayer = Bukkit.getPlayer(other);
-            if (otherPlayer != null && openInventories.containsKey(other)) {
-                openTradeGUI(otherPlayer);
-            }
-            // Rafraîchir son propre GUI aussi (pour mettre à jour les compteurs)
-            openTradeGUI(player);
-        });
+        refreshBoth(session);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -339,17 +399,14 @@ public class TradeGUI implements Listener {
         if (!(event.getPlayer() instanceof Player player)) return;
         Inventory closed = openInventories.get(player.getUniqueId());
         if (closed == null || !closed.equals(event.getInventory())) return;
+
+        // Comme le GUI n'est plus jamais fermé/rouvert par notre propre code (fix v3.2.1),
+        // toute InventoryCloseEvent reçue ici correspond à une vraie fermeture par le joueur.
         openInventories.remove(player.getUniqueId());
 
         TradeManager.TradeSession session = tradeManager.getSession(player.getUniqueId());
         if (session != null) {
-            // Délai d'un tick pour distinguer un vrai "fermer" d'un refresh du GUI
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                // Si le joueur n'a plus de GUI ouvert après le tick, c'est une vraie fermeture
-                if (!openInventories.containsKey(player.getUniqueId())) {
-                    cancelTrade(player, session, true);
-                }
-            }, 1L);
+            cancelTrade(player, session, true);
         }
     }
 
@@ -414,19 +471,6 @@ public class TradeGUI implements Listener {
             if (!playerB.equals(initiator)) playerB.closeInventory();
             if (notify) playerB.sendMessage(ChatColor.RED + "✘ Troc annulé. Tes items t'ont été rendus.");
         }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // REFRESH
-    // ══════════════════════════════════════════════════════════════════════════
-
-    private void refreshBoth(TradeManager.TradeSession session) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            Player a = Bukkit.getPlayer(session.playerA);
-            Player b = Bukkit.getPlayer(session.playerB);
-            if (a != null && openInventories.containsKey(a.getUniqueId())) openTradeGUI(a);
-            if (b != null && openInventories.containsKey(b.getUniqueId())) openTradeGUI(b);
-        });
     }
 
     // ══════════════════════════════════════════════════════════════════════════

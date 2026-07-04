@@ -77,6 +77,31 @@ public class EmeraldBankManager {
         save();
     }
 
+    // ── Classements richesse ──────────────────────────────────────────────────
+
+    /**
+     * Top des joueurs les plus riches (solde du coffre personnel), triés du plus
+     * grand au plus petit solde. N'inclut que les joueurs ayant un solde > 0.
+     */
+    public List<Map.Entry<UUID, Long>> getTopPlayers(int limit) {
+        List<Map.Entry<UUID, Long>> list = new ArrayList<>(playerBalances.entrySet());
+        list.removeIf(e -> e.getValue() == null || e.getValue() <= 0);
+        list.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        return list.subList(0, Math.min(limit, list.size()));
+    }
+
+    /**
+     * Top des factions les plus riches (solde du coffre de faction), triées du
+     * plus grand au plus petit solde. N'inclut que les factions ayant un solde > 0.
+     * Les clés retournées sont en minuscules (nom interne de la faction).
+     */
+    public List<Map.Entry<String, Long>> getTopFactions(int limit) {
+        List<Map.Entry<String, Long>> list = new ArrayList<>(factionBalances.entrySet());
+        list.removeIf(e -> e.getValue() == null || e.getValue() <= 0);
+        list.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        return list.subList(0, Math.min(limit, list.size()));
+    }
+
     // ── Transfert joueur → faction ────────────────────────────────────────────
 
     public boolean transferToFaction(UUID uuid, String factionName, long amount) {

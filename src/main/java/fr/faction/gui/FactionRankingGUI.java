@@ -1,6 +1,8 @@
 package fr.faction.gui;
 
+import fr.faction.economy.EmeraldBankManager;
 import fr.faction.managers.FactionManager;
+import fr.faction.managers.StatsMessageUtil;
 import fr.faction.models.Faction;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.ranking.FactionRank;
@@ -28,10 +30,12 @@ public class FactionRankingGUI implements Listener {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private final FactionPowerManager powerManager;
+    private final EmeraldBankManager bankManager;
 
     private static final String TITLE_RANKING = ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "Classement des Factions";
     private static final String TITLE_DETAIL  = ChatColor.DARK_AQUA   + "" + ChatColor.BOLD + "Fiche de Faction";
     private static final String TITLE_RANK_INFO = ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "Rangs et Avantages";
+    private static final String TITLE_WEALTH  = ChatColor.GREEN + "" + ChatColor.BOLD + "Classement Richesse";
 
     private final Map<UUID, String> openGUI = new HashMap<>();
 
@@ -46,10 +50,12 @@ public class FactionRankingGUI implements Listener {
             Material.NETHER_STAR      // Légendaire
     };
 
-    public FactionRankingGUI(JavaPlugin plugin, FactionManager factionManager, FactionPowerManager powerManager) {
+    public FactionRankingGUI(JavaPlugin plugin, FactionManager factionManager, FactionPowerManager powerManager,
+                              EmeraldBankManager bankManager) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.powerManager = powerManager;
+        this.bankManager = bankManager;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
@@ -137,10 +143,99 @@ public class FactionRankingGUI implements Listener {
                     ChatColor.YELLOW + "Clique pour le detail"));
         }
 
+        // Richesse (slot 53)
+        inv.setItem(53, makeItemGlowing(Material.EMERALD,
+                ChatColor.GREEN + "" + ChatColor.BOLD + "Classement Richesse",
+                ChatColor.GRAY + "Joueurs et factions les plus riches",
+                ChatColor.GRAY + "(émeraudes en coffre)",
+                "",
+                ChatColor.YELLOW + "Clique pour voir le classement"));
+
         // Fermer (slot 45)
         inv.setItem(45, makeItem(Material.BARRIER, ChatColor.RED + "Fermer"));
 
         openGUI.put(player.getUniqueId(), "ranking");
+        player.openInventory(inv);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // CLASSEMENT RICHESSE (joueurs + factions les plus riches en émeraudes)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private static final int[] WEALTH_PLAYER_SLOTS  = {9,10,11,12, 18,19,20,21, 27,28,29,30};
+    private static final int[] WEALTH_FACTION_SLOTS = {14,15,16,17, 23,24,25,26, 32,33,34,35};
+    private static final int[] WEALTH_SEP_SLOTS     = {13,22,31};
+
+    public void openWealthRankingGUI(Player player) {
+        Inventory inv = Bukkit.createInventory(null, 54, TITLE_WEALTH);
+
+        ItemStack bg = makeItem(Material.LIME_STAINED_GLASS_PANE, " ");
+        for (int i = 0; i < 54; i++) inv.setItem(i, bg);
+
+        ItemStack sep = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int s : WEALTH_SEP_SLOTS) inv.setItem(s, sep);
+
+        inv.setItem(4, makeItemGlowing(Material.EMERALD_BLOCK,
+                ChatColor.GREEN + "" + ChatColor.BOLD + "Classement Richesse",
+                ChatColor.GRAY + "◄ Joueurs les plus riches (coffre perso)",
+                ChatColor.GRAY + "Factions les plus riches (coffre faction) ►"));
+
+        // ── Top joueurs (coffre personnel) ─────────────────────────────────────
+        List<Map.Entry<UUID, Long>> topPlayers = bankManager.getTopPlayers(WEALTH_PLAYER_SLOTS.length);
+        for (int i = 0; i < WEALTH_PLAYER_SLOTS.length; i++) {
+            if (i >= topPlayers.size()) break;
+            Map.Entry<UUID, Long> entry = topPlayers.get(i);
+            org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(entry.getKey());
+            String name = op.getName() != null ? op.getName() : "Inconnu";
+            int position = i + 1;
+
+            ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
+            org.bukkit.inventory.meta.SkullMeta meta = (org.bukkit.inventory.meta.SkullMeta) skull.getItemMeta();
+            if (meta != null) {
+                meta.setOwningPlayer(op);
+                meta.setDisplayName(getPositionLabel(position) + " " + ChatColor.WHITE + ChatColor.BOLD + name);
+                meta.setLore(Arrays.asList(
+                        ChatColor.GRAY + "Coffre personnel :",
+                        ChatColor.GREEN + "" + StatsMessageUtil.formatNumber(entry.getValue()) + " ⬦ émeraudes"
+                ));
+                skull.setItemMeta(meta);
+            }
+            inv.setItem(WEALTH_PLAYER_SLOTS[i], skull);
+        }
+
+        // ── Top factions (coffre de faction) ────────────────────────────────────
+        List<Map.Entry<String, Long>> topFactions = bankManager.getTopFactions(WEALTH_FACTION_SLOTS.length);
+        for (int i = 0; i < WEALTH_FACTION_SLOTS.length; i++) {
+            if (i >= topFactions.size()) break;
+            Map.Entry<String, Long> entry = topFactions.get(i);
+            Faction faction = factionManager.getFaction(entry.getKey());
+            String name = faction != null ? faction.getName() : entry.getKey();
+            int position = i + 1;
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Coffre de faction :");
+            lore.add(ChatColor.GREEN + "" + StatsMessageUtil.formatNumber(entry.getValue()) + " ⬦ émeraudes");
+            if (faction != null) lore.add(ChatColor.DARK_GRAY + "" + faction.getMemberCount() + " membre(s)");
+
+            ItemStack item = position <= 3
+                    ? makeItemGlowing(Material.EMERALD, getPositionLabel(position) + " " + ChatColor.WHITE + name.toUpperCase(), lore)
+                    : makeItem(Material.EMERALD, getPositionLabel(position) + " " + ChatColor.WHITE + name.toUpperCase(), lore);
+            inv.setItem(WEALTH_FACTION_SLOTS[i], item);
+        }
+
+        if (topPlayers.isEmpty()) {
+            inv.setItem(WEALTH_PLAYER_SLOTS[0], makeItem(Material.BARRIER,
+                    ChatColor.GRAY + "Aucun joueur n'a d'émeraudes en coffre"));
+        }
+        if (topFactions.isEmpty()) {
+            inv.setItem(WEALTH_FACTION_SLOTS[0], makeItem(Material.BARRIER,
+                    ChatColor.GRAY + "Aucune faction n'a d'émeraudes en coffre"));
+        }
+
+        inv.setItem(45, makeItem(Material.ARROW, ChatColor.GRAY + "Retour au classement"));
+        inv.setItem(53, makeItem(Material.BARRIER, ChatColor.RED + "Fermer"));
+
+        openGUI.put(player.getUniqueId(), "wealth");
         player.openInventory(inv);
     }
 
@@ -329,7 +424,8 @@ public class FactionRankingGUI implements Listener {
         if (!openGUI.containsKey(uuid)) return;
 
         String title = event.getView().getTitle();
-        boolean ours = title.equals(TITLE_RANKING) || title.equals(TITLE_DETAIL) || title.equals(TITLE_RANK_INFO);
+        boolean ours = title.equals(TITLE_RANKING) || title.equals(TITLE_DETAIL)
+                || title.equals(TITLE_RANK_INFO) || title.equals(TITLE_WEALTH);
         if (!ours) return;
 
         event.setCancelled(true);
@@ -355,6 +451,9 @@ public class FactionRankingGUI implements Listener {
                 if (myFac != null) { player.closeInventory(); openFactionDetail(player, myFac.getName()); }
                 return;
             }
+            if (itemName.contains("Classement Richesse")) {
+                player.closeInventory(); openWealthRankingGUI(player); return;
+            }
             // Clic sur une faction du classement — le nom de la faction est après le label de position
             if (clicked.getType() != Material.BARRIER && clicked.getType() != Material.COMPASS
                     && clicked.getType() != Material.BOOK && clicked.getType() != Material.NETHER_STAR) {
@@ -378,6 +477,14 @@ public class FactionRankingGUI implements Listener {
         }
 
         if (TITLE_RANK_INFO.equals(title)) {
+            if (itemName.equals("Fermer")) {
+                openGUI.remove(uuid); player.closeInventory();
+            } else if (itemName.contains("Retour")) {
+                player.closeInventory(); openRankingGUI(player);
+            }
+        }
+
+        if (TITLE_WEALTH.equals(title)) {
             if (itemName.equals("Fermer")) {
                 openGUI.remove(uuid); player.closeInventory();
             } else if (itemName.contains("Retour")) {

@@ -65,14 +65,14 @@ public class FactionPlugin extends JavaPlugin {
 
         // GUIs
         factionGUI       = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
-        rankingGUI       = new FactionRankingGUI(this, factionManager, powerManager);
+        rankingGUI       = new FactionRankingGUI(this, factionManager, powerManager, bankManager);
         actionBarManager = new ActionBarManager(this, factionManager);
 
         // Commandes
         FactionCommand factionCommand = new FactionCommand(
                 this, factionManager, statsManager, sharedInventoryManager,
                 teleportManager, factionGUI, rankingGUI, powerManager,
-                claimManager, claimPermissionGUI, bankGUI, tradeManager, tradeGUI);
+                claimManager, claimPermissionGUI, bankGUI, bankManager, tradeManager, tradeGUI);
         getCommand("faction").setExecutor(factionCommand);
         getCommand("faction").setTabCompleter(factionCommand);
 

@@ -3,6 +3,7 @@ package fr.faction.commands;
 import fr.faction.claim.ClaimManager;
 import fr.faction.claim.ClaimPermissionGUI;
 import fr.faction.economy.BankGUI;
+import fr.faction.economy.EmeraldBankManager;
 import fr.faction.gui.FactionGUI;
 import fr.faction.gui.FactionRankingGUI;
 import fr.faction.managers.FactionManager;
@@ -42,10 +43,13 @@ import java.util.stream.Collectors;
  *   /faction top / classement / rangs / power / stats / classementjoueurs
  *
  * Économie & territoire :
- *   /faction claim          → Claimer le chunk actuel (coût en émeraudes)
- *   /faction unclaim        → Retirer le claim du chunk actuel
- *   /faction claims         → Voir les claims de ta faction
- *   /faction perms          → Gérer les permissions du chunk claimé (GUI)
+ *   /faction claim               → Claimer le chunk actuel (coût en émeraudes, distance ≥6 chunks des claims adverses)
+ *   /faction unclaim             → Retirer le claim du chunk actuel
+ *   /faction claims              → Voir les claims de ta faction
+ *   /faction claimallow <faction>→ Autoriser une faction à claimer à moins de 6 chunks de nos claims
+ *   /faction claimdeny <faction> → Révoquer cette autorisation
+ *   /faction claimallies         → Lister les factions autorisées à claimer près de nous
+ *   /faction perms               → Gérer les permissions du chunk claimé (GUI)
  *   /faction banque         → Ouvrir la banque d'émeraudes (GUI)
  *   /faction troc <joueur>  → Proposer un troc à un joueur
  *   /faction accepter       → Accepter une invitation de troc
@@ -53,7 +57,7 @@ import java.util.stream.Collectors;
 public class FactionCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> STATS_CATEGORIES = Arrays.asList(
-            "mobs", "pvp", "advancements", "morts", "blocs", "temps", "dommages", "kd"
+            "mobs", "pvp", "advancements", "morts", "blocs", "temps", "dommages", "kd", "richesse"
     );
 
     private final JavaPlugin plugin;
@@ -67,6 +71,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final ClaimManager claimManager;
     private final ClaimPermissionGUI claimPermissionGUI;
     private final BankGUI bankGUI;
+    private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
     private final TradeGUI tradeGUI;
 
@@ -74,7 +79,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
                           FactionGUI factionGUI, FactionRankingGUI rankingGUI, FactionPowerManager powerManager,
                           ClaimManager claimManager, ClaimPermissionGUI claimPermissionGUI,
-                          BankGUI bankGUI, TradeManager tradeManager, TradeGUI tradeGUI) {
+                          BankGUI bankGUI, EmeraldBankManager bankManager,
+                          TradeManager tradeManager, TradeGUI tradeGUI) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.statsManager = statsManager;
@@ -86,6 +92,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.claimManager = claimManager;
         this.claimPermissionGUI = claimPermissionGUI;
         this.bankGUI = bankGUI;
+        this.bankManager = bankManager;
         this.tradeManager = tradeManager;
         this.tradeGUI = tradeGUI;
     }
@@ -121,6 +128,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "classement", "ranking"     -> rankingGUI.openRankingGUI(player);
             case "rangs", "ranks"            -> rankingGUI.openRankInfoGUI(player);
             case "top"                       -> handleTop(player);
+            case "topbanque", "topfactions",
+                 "richessefactions"          -> handleTopFactionWealth(player);
             case "power", "puissance", "pw"  -> handlePower(player, args);
             case "stats"                     -> handleStats(player, args);
             case "classementjoueurs", "cj"   -> handlePlayerLeaderboard(player, args);
@@ -129,6 +138,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "claim"                     -> handleClaim(player);
             case "unclaim"                   -> handleUnclaim(player);
             case "claims"                    -> handleClaims(player);
+            case "claimmap", "map"           -> handleClaimMap(player);
+            case "claimallow"                -> handleClaimAllow(player, args);
+            case "claimdeny"                 -> handleClaimDeny(player, args);
+            case "claimallies"               -> handleClaimAllies(player);
             case "perms", "permissions"      -> handlePerms(player);
             case "banque", "bank"            -> bankGUI.openMainBankMenu(player);
             case "troc", "trade"             -> handleTradeInvite(player, args);
@@ -291,6 +304,26 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     + ChatColor.GRAY + " — " + ChatColor.GOLD + formatPower(e.getValue()) + " ⚡");
         }
         player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        player.sendMessage("");
+    }
+
+    /** /faction topbanque — top des factions les plus riches (coffre de faction) */
+    private void handleTopFactionWealth(Player player) {
+        List<Map.Entry<String, Long>> lb = bankManager.getTopFactions(10);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.GREEN + "\uD83D\uDC8E TOP Factions — Richesse" + ChatColor.GOLD + " ══════");
+        if (lb.isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "  Aucune faction n'a d'émeraudes en coffre pour le moment.");
+        }
+        for (int i = 0; i < lb.size(); i++) {
+            Map.Entry<String, Long> e = lb.get(i);
+            Faction faction = factionManager.getFaction(e.getKey());
+            String displayName = faction != null ? faction.getName() : e.getKey();
+            String medal = i == 0 ? ChatColor.GOLD + "①" : i == 1 ? ChatColor.WHITE + "②" : i == 2 ? ChatColor.GOLD + "③" : ChatColor.GRAY + "#" + (i + 1);
+            player.sendMessage("  " + medal + " " + ChatColor.WHITE + displayName
+                    + ChatColor.GRAY + " — " + ChatColor.GREEN + StatsMessageUtil.formatNumber(e.getValue()) + " ⬦ émeraudes");
+        }
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════════════");
         player.sendMessage("");
     }
 
@@ -459,6 +492,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     statsManager.getTopKDR(10),
                     s -> "K/D: §e" + s.getKDR());
 
+            case "richesse", "argent", "emeraudes" -> afficherClassementRichesse(player);
+
             default -> {
                 player.sendMessage(prefix() + ChatColor.RED + "Catégorie inconnue : " + ChatColor.YELLOW + categorie);
                 afficherMenuClassementJoueurs(player);
@@ -481,6 +516,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(StatsMessageUtil.colorize("  §7» §f/faction classementjoueurs morts       §8─ §7Nombre de morts"));
         player.sendMessage(StatsMessageUtil.colorize("  §b» §f/faction classementjoueurs temps       §8─ §7Temps de jeu"));
         player.sendMessage(StatsMessageUtil.colorize("  §c» §f/faction classementjoueurs dommages    §8─ §7Dégâts infligés"));
+        player.sendMessage(StatsMessageUtil.colorize("  §a» §f/faction classementjoueurs richesse    §8─ §7Émeraudes en coffre personnel"));
         player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
         player.sendMessage("");
     }
@@ -519,6 +555,37 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("");
     }
 
+    /** /faction classementjoueurs richesse — top des joueurs les plus riches (coffre personnel) */
+    private void afficherClassementRichesse(Player player) {
+        List<Map.Entry<UUID, Long>> classement = bankManager.getTopPlayers(10);
+
+        player.sendMessage("");
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §a§l⬦ §r§aCLASSEMENT — RICHESSE (COFFRE PERSONNEL)"));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8Top " + Math.min(10, classement.size()) + " joueurs les plus riches"));
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+
+        if (classement.isEmpty()) {
+            player.sendMessage(StatsMessageUtil.colorize("  §7Aucune donnée disponible pour le moment."));
+        } else {
+            for (int i = 0; i < classement.size(); i++) {
+                Map.Entry<UUID, Long> entry = classement.get(i);
+                int rang = i + 1;
+                String nom = getPlayerName(entry.getKey());
+                String ligne = "  " + StatsMessageUtil.getMedaille(rang) + "§f" + nom +
+                        " §8— §a" + StatsMessageUtil.formatNumber(entry.getValue()) + " ⬦ émeraudes";
+                player.sendMessage(StatsMessageUtil.colorize(ligne));
+            }
+        }
+
+        player.sendMessage(StatsMessageUtil.colorize(StatsMessageUtil.separator()));
+        player.sendMessage(StatsMessageUtil.colorize(
+                "  §8Utilisez §7/faction banque §8pour voir ton propre solde."));
+        player.sendMessage("");
+    }
+
     // ════════════════════════════════════════════════════════════════════════════
     // CLAIM — TERRITOIRE
     // ════════════════════════════════════════════════════════════════════════════
@@ -535,8 +602,19 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // ── Vérification distance minimale inter-factions ─────────────────────
+        String blocker = claimManager.checkProximityViolation(faction.getName(), chunk);
+        if (blocker != null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Claim impossible ! Ce chunk est à moins de "
+                    + ClaimManager.MIN_CLAIM_DISTANCE + " chunks des claims de §e" + blocker + ChatColor.RED + ".");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Demandez à §e" + blocker
+                    + "§7 d'utiliser §e/faction claimallow " + faction.getName()
+                    + "§7 pour vous autoriser à claimer près d'eux.");
+            return;
+        }
+
         int cost = claimManager.getNextClaimCost(faction.getName());
-        long balance = ((fr.faction.FactionPlugin) plugin).getBankManager().getFactionBalance(faction.getName());
+        long balance = bankManager.getFactionBalance(faction.getName());
 
         if (balance < cost) {
             player.sendMessage(prefix() + ChatColor.RED + "Fonds insuffisants ! Ce claim coûte §e" + cost
@@ -546,7 +624,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
 
         // Déduire le coût
-        ((fr.faction.FactionPlugin) plugin).getBankManager().withdrawFaction(faction.getName(), cost);
+        bankManager.withdrawFaction(faction.getName(), cost);
         claimManager.addClaim(faction.getName(), chunk);
 
         player.sendMessage(prefix() + ChatColor.GREEN + "✔ Chunk [" + chunk.getX() + ", " + chunk.getZ() + "] claimé pour §e"
@@ -555,6 +633,156 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 + claimManager.getNextClaimCost(faction.getName()) + " 💎");
         notifyMembers(faction, player,
                 ChatColor.GREEN + "Le chef a claimé un chunk ! (" + claimManager.getClaimCount(faction.getName()) + " claims total)");
+    }
+
+    /** /faction claimmap — carte ASCII des chunks claimés autour du joueur */
+    private void handleClaimMap(Player player) {
+        Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        String myFacName = myFaction != null ? myFaction.getName().toLowerCase() : null;
+
+        Chunk center = player.getLocation().getChunk();
+        int cx = center.getX();
+        int cz = center.getZ();
+        String world = center.getWorld().getName();
+
+        // Taille de la grille : 21 colonnes × 11 lignes (largeur impaire pour centrer)
+        int COLS = 21;
+        int ROWS = 11;
+        int halfCols = COLS / 2;
+        int halfRows = ROWS / 2;
+
+        Map<ClaimManager.ChunkKey, ClaimManager.ClaimData> allClaims = claimManager.getAllClaims();
+
+        // Palette de couleurs par faction (cycle sur factions adverses rencontrées)
+        ChatColor[] factionColors = {
+            ChatColor.RED, ChatColor.LIGHT_PURPLE, ChatColor.AQUA,
+            ChatColor.YELLOW, ChatColor.BLUE, ChatColor.GOLD
+        };
+        Map<String, ChatColor> colorMap = new HashMap<>();
+        int colorIdx = 0;
+
+        // Légende (factions vues sur la carte)
+        Map<String, String> legend = new LinkedHashMap<>();
+
+        // Construire la carte
+        // Ligne de séparation et en-tête
+        String sep = ChatColor.DARK_GRAY + "─────────────────────────────────────────";
+        player.sendMessage("");
+        player.sendMessage(sep);
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "  Carte des claims" +
+                (myFaction != null ? ChatColor.WHITE + " — " + ChatColor.YELLOW + myFaction.getName() : "") +
+                ChatColor.DARK_GRAY + "  [" + cx + ", " + cz + "]");
+        player.sendMessage(sep);
+
+        for (int row = 0; row < ROWS; row++) {
+            int chunkZ = cz + (row - halfRows);
+            StringBuilder line = new StringBuilder(ChatColor.DARK_GRAY + "  ");
+
+            for (int col = 0; col < COLS; col++) {
+                int chunkX = cx + (col - halfCols);
+
+                // Chunk du joueur (position exacte)
+                boolean isPlayerChunk = (col == halfCols && row == halfRows);
+
+                ClaimManager.ChunkKey key = new ClaimManager.ChunkKey(world, chunkX, chunkZ);
+                ClaimManager.ClaimData data = allClaims.get(key);
+
+                if (isPlayerChunk) {
+                    // Toujours afficher la position du joueur par-dessus
+                    if (data == null) {
+                        line.append(ChatColor.WHITE).append("✦");
+                    } else if (myFacName != null && data.getFactionName().equalsIgnoreCase(myFacName)) {
+                        line.append(ChatColor.GREEN).append("✦");
+                    } else {
+                        line.append(ChatColor.RED).append("✦");
+                    }
+                } else if (data == null) {
+                    line.append(ChatColor.DARK_GRAY).append("·");
+                } else {
+                    String facLower = data.getFactionName().toLowerCase();
+                    if (myFacName != null && facLower.equalsIgnoreCase(myFacName)) {
+                        line.append(ChatColor.GREEN).append("█");
+                        legend.put(myFacName, ChatColor.GREEN + "█ " + ChatColor.WHITE + myFaction.getName() + ChatColor.GRAY + " (vous)");
+                    } else {
+                        // Faction adverse
+                        if (!colorMap.containsKey(facLower)) {
+                            colorMap.put(facLower, factionColors[colorIdx % factionColors.length]);
+                            colorIdx++;
+                        }
+                        ChatColor col2 = colorMap.get(facLower);
+                        line.append(col2).append("▓");
+                        // Récupérer le nom affiché proprement
+                        Faction fac = factionManager.getFaction(facLower);
+                        String displayName = fac != null ? fac.getName() : data.getFactionName();
+                        legend.put(facLower, col2 + "▓ " + ChatColor.WHITE + displayName);
+                    }
+                }
+            }
+            player.sendMessage(line.toString());
+        }
+
+        // Légende
+        player.sendMessage(sep);
+        player.sendMessage(ChatColor.WHITE + "" + ChatColor.BOLD + "  ✦" + ChatColor.GRAY + " Votre position   " +
+                ChatColor.DARK_GRAY + "·" + ChatColor.GRAY + " Libre");
+        for (String entry : legend.values()) {
+            player.sendMessage("  " + entry);
+        }
+        player.sendMessage(sep);
+        player.sendMessage(ChatColor.DARK_GRAY + "  Centre : chunk (" + cx + ", " + cz + ")  |  " +
+                "Rayon : " + halfCols + " chunks");
+        player.sendMessage("");
+    }
+
+    /** /faction claimallow <faction> — autoriser une faction à claimer près de nos claims */
+    private void handleClaimAllow(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut gérer les autorisations de claim."); return; }
+        if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage : /faction claimallow <nom_faction>"); return; }
+
+        String targetName = args[1];
+        Faction target = factionManager.getFaction(targetName);
+        if (target == null) { player.sendMessage(prefix() + ChatColor.RED + "Faction introuvable : §e" + targetName); return; }
+        if (target.getName().equalsIgnoreCase(faction.getName())) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas t'autoriser toi-même."); return; }
+
+        claimManager.allowClaimProximity(faction.getName(), target.getName());
+        player.sendMessage(prefix() + ChatColor.GREEN + "✔ §e" + target.getName() + ChatColor.GREEN
+                + " peut désormais claimer à moins de " + ClaimManager.MIN_CLAIM_DISTANCE + " chunks de vos claims.");
+    }
+
+    /** /faction claimdeny <faction> — révoquer l'autorisation de proximité */
+    private void handleClaimDeny(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut gérer les autorisations de claim."); return; }
+        if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage : /faction claimdeny <nom_faction>"); return; }
+
+        String targetName = args[1];
+        Faction target = factionManager.getFaction(targetName);
+        if (target == null) { player.sendMessage(prefix() + ChatColor.RED + "Faction introuvable : §e" + targetName); return; }
+
+        claimManager.revokeClaimProximity(faction.getName(), target.getName());
+        player.sendMessage(prefix() + ChatColor.YELLOW + "✔ Autorisation de proximité révoquée pour §e" + target.getName() + ChatColor.YELLOW + ".");
+    }
+
+    /** /faction claimallies — lister les factions autorisées à claimer près de nous */
+    private void handleClaimAllies(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+
+        Set<String> allies = claimManager.getClaimAllies(faction.getName());
+        player.sendMessage(ChatColor.GOLD + "══ Autorisations de claim de §e" + faction.getName() + ChatColor.GOLD + " ══");
+        if (allies.isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "  Aucune faction autorisée à claimer près de vous.");
+        } else {
+            player.sendMessage(ChatColor.GRAY + "  Factions pouvant claimer à moins de "
+                    + ClaimManager.MIN_CLAIM_DISTANCE + " chunks de vos claims :");
+            for (String ally : allies) {
+                player.sendMessage(ChatColor.GREEN + "  ✔ " + ChatColor.WHITE + ally);
+            }
+        }
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════════");
     }
 
     private void handleUnclaim(Player player) {
@@ -680,16 +908,21 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]         " + ChatColor.GRAY + "Téléportation");
         player.sendMessage(ChatColor.YELLOW + "/faction coffre              " + ChatColor.GRAY + "Coffre partagé");
         player.sendMessage(ChatColor.GRAY + "— Classement & Stats —");
-        player.sendMessage(ChatColor.YELLOW + "/faction top                 " + ChatColor.GRAY + "Top 10 factions (texte)");
+        player.sendMessage(ChatColor.YELLOW + "/faction top                 " + ChatColor.GRAY + "Top 10 factions par puissance (texte)");
+        player.sendMessage(ChatColor.YELLOW + "/faction topbanque           " + ChatColor.GRAY + "Top 10 factions par émeraudes en coffre (texte)");
         player.sendMessage(ChatColor.YELLOW + "/faction classement          " + ChatColor.GRAY + "Classement factions GUI");
         player.sendMessage(ChatColor.YELLOW + "/faction rangs               " + ChatColor.GRAY + "Guide des rangs GUI");
         player.sendMessage(ChatColor.YELLOW + "/faction power [joueur]      " + ChatColor.GRAY + "Puissance individuelle");
         player.sendMessage(ChatColor.YELLOW + "/faction stats [joueur]      " + ChatColor.GRAY + "Statistiques personnelles");
-        player.sendMessage(ChatColor.YELLOW + "/faction classementjoueurs   " + ChatColor.GRAY + "Top 10 joueurs par stat");
+        player.sendMessage(ChatColor.YELLOW + "/faction classementjoueurs   " + ChatColor.GRAY + "Top 10 joueurs par stat (dont richesse)");
         player.sendMessage(ChatColor.GRAY + "— Territoire (Claims) —");
         player.sendMessage(ChatColor.GREEN  + "/faction claim               " + ChatColor.GRAY + "Claimer le chunk sous tes pieds (cout croissant en emeral.)");
         player.sendMessage(ChatColor.GREEN  + "/faction unclaim             " + ChatColor.GRAY + "Retirer le claim du chunk actuel");
         player.sendMessage(ChatColor.GREEN  + "/faction claims              " + ChatColor.GRAY + "Voir les claims de ta faction");
+        player.sendMessage(ChatColor.GREEN  + "/faction claimmap            " + ChatColor.GRAY + "Carte visuelle des claims autour de ta position");
+        player.sendMessage(ChatColor.GREEN  + "/faction claimallow <faction>" + ChatColor.GRAY + "Autoriser une faction à claimer à moins de " + ClaimManager.MIN_CLAIM_DISTANCE + " chunks de vos claims");
+        player.sendMessage(ChatColor.GREEN  + "/faction claimdeny <faction> " + ChatColor.GRAY + "Révoquer l'autorisation de proximité de claim");
+        player.sendMessage(ChatColor.GREEN  + "/faction claimallies         " + ChatColor.GRAY + "Lister les factions autorisées à claimer près de vous");
         player.sendMessage(ChatColor.GREEN  + "/faction perms               " + ChatColor.GRAY + "Gerer les acces a ce chunk claim (GUI)");
         player.sendMessage(ChatColor.GRAY + "— Economie —");
         player.sendMessage(ChatColor.AQUA   + "/faction banque              " + ChatColor.GRAY + "Banque emeraudes personnelle / faction (GUI)");
@@ -743,8 +976,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             List<String> subs = Arrays.asList(
                     "create","disband","invite","join","leave","kick","setchef",
                     "info","list","tp","coffre","menu",
-                    "top","classement","rangs","power","stats","classementjoueurs",
-                    "claim","unclaim","claims","perms","banque","troc","accepter"
+                    "top","topbanque","classement","rangs","power","stats","classementjoueurs",
+                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter"
             );
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
