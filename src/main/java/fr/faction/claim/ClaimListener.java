@@ -1,15 +1,19 @@
 package fr.faction.claim;
 
 import fr.faction.managers.FactionManager;
+import fr.faction.util.MobUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
 
@@ -60,14 +64,34 @@ public class ClaimListener implements Listener {
                 claimManager.isClaimed(block.getChunk()));
     }
 
-    // ── Attaque d'entité (animaux, monstres) dans un claim ───────────────────
+    // ── Attaque d'entité dans un claim ────────────────────────────────────────
+    // Seuls les mobs non-hostiles (amicaux/passifs : villageois, loups, chats,
+    // vaches, chevaux, golems de fer, etc.) sont protégés contre les joueurs
+    // extérieurs à la faction propriétaire du claim. Les mobs hostiles (monstres)
+    // restent librement combattables par tout le monde, même en territoire ennemi.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player player)) return;
-        // On protège uniquement les entités non-joueurs dans un claim
-        if (event.getEntity() instanceof Player) return;
-        Chunk chunk = event.getEntity().getLocation().getChunk();
-        if (!guard(player, chunk)) event.setCancelled(true);
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
+        if (!MobUtils.isFriendlyMob(target)) return; // joueur ou mob hostile : non concerné ici
+
+        Player attacker = resolveAttacker(event.getDamager());
+        if (attacker == null) return;
+
+        Chunk chunk = target.getLocation().getChunk();
+        if (!guard(attacker, chunk)) event.setCancelled(true);
+    }
+
+    /**
+     * Résout le joueur responsable des dégâts, qu'il s'agisse d'un coup direct
+     * ou d'un projectile (flèche, boule de feu, trident…) tiré par un joueur.
+     */
+    private Player resolveAttacker(org.bukkit.entity.Entity damager) {
+        if (damager instanceof Player player) return player;
+        if (damager instanceof Projectile projectile) {
+            ProjectileSource source = projectile.getShooter();
+            if (source instanceof Player player) return player;
+        }
+        return null;
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

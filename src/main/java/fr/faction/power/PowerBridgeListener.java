@@ -4,6 +4,7 @@ import fr.faction.managers.FactionManager;
 import fr.faction.managers.PlayerStatsManager;
 import fr.faction.models.Faction;
 import fr.faction.models.PlayerStats;
+import fr.faction.util.MobUtils;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -39,28 +40,11 @@ public class PowerBridgeListener implements Listener {
         // Compter la mort
         if (event.getEntity() instanceof Player dead) {
             statsManager.getStats(dead.getUniqueId()).addDeath();
-        } else if (isHostileMob(event.getEntity())) {
+        } else if (MobUtils.isHostileMob(event.getEntity())) {
             statsManager.getStats(killer.getUniqueId()).addMobKill();
         }
         Faction faction = factionManager.getPlayerFaction(killer.getUniqueId());
         if (faction != null) powerManager.invalidate(faction.getName());
-    }
-
-    /** Vérifie si une entité tuée est un mob hostile (ex-plugin FactionStats) */
-    private boolean isHostileMob(LivingEntity entity) {
-        return entity instanceof Monster
-                || entity instanceof Ghast
-                || entity instanceof Slime
-                || entity instanceof Phantom
-                || entity instanceof Shulker
-                || entity instanceof ElderGuardian
-                || entity instanceof Warden
-                || entity instanceof EnderDragon
-                || entity instanceof WitherSkeleton
-                || entity instanceof Wither
-                || entity instanceof PiglinBrute
-                || entity instanceof Hoglin
-                || entity instanceof Zoglin;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
