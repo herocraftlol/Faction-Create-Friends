@@ -92,10 +92,11 @@ Le JAR compilé sera dans `target/FactionPlugin-X.X.X.jar`
 
 ## Télécharger
 
-📦 **[Télécharger FactionPlugin-3.2.3.jar](../../releases/download/v3.2.3/FactionPlugin-3.2.3.jar)**
+📦 **[Télécharger FactionPlugin-3.2.4.jar](../../releases/download/v3.2.4/FactionPlugin-3.2.4.jar)**
 
 ## Historique des Versions
 
+- **v3.2.4** : Corrections et ameliorations finales
 - **v3.2.3** : Ameliorations et nouvelles fonctionnalites utilitaires
 - **v3.2.2** : Corrections et optimisations du systeme de puissance + corrections generales
 - **v3.2.1** : Corrections et améliorations du système de Trade (troc fix)

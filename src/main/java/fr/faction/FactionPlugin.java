@@ -77,7 +77,7 @@ public class FactionPlugin extends JavaPlugin {
         getCommand("faction").setTabCompleter(factionCommand);
 
         // Listeners
-        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager, statsManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager, statsManager, powerManager), this);
         getServer().getPluginManager().registerEvents(new PowerBridgeListener(factionManager, powerManager, statsManager), this);
         getServer().getPluginManager().registerEvents(new ClaimListener(claimManager, factionManager), this);
 

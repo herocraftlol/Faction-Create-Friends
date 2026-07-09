@@ -117,6 +117,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "join"                      -> handleJoin(player, args);
             case "leave"                     -> handleLeave(player);
             case "setchef"                   -> handleSetChef(player, args);
+            case "rename", "renommer"        -> handleRename(player, args);
             case "info"                      -> handleInfo(player, args);
             case "list"                      -> handleList(player);
             case "kick"                      -> handleKick(player, args);
@@ -208,6 +209,50 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         factionManager.addMember(args[1], player.getUniqueId());
         player.sendMessage(prefix() + msg("joined-faction").replace("%name%", faction.getName()));
         notifyMembers(faction, player, ChatColor.GREEN + player.getName() + " a rejoint la faction !");
+    }
+
+    private void handleRename(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage : /faction rename <nouveau_nom>");
+            return;
+        }
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut renommer la faction."); return; }
+
+        String newName = args[1];
+
+        // Validation du nom
+        if (newName.length() < 3 || newName.length() > 20) {
+            player.sendMessage(prefix() + ChatColor.RED + "Le nom doit faire entre 3 et 20 caractères.");
+            return;
+        }
+        if (!newName.matches("[a-zA-Z0-9_\\-]+")) {
+            player.sendMessage(prefix() + ChatColor.RED + "Le nom ne peut contenir que des lettres, chiffres, _ et -.");
+            return;
+        }
+        if (factionManager.getFaction(newName) != null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Ce nom est déjà pris par une autre faction.");
+            return;
+        }
+
+        String oldName = faction.getName();
+        boolean success = factionManager.renameFaction(oldName, newName);
+        if (!success) {
+            player.sendMessage(prefix() + ChatColor.RED + "Renommage impossible (nom déjà pris ou faction introuvable).");
+            return;
+        }
+
+        // Notifier tous les membres en ligne
+        for (UUID uuid : faction.getMembers()) {
+            Player member = Bukkit.getPlayer(uuid);
+            if (member != null && member.isOnline()) {
+                member.sendMessage(prefix() + ChatColor.YELLOW + "La faction §e" + oldName
+                        + ChatColor.YELLOW + " a été renommée en §e" + newName + ChatColor.YELLOW + ".");
+            }
+        }
+        player.sendMessage(prefix() + ChatColor.GREEN + "✔ Faction renommée : §e" + oldName
+                + ChatColor.GREEN + " → §e" + newName + ChatColor.GREEN + ".");
     }
 
     private void handleLeave(Player player) {
@@ -903,6 +948,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.YELLOW + "/faction leave               " + ChatColor.GRAY + "Quitter sa faction");
         player.sendMessage(ChatColor.YELLOW + "/faction kick <joueur>       " + ChatColor.GRAY + "Expulser un membre");
         player.sendMessage(ChatColor.YELLOW + "/faction setchef <joueur>    " + ChatColor.GRAY + "Transférer le chef");
+        player.sendMessage(ChatColor.YELLOW + "/faction rename <nouveau_nom>" + ChatColor.GRAY + "Renommer la faction (chef uniquement)");
         player.sendMessage(ChatColor.YELLOW + "/faction info [nom]          " + ChatColor.GRAY + "Info faction");
         player.sendMessage(ChatColor.YELLOW + "/faction list                " + ChatColor.GRAY + "Liste des factions");
         player.sendMessage(ChatColor.YELLOW + "/faction tp [joueur]         " + ChatColor.GRAY + "Téléportation");
@@ -974,7 +1020,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> subs = Arrays.asList(
-                    "create","disband","invite","join","leave","kick","setchef",
+                    "create","disband","invite","join","leave","kick","setchef","rename",
                     "info","list","tp","coffre","menu",
                     "top","topbanque","classement","rangs","power","stats","classementjoueurs",
                     "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter"

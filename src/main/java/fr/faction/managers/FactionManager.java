@@ -84,6 +84,29 @@ public class FactionManager {
         return factions.get(name.toLowerCase());
     }
 
+    /**
+     * Renomme une faction.
+     * @return false si le nouveau nom est déjà pris ou invalide
+     */
+    public boolean renameFaction(String oldName, String newName) {
+        String oldKey = oldName.toLowerCase();
+        String newKey = newName.toLowerCase();
+        if (!factions.containsKey(oldKey)) return false;
+        if (factions.containsKey(newKey)) return false;
+
+        Faction faction = factions.remove(oldKey);
+        faction.setName(newName);
+        factions.put(newKey, faction);
+
+        // Mettre à jour playerFactionMap pour tous les membres
+        for (Map.Entry<UUID, String> e : playerFactionMap.entrySet()) {
+            if (e.getValue().equals(oldKey)) e.setValue(newKey);
+        }
+
+        saveFactions();
+        return true;
+    }
+
     public Faction getPlayerFaction(UUID player) {
         String name = playerFactionMap.get(player);
         return name == null ? null : factions.get(name);
