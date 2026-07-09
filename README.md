@@ -1,111 +1,197 @@
-# FactionPlugin
+# 🏰 FactionPlugin - Ultimate Factions Plugin for Minecraft Survival
 
-Plugin Minecraft complet de gestion de factions pour serveur **Spigot/Paper 1.20.4**
+![Version](https://img.shields.io/badge/Version-3.2.4-blue)
+![Spigot](https://img.shields.io/badge/Spigot-1.20.4-green)
+![Java](https://img.shields.io/badge/Java-17+-orange)
 
-## Description
+---
 
-FactionPlugin est un plugin Minecraft tout-en-un qui combine gestion de factions, statistiques joueurs, système de puissance, **banque d'émeraudes**, **système de claims** et **commerce entre joueurs** ! Conçu pour offrir une expérience de jeu complète et immersive sur votre serveur Minecraft.
+## ⚡ Transform Your Survival Server with Full Faction Management!
 
-## Fonctionnalités Principales
+**FactionPlugin** is the ultimate all-in-one solution for Minecraft survival servers. Create factions, claim land, trade items, level up your power, and dominate the leaderboards!
 
-### 🏦 Banque de Faction (Emerald Bank)
-- **Coffre partagé** : Déposez et retirez des émeraudes dans la banque de votre faction
-- **Interface GUI intuitive** pour gérer les dépôts/retraits
-- **Accès réservé aux membres autorisés**
-- **Historique des transactions**
+---
 
-### 🗺️ Système de Claims
-- **Réclamez des chunks** pour votre faction et protégez votre territoire
-- **Permissions par joueur** : Configurez qui peut construire/casser dans les zones réclamées
-- **Protection du territoire** : Interdiction d'accès aux non-membres
-- **GUI de gestion des permissions** intuitive
+## 🎮 Features That Make Your Server Stand Out
 
-### 💱 Commerce Entre Joueurs (Trade)
-- **Échange sécurisé** d'items entre deux joueurs
-- **Interface GUI** avec slots pour proposer des items et des émeraudes
-- **Confirmation des deux parties** requise pour finaliser l'échange
-- **Annulation possible** à tout moment
-- **Protection contre les scams**
+### 🏰 **Create & Manage Factions**
+- Create your faction with a single command: `/faction create <name>`
+- Invite players, manage members, and assign ranks
+- Customizable faction tags visible in chat
+- Set home locations for instant teleportation
+- Custom MOTD (Message of the Day) for your faction
 
-### ⚡ Système de Puissance (Power System)
-- **Puissance Individuelle (PI)** : Chaque joueur génère de la puissance basée sur ses stats PvP, survie, progression et activité
-- **Puissance Globale (PG)** : La somme des PI des membres + bonus de taille de faction
-- **7 Rangs de Faction** : Pierre → Bronze → Argent → Or → Diamant → Emeraude → Légendaire
-- **Effets passifs** : Plus votre faction monte en rang, plus vous obtenez d'avantages (speed, force, résistance...)
+### 🗺️ **Land Claiming System**
+- Protect your territory with chunk-based claiming
+- No more griefing! Only faction members can build in claimed areas
+- Set individual permissions for each player
+- Easy-to-use GUI for managing claims
+- Visual indicators for claimed vs unclaimed land
 
-### 📊 Statistiques Joueurs Intégrées
-- **`/faction stats [joueur]`** : Stats complètes avec kills, mobs, dégâts, blocs, temps de jeu, K/D ratio
-- **`/faction classementjoueurs`** : Classement des top 10 joueurs par catégorie (mobs, pvp, morts, blocs, etc.)
+### 💎 **Emerald Bank System**
+- Shared faction vault for emeralds
+- Deposit and withdraw emeralds as a team
+- Track all transactions with detailed logs
+- GUI-based interface for easy management
+- Each member can contribute to faction wealth
 
-### 🔧 Fonctionnalités de Base
-- **Création de factions** : `/faction create <nom>`
-- **Gestion des membres** : Invitez, expulsez, nommez un nouveau chef
-- **Système de téléportation** : TP vers les membres de votre faction
-- **Inventaire partagé** : Un coffre commun accessible à tous les membres
-- **Interface GUI** : Menu interactif complet avec `/faction`
+### 🔄 **Secure Player Trading**
+- Safe trading system with GUI interface
+- Both players must confirm trades
+- Trade items AND emeralds seamlessly
+- Anti-scam protection built-in
+- Cancel trades anytime before confirmation
 
-## Installation
+### ⚔️ **Power & Ranking System**
+- 7 unique faction ranks: Stone → Bronze → Silver → Gold → Diamond → Emerald → Legendary
+- Individual power based on your stats (kills, playtime, etc.)
+- Faction power = sum of all member power
+- Unlock passive effects based on your rank:
+  - Speed boost
+  - Haste (mining speed)
+  - Strength (combat power)
+  - Jump boost
+  - Regeneration
+  - And more!
 
-1. Téléchargez la dernière version depuis la [page des releases](../../releases)
-2. Placez le fichier `FactionPlugin-X.X.X.jar` dans le dossier `plugins` de votre serveur
-3. Redémarrez votre serveur
-4. Le fichier de configuration sera généré automatiquement dans `plugins/FactionPlugin/`
+### 📊 **Player Statistics & Leaderboards**
+- Track your stats: Kills, Deaths, Mob Kills, Blocks Broken, Distance Traveled, Playtime
+- K/D ratio calculation
+- `/faction stats` - View your complete stats
+- `/faction top` - See the top factions
+- `/faction classementjoueurs` - Player leaderboards
+- Weekly/Monthly stats tracking
 
-## Configuration
+### 🚀 **Teleportation System**
+- Set faction home with `/faction sethome`
+- Teleport to faction home instantly
+- Configurable teleport cooldowns
+- Warp system for quick access points
 
-Le fichier `config.yml` vous permet de personnaliser :
-- Les messages du plugin (langue, format)
-- Les permissions par rôle
-- Les paramètres de faction (coûts, limites, etc.)
+### 📦 **Shared Inventory**
+- Faction shared storage system
+- Access from anywhere on the map
+- Permission-based access control
+- Perfect for sharing resources between members
 
-## Commandes
+### 🎨 **Beautiful GUI Menus**
+- Intuitive inventory-based interfaces
+- No confusing commands - point and click!
+- Color-coded items and information
+- Smooth animations and feedback
 
-| Commande | Description |
-|----------|-------------|
-| `/faction create <nom>` | Créer une nouvelle faction |
-| `/faction info` | Voir les informations de votre faction |
-| `/faction invite <joueur>` | Inviter un joueur dans votre faction |
-| `/faction leave` | Quitter votre faction |
-| `/faction stats [joueur]` | Voir les statistiques d'un joueur |
-| `/faction classementjoueurs` | Classement des top joueurs |
+---
 
-## Permissions
+## 🚀 Quick Installation
 
-- `faction.create` - Créer une faction
-- `faction.join` - Rejoindre une faction
-- `faction.leave` - Quitter une faction
-- `faction.admin` - Accès aux commandes admin
+1. Download `FactionPlugin-3.2.4.jar`
+2. Drop it into your server's `plugins` folder
+3. Restart your server
+4. Start playing with `/faction`!
 
-## Développement
+---
 
-### Prérequis
-- Java 17+
-- Maven 3.9+
+## 📋 Commands Overview
 
-### Compilation
+| Command | Description |
+|---------|-------------|
+| `/faction create <name>` | Create a new faction |
+| `/faction info [name]` | View faction information |
+| `/faction invite <player>` | Invite a player |
+| `/faction claim` | Claim current chunk |
+| `/faction unclaim` | Unclaim current chunk |
+| `/faction home` | Teleport to faction home |
+| `/faction sethome` | Set faction home |
+| `/faction bank` | Open faction bank |
+| `/faction trade <player>` | Trade with a player |
+| `/faction stats [player]` | View player stats |
+| `/faction top` | View faction rankings |
+| `/faction classements` | View player rankings |
+| `/faction who` | See faction info |
+| `/faction leave` | Leave current faction |
+| `/faction disband` | Disband your faction |
 
-```bash
-mvn clean package
-```
+---
 
-Le JAR compilé sera dans `target/FactionPlugin-X.X.X.jar`
+## 🔧 Permissions
 
-## Télécharger
+| Permission | Description | Default |
+|------------|-------------|---------|
+| `faction.use` | Use basic faction commands | All players |
+| `faction.create` | Create a faction | All players |
+| `faction.admin` | Admin commands & bypass | OP only |
 
-📦 **[Télécharger FactionPlugin-3.2.4.jar](../../releases/download/v3.2.4/FactionPlugin-3.2.4.jar)**
+---
 
-## Historique des Versions
+## 💡 Why Choose FactionPlugin?
 
-- **v3.2.4** : Corrections et ameliorations finales
-- **v3.2.3** : Ameliorations et nouvelles fonctionnalites utilitaires
-- **v3.2.2** : Corrections et optimisations du systeme de puissance + corrections generales
-- **v3.2.1** : Corrections et améliorations du système de Trade (troc fix)
-- **v3.2.0** : Banque d'émeraudes, Système de Claims et Commerce entre joueurs
-- **v3.1.0** : Fusion FactionPlugin + FactionStats - Stats joueurs intégrées + Classement
-- **v2.0.0** : Système de Puissance, Rangs et Classement Factions
-- **v1.1.0** : Ajout du GUI, téléportation et inventaire partagé
-- **v1.0.0** : Version initiale avec les fonctionnalités de base
+✅ **All-in-One Solution** - No need for multiple plugins  
+✅ **Optimized Performance** - Lightweight and fast  
+✅ **Regular Updates** - Constantively improving  
+✅ **Easy Configuration** - Works out of the box  
+✅ **Beautiful GUIs** - Intuitive user experience  
+✅ **Spigot/Paper 1.20.4** - Modern server support  
+✅ **Java 17+** - Latest Minecraft compatibility  
 
-## License
+---
 
-Ce projet est sous licence MIT.
+## 🎯 Perfect For
+
+- 🌟 **Vanilla Survival Servers** - Add factions without changing gameplay
+- ⚔️ **PvP Servers** - Compete for territory and power
+- 🏗️ **Towny-Style Servers** - Land claiming without the complexity
+- 🎮 **Mini-Game Servers** - Custom faction game modes
+- 🌐 **Network Servers** - Multi-server compatible
+
+---
+
+## 📈 Coming Soon
+
+- Faction wars & territory battles
+- Enhanced Ally systems
+- Custom faction perks
+- Economy integration
+- And more!
+
+---
+
+## 🛠️ Technical Info
+
+- **API Version:** 1.20
+- **Requires:** Spigot, Paper, or compatible fork
+- **Java:** 17 or higher
+- **Storage:** YAML files (MySQL optional)
+
+---
+
+## 📥 Download
+
+📦 **[Download FactionPlugin-3.2.4.jar](../../releases/download/v3.2.4/FactionPlugin-3.2.4.jar)**
+
+---
+
+## Version History
+
+- **v3.2.4** : Final fixes and improvements
+- **v3.2.3** : Utility improvements and MobUtils
+- **v3.2.2** : Power system optimizations
+- **v3.2.1** : Trade system fixes
+- **v3.2.0** : Emerald Bank, Claims & Trading
+- **v3.1.0** : Stats & Rankings integration
+- **v2.0.0** : Power & Ranking system
+- **v1.1.0** : GUI, Teleportation & Shared Inventory
+- **v1.0.0** : Initial release
+
+---
+
+## 📝 License
+
+This project is under MIT License.
+
+---
+
+<div align="center">
+  <strong>Made with ❤️ for the Minecraft Community</strong>
+  <br>
+  <em>Transform your survival experience today!</em>
+</div>
