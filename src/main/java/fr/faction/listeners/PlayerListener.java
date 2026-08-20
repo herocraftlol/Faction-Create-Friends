@@ -5,6 +5,8 @@ import fr.faction.managers.PlayerStatsManager;
 import fr.faction.models.Faction;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.ranking.FactionRank;
+import fr.faction.shop.ShopGUI;
+import fr.faction.shop.ShopManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -22,58 +24,68 @@ public class PlayerListener implements Listener {
     private final FactionManager factionManager;
     private final PlayerStatsManager statsManager;
     private final FactionPowerManager powerManager;
+    private final ShopManager shopManager;
+    private final ShopGUI shopGUI;
 
     public PlayerListener(FactionManager factionManager, PlayerStatsManager statsManager,
-                          FactionPowerManager powerManager) {
+                          FactionPowerManager powerManager,
+                          ShopManager shopManager, ShopGUI shopGUI) {
         this.factionManager = factionManager;
-        this.statsManager = statsManager;
-        this.powerManager = powerManager;
+        this.statsManager   = statsManager;
+        this.powerManager   = powerManager;
+        this.shopManager    = shopManager;
+        this.shopGUI        = shopGUI;
     }
 
-    // ── Chat : tag de faction coloré selon le rang ────────────────────────────
+    // ── Chat ─────────────────────────────────────────────────────────────────────
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
 
+        // Intercepter la saisie de recherche shop (sync nécessaire)
+        if (shopGUI.isAwaitingSearch(player.getUniqueId())) {
+            event.setCancelled(true);
+            final String msg = event.getMessage();
+            Bukkit.getScheduler().runTask(
+                    Bukkit.getPluginManager().getPlugin("FactionPlugin"),
+                    () -> shopGUI.handleSearchInput(player, msg));
+            return;
+        }
+
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) {
-            // Pas de faction — format par défaut
             event.setFormat(ChatColor.GRAY + "[Sans faction] "
                     + ChatColor.WHITE + "%s" + ChatColor.RESET + ": %s");
             return;
         }
 
         FactionRank rank = powerManager.getFactionRank(faction.getName());
-
-        // Couleur du tag selon le rang (OR et au-delà → couleur spéciale)
         String factionTag;
         if (rank.ordinal() >= FactionRank.OR.ordinal()) {
-            // OR, DIAMANT, EMERAUDE, LEGENDAIRE → tag dans la couleur du rang
             factionTag = rank.couleur + "" + ChatColor.BOLD
-                    + "[" + faction.getName() + "]"
-                    + ChatColor.RESET;
+                    + "[" + faction.getName() + "]" + ChatColor.RESET;
         } else {
-            // PIERRE, BRONZE, ARGENT → tag gris standard
             factionTag = ChatColor.GRAY + "[" + faction.getName() + "]" + ChatColor.RESET;
         }
-
-        // LEGENDAIRE → préfixe violet supplémentaire
         String prefix = "";
         if (rank == FactionRank.LEGENDAIRE) {
             prefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[LEGENDAIRE] " + ChatColor.RESET;
         }
-
         event.setFormat(prefix + factionTag + " "
                 + ChatColor.WHITE + "%s" + ChatColor.RESET + ": %s");
     }
 
+    // ── Join ─────────────────────────────────────────────────────────────────────
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-
-        // Crée/actualise le profil de stats (nom + dernière connexion)
         var stats = statsManager.getOrCreateStats(player.getUniqueId(), player.getName());
         stats.setLastJoin(System.currentTimeMillis());
+
+        // Paiements shop en attente
+        Bukkit.getScheduler().runTaskLater(
+                Bukkit.getPluginManager().getPlugin("FactionPlugin"),
+                () -> shopManager.deliverPendingPayments(player), 40L);
 
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) return;
@@ -87,12 +99,11 @@ public class PlayerListener implements Listener {
         }
     }
 
+    // ── Quit ─────────────────────────────────────────────────────────────────────
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-
-        // Le temps de jeu est désormais suivi par une tâche périodique (cf. FactionPlugin#onEnable)
         statsManager.getStats(uuid).setLastJoin(System.currentTimeMillis());
 
         Faction faction = factionManager.getPlayerFaction(uuid);

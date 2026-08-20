@@ -17,6 +17,9 @@ import fr.faction.managers.PlaytimeTracker;
 import fr.faction.managers.SharedInventoryManager;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PowerBridgeListener;
+import fr.faction.shop.InvSeeGUI;
+import fr.faction.shop.ShopGUI;
+import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -33,13 +36,18 @@ public class FactionPlugin extends JavaPlugin {
     private FactionRankingGUI rankingGUI;
     private PlaytimeTracker playtimeTracker;
 
-    // Nouveaux systèmes
+    // Systèmes 3.2
     private ClaimManager claimManager;
     private ClaimPermissionGUI claimPermissionGUI;
     private EmeraldBankManager bankManager;
     private BankGUI bankGUI;
     private TradeManager tradeManager;
     private TradeGUI tradeGUI;
+
+    // ── Nouveaux systèmes v4 ─────────────────────────────────────────────
+    private ShopManager shopManager;
+    private ShopGUI shopGUI;
+    private InvSeeGUI invSeeGUI;
 
     @Override
     public void onEnable() {
@@ -55,13 +63,18 @@ public class FactionPlugin extends JavaPlugin {
         powerManager = new FactionPowerManager(this, factionManager, statsManager);
         powerManager.start();
 
-        // ── Nouveaux systèmes ──────────────────────────────────────────────
+        // Systèmes 3.2
         claimManager       = new ClaimManager(this);
         claimPermissionGUI = new ClaimPermissionGUI(this, claimManager, factionManager);
         bankManager        = new EmeraldBankManager(this);
         bankGUI            = new BankGUI(this, bankManager, factionManager);
         tradeManager       = new TradeManager();
         tradeGUI           = new TradeGUI(this, tradeManager);
+
+        // ── Systèmes v4 ──────────────────────────────────────────────────
+        shopManager = new ShopManager(this);
+        shopGUI     = new ShopGUI(this, shopManager);
+        invSeeGUI   = new InvSeeGUI(this);
 
         // GUIs
         factionGUI       = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
@@ -72,21 +85,25 @@ public class FactionPlugin extends JavaPlugin {
         FactionCommand factionCommand = new FactionCommand(
                 this, factionManager, statsManager, sharedInventoryManager,
                 teleportManager, factionGUI, rankingGUI, powerManager,
-                claimManager, claimPermissionGUI, bankGUI, bankManager, tradeManager, tradeGUI);
+                claimManager, claimPermissionGUI, bankGUI, bankManager,
+                tradeManager, tradeGUI,
+                shopManager, shopGUI, invSeeGUI);
         getCommand("faction").setExecutor(factionCommand);
         getCommand("faction").setTabCompleter(factionCommand);
 
         // Listeners
-        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager, statsManager, powerManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI), this);
         getServer().getPluginManager().registerEvents(new PowerBridgeListener(factionManager, powerManager, statsManager), this);
         getServer().getPluginManager().registerEvents(new ClaimListener(claimManager, factionManager), this);
+        getServer().getPluginManager().registerEvents(shopGUI, this);
+        getServer().getPluginManager().registerEvents(invSeeGUI, this);
 
         // ActionBar & timers
         actionBarManager.start();
         playtimeTracker = new PlaytimeTracker(this, statsManager);
         playtimeTracker.start();
 
-        getLogger().info("FactionPlugin v3.2 actif — Claim, Banque, Troc ajoutés !");
+        getLogger().info("FactionPlugin v4.0 actif — Shop Global, InvSee ajoutés !");
     }
 
     @Override
@@ -99,6 +116,7 @@ public class FactionPlugin extends JavaPlugin {
         if (factionManager != null)         factionManager.saveFactions();
         if (claimManager != null)           claimManager.save();
         if (bankManager != null)            bankManager.save();
+        if (shopManager != null)            shopManager.save();
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 
@@ -114,4 +132,7 @@ public class FactionPlugin extends JavaPlugin {
     public EmeraldBankManager getBankManager()            { return bankManager; }
     public TradeManager getTradeManager()                 { return tradeManager; }
     public TradeGUI getTradeGUI()                         { return tradeGUI; }
+    public ShopManager getShopManager()                   { return shopManager; }
+    public ShopGUI getShopGUI()                           { return shopGUI; }
+    public InvSeeGUI getInvSeeGUI()                       { return invSeeGUI; }
 }

@@ -16,9 +16,14 @@ import fr.faction.models.PlayerStats;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PlayerPowerCalculator;
 import fr.faction.ranking.FactionRank;
+import fr.faction.shop.InvSeeGUI;
+import fr.faction.shop.ShopGUI;
+import fr.faction.shop.ShopListing;
+import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.OfflinePlayer;
@@ -74,13 +79,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
     private final TradeGUI tradeGUI;
+    private final ShopManager shopManager;
+    private final ShopGUI shopGUI;
+    private final InvSeeGUI invSeeGUI;
 
     public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
                           FactionGUI factionGUI, FactionRankingGUI rankingGUI, FactionPowerManager powerManager,
                           ClaimManager claimManager, ClaimPermissionGUI claimPermissionGUI,
                           BankGUI bankGUI, EmeraldBankManager bankManager,
-                          TradeManager tradeManager, TradeGUI tradeGUI) {
+                          TradeManager tradeManager, TradeGUI tradeGUI,
+                          ShopManager shopManager, ShopGUI shopGUI, InvSeeGUI invSeeGUI) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.statsManager = statsManager;
@@ -94,7 +103,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.bankGUI = bankGUI;
         this.bankManager = bankManager;
         this.tradeManager = tradeManager;
-        this.tradeGUI = tradeGUI;
+        this.tradeGUI    = tradeGUI;
+        this.shopManager = shopManager;
+        this.shopGUI     = shopGUI;
+        this.invSeeGUI   = invSeeGUI;
     }
 
     @Override
@@ -147,6 +159,16 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "banque", "bank"            -> bankGUI.openMainBankMenu(player);
             case "troc", "trade"             -> handleTradeInvite(player, args);
             case "accepter", "accepttrade"   -> handleTradeAccept(player);
+
+            // ── Shop Global v4 ────────────────────────────────────────────────
+            case "shop", "marche", "ventes"  -> shopGUI.openShop(player);
+            case "vendre", "sell"            -> handleShopSell(player, args);
+            case "acheter", "buy"            -> handleShopBuy(player, args);
+            case "recuperer", "recover", "reprendre" -> handleShopRecover(player, args);
+            case "mesannonces"               -> shopGUI.openMyListings(player);
+
+            // ── Admin ─────────────────────────────────────────────────────────
+            case "invsee"                    -> handleInvSee(player, args);
 
             default                          -> sendHelp(player);
         }
@@ -938,6 +960,161 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     // AIDE
     // ════════════════════════════════════════════════════════════════════════════
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // SHOP GLOBAL v4
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * /faction vendre <prix> <monnaie>
+     * Monnaies acceptées : fer, or, diamant, emeraude (insensible à la casse)
+     * Met en vente TOUT le stack tenu en main.
+     */
+    private void handleShopSell(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction vendre <prix> <fer|or|diamant|emeraude>");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Tiens l'item que tu veux vendre dans ta main principale.");
+            return;
+        }
+
+        int price;
+        try {
+            price = Integer.parseInt(args[1]);
+            if (price <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            player.sendMessage(prefix() + ChatColor.RED + "Le prix doit être un entier positif.");
+            return;
+        }
+
+        ShopListing.Currency currency = parseCurrency(args[2]);
+        if (currency == null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Monnaie invalide. Utilise : fer, or, diamant, emeraude");
+            return;
+        }
+
+        org.bukkit.inventory.ItemStack hand = player.getInventory().getItemInMainHand();
+        if (hand == null || hand.getType() == Material.AIR) {
+            player.sendMessage(prefix() + ChatColor.RED + "Tu ne tiens rien dans ta main !");
+            return;
+        }
+
+        ShopListing listing = shopManager.createListing(player, price, currency);
+        if (listing == null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Impossible de mettre cet item en vente.");
+            return;
+        }
+
+        player.sendMessage(prefix() + ChatColor.GREEN + "Annonce créée ! "
+                + ChatColor.YELLOW + listing.getItem().getAmount() + "× " + ShopManager.formatMat(listing.getItem().getType())
+                + ChatColor.GREEN + " → " + ChatColor.GOLD + listing.getTotalPrice() + " " + currency.getDisplayName() + "(s)"
+                + ChatColor.DARK_GRAY + " [ID: " + listing.getId() + "]");
+        player.sendMessage(prefix() + ChatColor.GRAY + "Récupérable via : §e/faction recuperer " + listing.getId());
+    }
+
+    /**
+     * /faction acheter <ID>
+     * Achète directement une annonce sans passer par le GUI.
+     */
+    private void handleShopBuy(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction acheter <ID>");
+            player.sendMessage(prefix() + ChatColor.GRAY + "L'ID est affiché dans le shop (§e/faction shop§7).");
+            return;
+        }
+        String id = args[1].toUpperCase();
+        ShopListing listing = shopManager.findById(id);
+        if (listing == null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Annonce '" + id + "' introuvable.");
+            return;
+        }
+        if (listing.isSold()) {
+            player.sendMessage(prefix() + ChatColor.RED + "Cet article a déjà été vendu !");
+            return;
+        }
+        if (listing.getSellerUUID().equals(player.getUniqueId())) {
+            player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas acheter ta propre annonce !");
+            return;
+        }
+
+        // Afficher un résumé avant d'acheter
+        player.sendMessage(prefix() + ChatColor.YELLOW + "Confirmation d'achat :");
+        player.sendMessage(ChatColor.GRAY + "  Item   : §f" + listing.getItem().getAmount() + "× " + ShopManager.formatMat(listing.getItem().getType()));
+        player.sendMessage(ChatColor.GRAY + "  Prix   : §e" + listing.getTotalPrice() + " " + listing.getCurrency().getDisplayName() + "(s)");
+        player.sendMessage(ChatColor.GRAY + "  Vendeur: §f" + listing.getSellerName());
+
+        ShopManager.BuyResult result = shopManager.buy(player, id);
+        switch (result) {
+            case SUCCESS ->
+                player.sendMessage(prefix() + ChatColor.GREEN + "Achat effectué ! Item ajouté à ton inventaire.");
+            case NOT_ENOUGH_MONEY ->
+                player.sendMessage(prefix() + ChatColor.RED + "Tu n'as pas assez de "
+                        + listing.getCurrency().getDisplayName() + " (besoin : " + listing.getTotalPrice() + ").");
+            case ALREADY_SOLD ->
+                player.sendMessage(prefix() + ChatColor.RED + "Cet article vient d'être vendu !");
+            case NOT_FOUND ->
+                player.sendMessage(prefix() + ChatColor.RED + "Annonce introuvable.");
+            case OWN_LISTING ->
+                player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas acheter ta propre annonce !");
+        }
+    }
+
+    /**
+     * /faction recuperer <ID>
+     * Récupère une annonce non vendue.
+     */
+    private void handleShopRecover(Player player, String[] args) {
+        if (args.length < 2) {
+            // Lister les annonces du joueur
+            java.util.List<ShopListing> mine = shopManager.getSellerListings(player.getUniqueId());
+            if (mine.isEmpty()) {
+                player.sendMessage(prefix() + ChatColor.GRAY + "Tu n'as aucune annonce active dans le shop.");
+                return;
+            }
+            player.sendMessage(prefix() + ChatColor.YELLOW + "Tes annonces actives :");
+            for (ShopListing l : mine) {
+                player.sendMessage(ChatColor.DARK_GRAY + "  [" + l.getId() + "] §f"
+                        + l.getItem().getAmount() + "× " + ShopManager.formatMat(l.getItem().getType())
+                        + " §7→ §e" + l.getTotalPrice() + " " + l.getCurrency().getDisplayName() + "(s)");
+            }
+            player.sendMessage(prefix() + ChatColor.GRAY + "Usage: §e/faction recuperer <ID>");
+            return;
+        }
+
+        String id = args[1].toUpperCase();
+        ShopManager.RecoverResult result = shopManager.recover(player, id);
+        switch (result) {
+            case SUCCESS      -> player.sendMessage(prefix() + ChatColor.GREEN + "Item '" + id + "' récupéré dans ton inventaire !");
+            case NOT_FOUND    -> player.sendMessage(prefix() + ChatColor.RED + "Annonce '" + id + "' introuvable.");
+            case NOT_OWNER    -> player.sendMessage(prefix() + ChatColor.RED + "Ce n'est pas ton annonce.");
+            case ALREADY_SOLD -> player.sendMessage(prefix() + ChatColor.RED + "Cet item a déjà été vendu. Tu aurais dû recevoir le paiement.");
+        }
+    }
+
+    private ShopListing.Currency parseCurrency(String input) {
+        return switch (input.toLowerCase()) {
+            case "fer", "iron", "lingot_de_fer"   -> ShopListing.Currency.IRON_INGOT;
+            case "or", "gold", "lingot_d_or"      -> ShopListing.Currency.GOLD_INGOT;
+            case "diamant", "diamond"              -> ShopListing.Currency.DIAMOND;
+            case "emeraude", "emerald"             -> ShopListing.Currency.EMERALD;
+            default -> null;
+        };
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // INVSEE (Admin)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleInvSee(Player player, String[] args) {
+        if (!player.hasPermission("faction.admin")) {
+            player.sendMessage(prefix() + ChatColor.RED + "Commande réservée aux admins (permission faction.admin).");
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction invsee <joueur>");
+            return;
+        }
+        invSeeGUI.openInvSee(player, args[1]);
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "— Gestion —");
@@ -975,6 +1152,16 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "— Troc —");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction troc <joueur>       " + ChatColor.GRAY + "Proposer un troc a un joueur (GUI)");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction accepter            " + ChatColor.GRAY + "Accepter une invitation de troc");
+        player.sendMessage(ChatColor.GRAY + "— Shop Global —");
+        player.sendMessage(ChatColor.GOLD + "/faction shop                " + ChatColor.GRAY + "Ouvrir le shop global (GUI paginé + recherche)");
+        player.sendMessage(ChatColor.GOLD + "/faction vendre <prix> <monnaie>" + ChatColor.GRAY + " Mettre l'item en main en vente");
+        player.sendMessage(ChatColor.GOLD + "/faction acheter <ID>        " + ChatColor.GRAY + "Acheter une annonce par son ID");
+        player.sendMessage(ChatColor.GOLD + "/faction recuperer [ID]      " + ChatColor.GRAY + "Récupérer une annonce non vendue");
+        player.sendMessage(ChatColor.GOLD + "/faction mesannonces         " + ChatColor.GRAY + "Voir tes annonces actives (GUI)");
+        if (player.hasPermission("faction.admin")) {
+            player.sendMessage(ChatColor.GRAY + "— Admin —");
+            player.sendMessage(ChatColor.RED + "/faction invsee <joueur>     " + ChatColor.GRAY + "Voir l'inventaire d'un joueur (admin)");
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -1023,7 +1210,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     "create","disband","invite","join","leave","kick","setchef","rename",
                     "info","list","tp","coffre","menu",
                     "top","topbanque","classement","rangs","power","stats","classementjoueurs",
-                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter"
+                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter",
+                    "shop","vendre","acheter","recuperer","mesannonces","invsee"
             );
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
@@ -1033,7 +1221,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .map(f -> f.getName())
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
-                case "invite", "kick", "setchef", "tp", "power", "stats", "troc" ->
+                case "invite", "kick", "setchef", "tp", "power", "stats", "troc", "invsee" ->
                         Bukkit.getOnlinePlayers().stream()
                                 .map(Player::getName)
                                 .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
