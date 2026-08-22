@@ -1,5 +1,6 @@
 package fr.faction.power;
 
+import fr.faction.alliance.AllianceManager;
 import fr.faction.managers.FactionManager;
 import fr.faction.managers.PlayerStatsManager;
 import fr.faction.models.Faction;
@@ -20,6 +21,7 @@ public class FactionPowerManager {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private final PlayerStatsManager statsManager;
+    private AllianceManager allianceManager; // injecté après construction (évite cycle)
 
     private final Map<String, Double>       powerCache = new HashMap<>();
     private final Map<String, FactionRank>  rankCache  = new HashMap<>();
@@ -62,6 +64,10 @@ public class FactionPowerManager {
         }
     }
 
+    public void setAllianceManager(AllianceManager allianceManager) {
+        this.allianceManager = allianceManager;
+    }
+
     private double calculateFactionPower(Faction faction) {
         double total = 0;
         for (UUID uuid : faction.getMembers()) {
@@ -69,6 +75,10 @@ public class FactionPowerManager {
             total += PlayerPowerCalculator.calculate(stats);
         }
         total += faction.getMemberCount() * MEMBER_BONUS;
+        // Bonus d'alliance
+        if (allianceManager != null) {
+            total += allianceManager.getAlliancePowerBonus(faction.getName());
+        }
         return Math.round(total * 100.0) / 100.0;
     }
 

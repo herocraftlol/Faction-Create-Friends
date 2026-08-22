@@ -1,5 +1,9 @@
 package fr.faction.commands;
 
+import fr.faction.alliance.AllianceManager;
+import fr.faction.alliance.HomeManager;
+import fr.faction.alliance.PlayerTeleportManager;
+import fr.faction.alliance.PrivateChestManager;
 import fr.faction.claim.ClaimManager;
 import fr.faction.claim.ClaimPermissionGUI;
 import fr.faction.economy.BankGUI;
@@ -82,6 +86,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final ShopManager shopManager;
     private final ShopGUI shopGUI;
     private final InvSeeGUI invSeeGUI;
+    private final AllianceManager allianceManager;
+    private final HomeManager homeManager;
+    private final PrivateChestManager privateChestManager;
+    private final PlayerTeleportManager playerTeleportManager;
 
     public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
@@ -89,7 +97,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                           ClaimManager claimManager, ClaimPermissionGUI claimPermissionGUI,
                           BankGUI bankGUI, EmeraldBankManager bankManager,
                           TradeManager tradeManager, TradeGUI tradeGUI,
-                          ShopManager shopManager, ShopGUI shopGUI, InvSeeGUI invSeeGUI) {
+                          ShopManager shopManager, ShopGUI shopGUI, InvSeeGUI invSeeGUI,
+                          AllianceManager allianceManager, HomeManager homeManager,
+                          PrivateChestManager privateChestManager, PlayerTeleportManager playerTeleportManager) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.statsManager = statsManager;
@@ -107,6 +117,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.shopManager = shopManager;
         this.shopGUI     = shopGUI;
         this.invSeeGUI   = invSeeGUI;
+        this.allianceManager       = allianceManager;
+        this.homeManager           = homeManager;
+        this.privateChestManager   = privateChestManager;
+        this.playerTeleportManager = playerTeleportManager;
     }
 
     @Override
@@ -169,6 +183,24 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
             // ── Admin ─────────────────────────────────────────────────────────
             case "invsee"                    -> handleInvSee(player, args);
+
+            // ── Alliances v5 ─────────────────────────────────────────────────
+            case "alliance"                  -> handleAlliance(player, args);
+
+            // ── Spawn de faction v5 ──────────────────────────────────────────
+            case "setspawn"                  -> handleSetFactionSpawn(player);
+            case "spawn"                     -> handleFactionSpawn(player);
+
+            // ── Homes v5 ─────────────────────────────────────────────────────
+            case "sethome"                   -> handleSetHomeCmd(player, args);
+            case "home"                      -> handleHomeCmd(player, args);
+            case "delhome"                   -> handleDelHomeCmd(player, args);
+            case "homes"                     -> handleHomesCmd(player);
+
+            // ── TPA v5 ───────────────────────────────────────────────────────
+            case "tpa"                       -> { if (args.length >= 2) playerTeleportManager.sendRequest(player, args[1]); else player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction tpa <joueur>"); }
+            case "tpaccept", "tpac"          -> playerTeleportManager.acceptRequest(player);
+            case "tpdeny", "tpd"             -> playerTeleportManager.denyRequest(player);
 
             default                          -> sendHelp(player);
         }
@@ -1100,6 +1132,121 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    // ALLIANCES v5
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleAlliance(Player player, String[] args) {
+        if (args.length < 2) {
+            allianceManager.handleAllianceList(player);
+            return;
+        }
+        switch (args[1].toLowerCase()) {  // args[1] = sous-commande alliance
+            case "inviter", "invite"    -> { if (args.length >= 3) allianceManager.handleAllianceInvite(player, args[2]); else player.sendMessage(prefix() + "§cUsage: /faction alliance inviter <faction>"); }
+            case "accepter", "accept"   -> { if (args.length >= 3) allianceManager.handleAllianceAccept(player, args[2]); else player.sendMessage(prefix() + "§cUsage: /faction alliance accepter <faction>"); }
+            case "refuser", "decline"   -> { if (args.length >= 3) allianceManager.handleAllianceDecline(player, args[2]); else player.sendMessage(prefix() + "§cUsage: /faction alliance refuser <faction>"); }
+            case "rompre", "break"      -> { if (args.length >= 3) allianceManager.handleAllianceBreak(player, args[2]); else player.sendMessage(prefix() + "§cUsage: /faction alliance rompre <faction>"); }
+            case "liste", "list"        -> allianceManager.handleAllianceList(player);
+            case "gui", "menu"          -> allianceManager.openAllianceGUI(player);
+            default                     -> {
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "══ Alliance ══");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance inviter <faction>  " + ChatColor.GRAY + "Proposer une alliance");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance accepter <faction> " + ChatColor.GRAY + "Accepter une invitation");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance refuser <faction>  " + ChatColor.GRAY + "Refuser une invitation");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance rompre <faction>   " + ChatColor.GRAY + "Rompre une alliance");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance liste              " + ChatColor.GRAY + "Voir les alliés");
+                player.sendMessage(ChatColor.YELLOW + "/faction alliance gui                " + ChatColor.GRAY + "Interface graphique");
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // SPAWN DE FACTION v5
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleSetFactionSpawn(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
+        factionManager.setFactionSpawn(faction.getName(), player.getLocation());
+        player.sendMessage(prefix() + ChatColor.GREEN + "Spawn de la faction §e" + faction.getName() + " §adéfini ici !");
+        // Notifier les membres
+        for (java.util.UUID uuid : faction.getMembers()) {
+            Player m = Bukkit.getPlayer(uuid);
+            if (m != null && !m.equals(player))
+                m.sendMessage(prefix() + ChatColor.YELLOW + "Le spawn de la faction a été mis à jour par le chef !");
+        }
+    }
+
+    private void handleFactionSpawn(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+        if (!faction.hasSpawn()) {
+            player.sendMessage(prefix() + ChatColor.RED + "Aucun spawn de faction défini. Le chef peut utiliser §e/faction setspawn§c.");
+            return;
+        }
+        org.bukkit.Location spawn = faction.getFactionSpawn();
+        player.sendMessage(prefix() + ChatColor.GREEN + "Téléportation au spawn de la faction...");
+        player.teleport(spawn);
+        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 0.7f, 1.2f);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // HOMES v5
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleSetHomeCmd(Player player, String[] args) {
+        String name = args.length >= 2 ? args[1] : "home";
+        HomeManager.SetHomeResult r = homeManager.setHome(player, name);
+        int max = homeManager.getMaxHomes(player.getUniqueId());
+        String pf = "§8[§a🏠 Home§8] §r";
+        switch (r) {
+            case SUCCESS -> player.sendMessage(pf + "§aHome §e" + name + " §adéfini !");
+            case TOO_MANY_HOMES -> player.sendMessage(pf + "§cLimite de §e" + max + " §chome(s) atteinte. "
+                    + "§7Rejoins une faction ou allie-toi pour débloquer plus de homes.");
+            case TOO_CLOSE_TO_OTHER_HOME -> player.sendMessage(pf
+                    + "§cImpossible : un home d'un autre joueur se trouve à moins de §e10 chunks§c. "
+                    + "§7(exempt : membres de ta faction et factions alliées)");
+            case NAME_TAKEN -> player.sendMessage(pf + "§cCe nom est déjà utilisé.");
+        }
+    }
+
+    private void handleHomeCmd(Player player, String[] args) {
+        String name = args.length >= 2 ? args[1] : "home";
+        HomeManager.TpHomeResult r = homeManager.teleportHome(player, name);
+        if (r == HomeManager.TpHomeResult.NOT_FOUND)
+            player.sendMessage("§8[§a🏠 Home§8] §r§cHome §e" + name + " §cintrouvable. Utilise /faction homes.");
+    }
+
+    private void handleDelHomeCmd(Player player, String[] args) {
+        if (args.length < 2) { player.sendMessage("§8[§a🏠 Home§8] §r§cUsage: /faction delhome <nom>"); return; }
+        boolean ok = homeManager.deleteHome(player.getUniqueId(), args[1]);
+        player.sendMessage("§8[§a🏠 Home§8] §r" + (ok ? "§cHome §f" + args[1] + " §csupprimé." : "§cHome introuvable."));
+    }
+
+    private void handleHomesCmd(Player player) {
+        var list = homeManager.getHomes(player.getUniqueId());
+        int max  = homeManager.getMaxHomes(player.getUniqueId());
+        player.sendMessage(ChatColor.GREEN + "══ Tes homes (" + list.size() + "/" + max + ") ══");
+        if (list.isEmpty()) {
+            player.sendMessage("§7Aucun home. Utilise §e/faction sethome <nom>§7.");
+        } else {
+            for (HomeManager.NamedHome h : list) {
+                player.sendMessage("  §e" + h.name + " §7→ §f"
+                        + h.location.getWorld().getName()
+                        + " §7(" + (int)h.location.getX() + ", " + (int)h.location.getY()
+                        + ", " + (int)h.location.getZ() + ")");
+            }
+        }
+        if (max < 3) {
+            int missing = 3 - max;
+            if (factionManager.getPlayerFaction(player.getUniqueId()) == null)
+                player.sendMessage(ChatColor.GRAY + "Rejoins une faction pour débloquer §e" + (max+1) + "/3 §7homes.");
+            else
+                player.sendMessage(ChatColor.GRAY + "Forge une alliance pour débloquer §e3/3 §7homes.");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     // INVSEE (Admin)
     // ════════════════════════════════════════════════════════════════════════════
 
@@ -1157,7 +1304,22 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GOLD + "/faction vendre <prix> <monnaie>" + ChatColor.GRAY + " Mettre l'item en main en vente");
         player.sendMessage(ChatColor.GOLD + "/faction acheter <ID>        " + ChatColor.GRAY + "Acheter une annonce par son ID");
         player.sendMessage(ChatColor.GOLD + "/faction recuperer [ID]      " + ChatColor.GRAY + "Récupérer une annonce non vendue");
-        player.sendMessage(ChatColor.GOLD + "/faction mesannonces         " + ChatColor.GRAY + "Voir tes annonces actives (GUI)");
+        player.sendMessage(ChatColor.GRAY + "— Alliances —");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction alliance            " + ChatColor.GRAY + "Gérer les alliances (sous-commandes + GUI)");
+        player.sendMessage(ChatColor.GRAY + "— Spawn de faction —");
+        player.sendMessage(ChatColor.AQUA + "/faction setspawn            " + ChatColor.GRAY + "Définir le spawn (chef uniquement)");
+        player.sendMessage(ChatColor.AQUA + "/faction spawn               " + ChatColor.GRAY + "Se téléporter au spawn de sa faction");
+        player.sendMessage(ChatColor.GRAY + "— Homes perso —");
+        player.sendMessage(ChatColor.GREEN + "/faction sethome [nom]       " + ChatColor.GRAY + "Définir un home (1 sans faction, 2 avec, 3 si allié)");
+        player.sendMessage(ChatColor.GREEN + "/faction home [nom]          " + ChatColor.GRAY + "Se téléporter à un home");
+        player.sendMessage(ChatColor.GREEN + "/faction delhome <nom>       " + ChatColor.GRAY + "Supprimer un home");
+        player.sendMessage(ChatColor.GREEN + "/faction homes               " + ChatColor.GRAY + "Lister ses homes");
+        player.sendMessage(ChatColor.GRAY + "— Coffres privés —");
+        player.sendMessage(ChatColor.YELLOW + "Sneak + §eclic§7 panneau sur coffre " + ChatColor.GRAY + "Verrouiller/déverrouiller");
+        player.sendMessage(ChatColor.GRAY + "— TP joueur —");
+        player.sendMessage(ChatColor.AQUA + "/faction tpa <joueur>        " + ChatColor.GRAY + "Demande de TP vers un joueur");
+        player.sendMessage(ChatColor.AQUA + "/faction tpaccept            " + ChatColor.GRAY + "Accepter une demande de TP");
+        player.sendMessage(ChatColor.AQUA + "/faction tpdeny              " + ChatColor.GRAY + "Refuser une demande de TP");
         if (player.hasPermission("faction.admin")) {
             player.sendMessage(ChatColor.GRAY + "— Admin —");
             player.sendMessage(ChatColor.RED + "/faction invsee <joueur>     " + ChatColor.GRAY + "Voir l'inventaire d'un joueur (admin)");
@@ -1211,7 +1373,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     "info","list","tp","coffre","menu",
                     "top","topbanque","classement","rangs","power","stats","classementjoueurs",
                     "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter",
-                    "shop","vendre","acheter","recuperer","mesannonces","invsee"
+                    "shop","vendre","acheter","recuperer","mesannonces","invsee",
+                    "alliance","setspawn","spawn","sethome","home","delhome","homes","tpa","tpaccept","tpdeny"
             );
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
@@ -1221,7 +1384,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .map(f -> f.getName())
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
-                case "invite", "kick", "setchef", "tp", "power", "stats", "troc", "invsee" ->
+                case "invite", "kick", "setchef", "tp", "power", "stats", "troc", "invsee", "tpa" ->
                         Bukkit.getOnlinePlayers().stream()
                                 .map(Player::getName)
                                 .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
