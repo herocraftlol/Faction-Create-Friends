@@ -6,7 +6,7 @@
 
     <groupId>fr.faction</groupId>
     <artifactId>FactionPlugin</artifactId>
-    <version>5.1.1</version>
+    <version>5.2.0</version>
     <packaging>jar</packaging>
 
     <name>FactionPlugin</name>

@@ -20,7 +20,11 @@ import fr.faction.models.PlayerStats;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PlayerPowerCalculator;
 import fr.faction.ranking.FactionRank;
+import fr.faction.shop.ExchangeGUI;
+import fr.faction.shop.ExchangeManager;
+import fr.faction.shop.ExchangeOrder;
 import fr.faction.shop.InvSeeGUI;
+import fr.faction.shop.ItemAliasUtil;
 import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopListing;
 import fr.faction.shop.ShopManager;
@@ -86,6 +90,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final ShopManager shopManager;
     private final ShopGUI shopGUI;
     private final InvSeeGUI invSeeGUI;
+    private final ExchangeManager exchangeManager;
+    private final ExchangeGUI exchangeGUI;
     private final AllianceManager allianceManager;
     private final HomeManager homeManager;
     private final PrivateChestManager privateChestManager;
@@ -101,6 +107,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                           BankGUI bankGUI, EmeraldBankManager bankManager,
                           TradeManager tradeManager, TradeGUI tradeGUI,
                           ShopManager shopManager, ShopGUI shopGUI, InvSeeGUI invSeeGUI,
+                          ExchangeManager exchangeManager, ExchangeGUI exchangeGUI,
                           AllianceManager allianceManager, HomeManager homeManager,
                           PrivateChestManager privateChestManager, PlayerTeleportManager playerTeleportManager) {
         this.plugin = plugin;
@@ -121,6 +128,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.shopManager = shopManager;
         this.shopGUI     = shopGUI;
         this.invSeeGUI   = invSeeGUI;
+        this.exchangeManager = exchangeManager;
+        this.exchangeGUI     = exchangeGUI;
         this.allianceManager       = allianceManager;
         this.homeManager           = homeManager;
         this.privateChestManager   = privateChestManager;
@@ -189,6 +198,14 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "acheter", "buy"            -> handleShopBuy(player, args);
             case "recuperer", "recover", "reprendre" -> handleShopRecover(player, args);
             case "mesannonces"               -> shopGUI.openMyListings(player);
+
+            // ── Comptoir d'échange v5.2 (dépôt de monnaie contre un item) ────────
+            case "echange", "comptoir"       -> exchangeGUI.openExchange(player);
+            case "deposer", "depot"          -> handleExchangeCreate(player, args);
+            case "fournir", "livrer"         -> handleExchangeFulfill(player, args);
+            case "collecter"                 -> handleExchangeCollect(player, args);
+            case "retirerordre", "annulerordre" -> handleExchangeCancel(player, args);
+            case "mesordres"                 -> exchangeGUI.openMyOrders(player);
 
             // ── Admin ─────────────────────────────────────────────────────────
             case "invsee"                    -> handleInvSee(player, args);
@@ -1135,6 +1152,140 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // COMPTOIR D'ÉCHANGE v5.2 (dépôt de monnaie contre un item, par lots)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * /faction deposer <item> <quantité_par_lot> <prix_par_lot>
+     * Dépose TOUT le stack de monnaie (fer/or/diamant/émeraude) tenu en main,
+     * en échange de l'item demandé, à raison de <prix_par_lot> monnaie pour
+     * <quantité_par_lot> de l'item, jusqu'à épuisement du stock déposé.
+     *
+     * Exemple : en tenant 60 fer en main → /faction deposer pierre 32 5
+     *           → quiconque fournit 32 pierre reçoit 5 fer, jusqu'à ce que
+     *             les 60 fer déposés soient distribués (12 lots).
+     */
+    private void handleExchangeCreate(Player player, String[] args) {
+        if (args.length < 4) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction deposer <item> <quantité_par_lot> <prix_par_lot>");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Tiens la monnaie à déposer (fer/or/diamant/émeraude) dans ta main principale.");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Exemple : en tenant 60 fer → §e/faction deposer pierre 32 5");
+            return;
+        }
+
+        Material requestedMaterial = ItemAliasUtil.resolve(args[1]);
+        if (requestedMaterial == null || !requestedMaterial.isItem()) {
+            player.sendMessage(prefix() + ChatColor.RED + "Item '" + args[1] + "' inconnu.");
+            return;
+        }
+
+        int amountPerBatch;
+        int pricePerBatch;
+        try {
+            amountPerBatch = Integer.parseInt(args[2]);
+            pricePerBatch = Integer.parseInt(args[3]);
+            if (amountPerBatch <= 0 || pricePerBatch <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            player.sendMessage(prefix() + ChatColor.RED + "La quantité par lot et le prix par lot doivent être des entiers positifs.");
+            return;
+        }
+
+        ExchangeManager.CreateResult result = exchangeManager.createOrder(player, requestedMaterial, amountPerBatch, pricePerBatch);
+        switch (result.status) {
+            case SUCCESS -> {
+                ExchangeOrder o = result.order;
+                player.sendMessage(prefix() + ChatColor.GREEN + "Ordre d'échange créé ! "
+                        + ChatColor.YELLOW + o.getRequestedAmountPerBatch() + "× " + ShopManager.formatMat(o.getRequestedMaterial())
+                        + ChatColor.GREEN + " → " + ChatColor.GOLD + o.getPricePerBatch() + " " + o.getCurrency().getDisplayName() + "(s)"
+                        + ChatColor.GREEN + " par lot" + ChatColor.DARK_GRAY + " [ID: " + o.getId() + "]");
+                player.sendMessage(prefix() + ChatColor.GRAY + "Stock déposé : §e" + o.getRemainingCurrency() + " " + o.getCurrency().getDisplayName() + "(s)"
+                        + " §7(" + o.getRemainingBatches() + " lot(s) au total).");
+                player.sendMessage(prefix() + ChatColor.GRAY + "Annulable via : §e/faction retirerordre " + o.getId());
+            }
+            case NO_CURRENCY_IN_HAND -> player.sendMessage(prefix() + ChatColor.RED + "Tu ne tiens rien dans ta main !");
+            case INVALID_CURRENCY -> player.sendMessage(prefix() + ChatColor.RED
+                    + "Seuls le fer, l'or, le diamant et l'émeraude peuvent être déposés comme monnaie.");
+            case BUDGET_TOO_LOW -> player.sendMessage(prefix() + ChatColor.RED
+                    + "Tu dois déposer au moins " + pricePerBatch + " pour financer un lot.");
+        }
+    }
+
+    /**
+     * /faction fournir <ID>
+     * Fournit l'item demandé par l'ordre depuis l'inventaire (autant de lots que possible),
+     * et reçoit la monnaie correspondante.
+     */
+    private void handleExchangeFulfill(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction fournir <ID>");
+            player.sendMessage(prefix() + ChatColor.GRAY + "L'ID est affiché dans le comptoir (§e/faction echange§7).");
+            return;
+        }
+        String id = args[1].toUpperCase();
+        ExchangeManager.FulfillResult result = exchangeManager.fulfill(player, id, 0);
+        switch (result.status) {
+            case SUCCESS -> player.sendMessage(prefix() + ChatColor.GREEN + "Tu as fourni "
+                    + ChatColor.YELLOW + result.itemsGiven + "× " + ShopManager.formatMat(result.order.getRequestedMaterial())
+                    + ChatColor.GREEN + " et reçu " + ChatColor.GOLD + result.currencyReceived + " "
+                    + result.order.getCurrency().getDisplayName() + "(s)" + ChatColor.GREEN + " !");
+            case NOT_ENOUGH_ITEMS -> player.sendMessage(prefix() + ChatColor.RED + "Tu n'as pas assez de "
+                    + ShopManager.formatMat(result.order.getRequestedMaterial()) + " (besoin d'au moins "
+                    + result.order.getRequestedAmountPerBatch() + ").");
+            case DEPLETED -> player.sendMessage(prefix() + ChatColor.RED + "Cet ordre n'a plus de stock disponible.");
+            case NOT_FOUND -> player.sendMessage(prefix() + ChatColor.RED + "Ordre '" + id + "' introuvable.");
+            case OWN_ORDER -> player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas fournir ton propre ordre !");
+        }
+    }
+
+    /**
+     * /faction collecter [ID]
+     * Récupère les items reçus en attente sur un de tes ordres (sans le clôturer s'il reste du stock).
+     */
+    private void handleExchangeCollect(Player player, String[] args) {
+        if (args.length < 2) {
+            List<ExchangeOrder> mine = exchangeManager.getCreatorOrders(player.getUniqueId());
+            if (mine.isEmpty()) {
+                player.sendMessage(prefix() + ChatColor.GRAY + "Tu n'as aucun ordre d'échange actif.");
+                return;
+            }
+            player.sendMessage(prefix() + ChatColor.YELLOW + "Tes ordres d'échange :");
+            for (ExchangeOrder o : mine) {
+                player.sendMessage(ChatColor.DARK_GRAY + "  [" + o.getId() + "] §f" + o.getShortDesc()
+                        + " §7— stock: §e" + o.getRemainingCurrency() + " " + o.getCurrency().getDisplayName() + "(s)"
+                        + " §7— en attente: §e" + o.getCollectedAmount() + "× " + ShopManager.formatMat(o.getRequestedMaterial()));
+            }
+            player.sendMessage(prefix() + ChatColor.GRAY + "Usage: §e/faction collecter <ID>");
+            return;
+        }
+        String id = args[1].toUpperCase();
+        ExchangeManager.CollectStatus result = exchangeManager.collect(player, id);
+        switch (result) {
+            case SUCCESS -> player.sendMessage(prefix() + ChatColor.GREEN + "Items collectés !");
+            case NOTHING_TO_COLLECT -> player.sendMessage(prefix() + ChatColor.GRAY + "Rien à collecter pour l'instant sur cet ordre.");
+            case NOT_FOUND -> player.sendMessage(prefix() + ChatColor.RED + "Ordre '" + id + "' introuvable.");
+            case NOT_OWNER -> player.sendMessage(prefix() + ChatColor.RED + "Ce n'est pas ton ordre.");
+        }
+    }
+
+    /**
+     * /faction retirerordre <ID>
+     * Annule un ordre : rembourse la monnaie restante et les items déjà reçus, puis le supprime.
+     */
+    private void handleExchangeCancel(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction retirerordre <ID>");
+            return;
+        }
+        String id = args[1].toUpperCase();
+        ExchangeManager.CancelStatus result = exchangeManager.cancel(player, id);
+        switch (result) {
+            case SUCCESS -> player.sendMessage(prefix() + ChatColor.GREEN + "Ordre '" + id + "' annulé — monnaie restante et items reçus rendus.");
+            case NOT_FOUND -> player.sendMessage(prefix() + ChatColor.RED + "Ordre '" + id + "' introuvable.");
+            case NOT_OWNER -> player.sendMessage(prefix() + ChatColor.RED + "Ce n'est pas ton ordre.");
+        }
+    }
+
     private ShopListing.Currency parseCurrency(String input) {
         return switch (input.toLowerCase()) {
             case "fer", "iron", "lingot_de_fer"   -> ShopListing.Currency.IRON_INGOT;
@@ -1408,6 +1559,13 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GOLD + "/faction vendre <prix> <monnaie>" + ChatColor.GRAY + " Mettre l'item en main en vente");
         player.sendMessage(ChatColor.GOLD + "/faction acheter <ID>        " + ChatColor.GRAY + "Acheter une annonce par son ID");
         player.sendMessage(ChatColor.GOLD + "/faction recuperer [ID]      " + ChatColor.GRAY + "Récupérer une annonce non vendue");
+        player.sendMessage(ChatColor.GRAY + "— Comptoir d'échange —");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction echange                    " + ChatColor.GRAY + "Ouvrir le comptoir d'échange (GUI)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction deposer <item> <qté> <prix> " + ChatColor.GRAY + "Déposer la monnaie en main contre un item, par lot");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction fournir <ID>               " + ChatColor.GRAY + "Fournir l'item demandé, recevoir la monnaie");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction collecter [ID]             " + ChatColor.GRAY + "Récupérer les items reçus sur ton ordre");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction retirerordre <ID>          " + ChatColor.GRAY + "Annuler ton ordre (rembourse monnaie + items)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction mesordres                  " + ChatColor.GRAY + "Voir tes ordres d'échange (GUI)");
         player.sendMessage(ChatColor.GRAY + "— Alliances —");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction alliance            " + ChatColor.GRAY + "Gérer les alliances (sous-commandes + GUI)");
         player.sendMessage(ChatColor.GRAY + "— Spawn de faction —");
@@ -1481,6 +1639,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms",
                     "banque","troc","accepter",
                     "shop","vendre","acheter","recuperer","mesannonces",
+                    "echange","deposer","fournir","collecter","retirerordre","mesordres",
                     "invsee","alliance","setspawn","spawn",
                     "sethome","home","delhome","homes",
                     "tpa","tpaccept","tpdeny",
@@ -1525,6 +1684,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "acheter", "recuperer" -> Collections.emptyList(); // IDs dynamiques
+                case "fournir", "collecter", "retirerordre" -> Collections.emptyList(); // IDs dynamiques
+                case "deposer" -> Arrays.asList("pierre","bois","fer","or","diamant","emeraude","charbon","sable","terre")
+                        .stream().filter(s -> s.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
                 default -> Collections.emptyList();
             };
         }

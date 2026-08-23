@@ -21,6 +21,8 @@ import fr.faction.managers.PlaytimeTracker;
 import fr.faction.managers.SharedInventoryManager;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.power.PowerBridgeListener;
+import fr.faction.shop.ExchangeGUI;
+import fr.faction.shop.ExchangeManager;
 import fr.faction.shop.InvSeeGUI;
 import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
@@ -52,6 +54,10 @@ public class FactionPlugin extends JavaPlugin {
     private ShopManager shopManager;
     private ShopGUI shopGUI;
     private InvSeeGUI invSeeGUI;
+
+    // v5.2 — comptoir d'échange (dépôt de monnaie contre un item, par lots)
+    private ExchangeManager exchangeManager;
+    private ExchangeGUI exchangeGUI;
 
     // v5.0 — alliances, homes, coffres privés, tpa
     private AllianceManager allianceManager;
@@ -85,6 +91,9 @@ public class FactionPlugin extends JavaPlugin {
         shopGUI     = new ShopGUI(this, shopManager);
         invSeeGUI   = new InvSeeGUI(this);
 
+        exchangeManager = new ExchangeManager(this);
+        exchangeGUI     = new ExchangeGUI(this, exchangeManager);
+
         allianceManager       = new AllianceManager(this, factionManager);
         homeManager           = new HomeManager(this, factionManager);
         privateChestManager   = new PrivateChestManager(this, factionManager);
@@ -110,6 +119,7 @@ public class FactionPlugin extends JavaPlugin {
                 claimManager, claimPermissionGUI, bankGUI, bankManager,
                 tradeManager, tradeGUI,
                 shopManager, shopGUI, invSeeGUI,
+                exchangeManager, exchangeGUI,
                 allianceManager, homeManager, privateChestManager, playerTeleportManager);
 
         // Injection post-construction (warManager/mainMenuGUI créés après)
@@ -160,7 +170,7 @@ public class FactionPlugin extends JavaPlugin {
             return true;
         });
 
-        PlayerListener playerListener = new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI);
+        PlayerListener playerListener = new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI, exchangeGUI);
         playerListener.setWarManager(warManager);
         playerListener.setHomeManager(homeManager);
         getServer().getPluginManager().registerEvents(playerListener, this);
@@ -169,6 +179,7 @@ public class FactionPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ClaimListener(claimManager, factionManager), this);
         getServer().getPluginManager().registerEvents(shopGUI, this);
         getServer().getPluginManager().registerEvents(invSeeGUI, this);
+        getServer().getPluginManager().registerEvents(exchangeGUI, this);
         getServer().getPluginManager().registerEvents(allianceManager, this);
         getServer().getPluginManager().registerEvents(privateChestManager, this);
         getServer().getPluginManager().registerEvents(warManager, this);
@@ -224,6 +235,7 @@ public class FactionPlugin extends JavaPlugin {
         if (claimManager != null)           claimManager.save();
         if (bankManager != null)            bankManager.save();
         if (shopManager != null)            shopManager.save();
+        if (exchangeManager != null)        exchangeManager.save();
         if (homeManager != null)            homeManager.save();
         if (privateChestManager != null)    privateChestManager.save();
         if (warManager != null)             { warManager.save(); warManager.stop(); }
@@ -246,6 +258,8 @@ public class FactionPlugin extends JavaPlugin {
     public ShopManager getShopManager()                    { return shopManager; }
     public ShopGUI getShopGUI()                            { return shopGUI; }
     public InvSeeGUI getInvSeeGUI()                        { return invSeeGUI; }
+    public ExchangeManager getExchangeManager()            { return exchangeManager; }
+    public ExchangeGUI getExchangeGUI()                    { return exchangeGUI; }
     public AllianceManager getAllianceManager()             { return allianceManager; }
     public HomeManager getHomeManager()                    { return homeManager; }
     public PrivateChestManager getPrivateChestManager()    { return privateChestManager; }

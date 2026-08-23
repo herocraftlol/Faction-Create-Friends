@@ -2,17 +2,45 @@
 
 > Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, **guerres inter-factions**, claims, économie, commerce et bien plus !
 
-![Version](https://img.shields.io/badge/version-5.1.1-blue)
+![Version](https://img.shields.io/badge/version-5.2.0-blue)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.20.4-green)
 ![Java](https://img.shields.io/badge/java-17%2B-orange)
 
 ## 📖 Description
 
-**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global** ou le **troc sécurisé**, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
+**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global**, passez des **ordres d'échange** au comptoir ou troquez en sécurité, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
 
 Le tout avec des **interfaces graphiques (GUI)** intuitives et une commande unique : **`/faction`** (alias `/f`).
 
-## ✨ Nouveautés de la v5.1.1
+## ✨ Nouveautés de la v5.2.0
+
+### 🏪 Comptoir d'échange — déposez votre monnaie contre un item
+
+En plus du shop classique, un joueur peut maintenant créer un **ordre d'échange** (`/faction echange`, alias `/fac comptoir`) : il dépose une réserve de monnaie (fer, or, diamant ou émeraude) et demande en retour un item précis, à un taux fixé par « lot ». N'importe quel joueur peut alors **fournir** cet item pour recevoir la monnaie correspondante, jusqu'à épuisement du stock déposé.
+
+**Exemple concret :** tenez **60 fer** en main et tapez `/fac deposer pierre 32 5` → l'ordre « 32 pierre → 5 fer par lot » est créé avec 60 fer en réserve (12 lots). Les autres joueurs fournissent de la pierre (`/fac fournir <ID>` ou clic dans le GUI) et reçoivent 5 fer par lot. Vous collectez la pierre reçue avec `/fac collecter <ID>` — sans fermer l'ordre s'il reste du fer à distribuer. Et si vous changez d'avis, `/fac retirerordre <ID>` vous rembourse la monnaie restante **et** les items déjà reçus.
+
+#### 🖥️ Interface graphique dédiée
+- `/faction echange` ouvre un **GUI paginé** listant tous les ordres actifs — un clic sur un ordre le remplit avec les items de votre inventaire
+- Bouton **➕ Créer un ordre** : tenez votre monnaie en main, puis tapez dans le chat `<item> <quantité_par_lot> <prix_par_lot>` (ex : `pierre 32 5`) — l'ordre est créé et le GUI se rouvre automatiquement
+- Bouton **📦 Mes ordres** (`/fac mesordres`) : la liste de vos ordres — **clic gauche** pour collecter les items reçus, **clic droit** pour annuler l'ordre
+
+#### 📋 Nouvelles commandes
+
+| Commande | Description |
+|---|---|
+| `/fac echange` (alias `comptoir`) | Ouvrir le comptoir d'échange (GUI paginé) |
+| `/fac deposer <item> <quantité/lot> <prix/lot>` (alias `depot`) | Créer un ordre en déposant le stack de monnaie tenu en main |
+| `/fac fournir <ID>` (alias `livrer`) | Fournir l'item demandé (plusieurs lots d'un coup si possible) |
+| `/fac collecter [ID]` | Récupérer les items reçus ; sans ID, liste vos ordres actifs |
+| `/fac retirerordre <ID>` (alias `annulerordre`) | Annuler un ordre (rembourse monnaie restante + items reçus) |
+| `/fac mesordres` | GUI de vos ordres : collecte (clic gauche) et annulation (clic droit) |
+
+**Bonne à savoir :** la monnaie déposée doit être l'une des **4 monnaies** déjà utilisées par le shop (fer, or, diamant, émeraude), tenue en main au moment du dépôt. L'item demandé peut être **n'importe quel item du jeu** — les noms français courants (`pierre`, `bois`, `charbon`...) comme les noms techniques Bukkit sont reconnus. Les ordres sont **persistants** (`plugins/FactionPlugin/exchange.yml`) et survivent aux redémarrages.
+
+---
+
+## 📜 Rappel — Nouveautés de la v5.1.1
 
 ### ⚔️ Guerre inter-factions (`/faction guerre`)
 Déclarez une guerre **négociée** à une faction rivale et remportez ses territoires !
@@ -99,6 +127,11 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 - Paiement automatique du vendeur, livraison même hors-ligne
 - `/faction shop` • `/faction vendre <prix> <monnaie>` • `/faction mesannonces`
 
+### 🏪 Comptoir d'échange
+- Créez des **ordres d'échange** : déposez une monnaie, demandez un item, fixez le taux par lot
+- GUI paginé des ordres actifs (`/faction echange`) et gestion de vos ordres (`/faction mesordres`)
+- Collecte des items reçus et annulation avec remboursement à tout moment
+
 ### 💱 Troc sécurisé
 - Échange d'items entre deux joueurs avec double confirmation anti-scam (`/faction troc`)
 
@@ -111,7 +144,7 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.1.1.jar](../../releases/download/v5.1.1/FactionPlugin-5.1.1.jar)**
+1. Téléchargez la dernière version : **[FactionPlugin-5.2.0.jar](../../releases/download/v5.2.0/FactionPlugin-5.2.0.jar)**
 2. Déposez le JAR dans le dossier `plugins/` de votre serveur
 3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
 
@@ -132,11 +165,12 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 | `/faction claim` / `unclaim` / `claimmap` / `perms` | Territoire |
 | `/faction banque` | Banque d'émeraudes |
 | `/faction shop` / `vendre` / `acheter` | Shop global |
+| `/faction echange` / `deposer` / `fournir` / `collecter` / `retirerordre` / `mesordres` | Comptoir d'échange 💱 |
 | `/faction troc <joueur>` | Troc sécurisé |
 | `/faction stats [joueur]` / `classementjoueurs` | Statistiques |
 | `/faction classement` / `rangs` / `power` | Puissance et classements |
 
-⚔️ = nouveau en v5.1.1
+💱 = nouveau en v5.2.0 • ⚔️ = guerre, ajouté en v5.1.1
 
 ## 🔐 Permissions
 
@@ -150,12 +184,13 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 ```bash
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.1.1.jar` (Java 17+, Maven 3.9+).
+Le JAR est généré dans `target/FactionPlugin-5.2.0.jar` (Java 17+, Maven 3.9+).
 
 ## 📜 Historique des versions
 
 | Version | Nouveautés |
 |---|---|
+| **v5.2.0** | Comptoir d'échange : ordres de dépôt de monnaie contre items, GUI paginé, gestion et annulation de vos ordres |
 | **v5.1.1** | Guerre inter-factions avec enjeux négociables (claims, pillage, kills), nouveau menu principal, fix coffres privés |
 | v5.0.0 | Alliances avec bonus de puissance, homes personnels, spawn de faction, /tpa, coffres privés |
 | v4.0.0 | Shop global paginé avec recherche, InvSee admin |
