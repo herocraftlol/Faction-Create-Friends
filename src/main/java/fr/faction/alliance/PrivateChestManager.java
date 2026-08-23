@@ -5,8 +5,6 @@ import fr.faction.models.Faction;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.Chest;
-import org.bukkit.block.DoubleChest;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -188,15 +186,17 @@ public class PrivateChestManager implements Listener {
     // ─── PERSISTANCE ────────────────────────────────────────────────────────────
 
     private String key(Location loc) {
-        return loc.getWorld().getName() + "," + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+        return loc.getWorld().getName() + "|" + loc.getBlockX() + "|" + loc.getBlockY() + "|" + loc.getBlockZ();
     }
 
     public void save() {
         if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
         FileConfiguration cfg = new YamlConfiguration();
+        List<String> entries = new ArrayList<>();
         for (Map.Entry<String, UUID> e : lockedChests.entrySet()) {
-            cfg.set("chests." + e.getKey().replace(",", "_"), e.getValue().toString());
+            entries.add(e.getKey() + ":" + e.getValue().toString());
         }
+        cfg.set("chests", entries);
         try { cfg.save(dataFile); } catch (IOException ex) {
             plugin.getLogger().warning("Erreur sauvegarde coffres privés : " + ex.getMessage());
         }
@@ -205,16 +205,13 @@ public class PrivateChestManager implements Listener {
     private void load() {
         if (!dataFile.exists()) return;
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(dataFile);
-        if (!cfg.contains("chests")) return;
-        for (String rawKey : Objects.requireNonNull(cfg.getConfigurationSection("chests")).getKeys(false)) {
-            String locKey = rawKey.replace("_", ",");
-            // Format: world,x,y,z → remplacer seulement les _ qui séparent les coordonnées
-            // On stocke avec _ au lieu de , car Bukkit YAML n'aime pas les virgules dans les clés
+        List<String> entries = cfg.getStringList("chests");
+        for (String entry : entries) {
             try {
-                UUID owner = UUID.fromString(Objects.requireNonNull(cfg.getString("chests." + rawKey)));
-                // Reconstruire la clé avec virgules : le rawKey a des _ pour les séparateurs de sections
-                // On stocke "world_x_y_z" → locKey = "world,x,y,z" ne fonctionne pas si le nom du monde a des _
-                // Solution : on stocke avec séparateurs | dans le YAML
+                int last = entry.lastIndexOf(':');
+                if (last < 0) continue;
+                String locKey = entry.substring(0, last);
+                UUID owner    = UUID.fromString(entry.substring(last + 1));
                 lockedChests.put(locKey, owner);
             } catch (Exception ex) { /* ignore */ }
         }

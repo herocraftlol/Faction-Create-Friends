@@ -1,6 +1,8 @@
 package fr.faction.managers;
 
 import fr.faction.models.Faction;
+import fr.faction.war.WarManager;
+import fr.faction.war.WarSession;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
@@ -17,6 +19,9 @@ public class ActionBarManager {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private BukkitTask task;
+    private WarManager warManager;
+
+    public void setWarManager(WarManager wm) { this.warManager = wm; }
 
     private static final String[] DIRECTION_ARROWS = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
     private static final String[] DIRECTION_LABELS = {"N", "NE", "E", "SE", "S", "SO", "O", "NO"};
@@ -115,6 +120,31 @@ public class ActionBarManager {
     }
 
     private String buildActionBarMessage(Player self, NearestResult result) {
+        // Si en guerre, afficher le score de guerre en priorité (alterné avec la boussole)
+        if (warManager != null) {
+            Faction selfFaction = factionManager.getPlayerFaction(self.getUniqueId());
+            if (selfFaction != null) {
+                WarSession war = warManager.getActiveWarOf(selfFaction.getName());
+                if (war != null) {
+                    String opp = war.getOpponent(selfFaction.getName());
+                    int myK  = war.getKillsFor(selfFaction.getName().toLowerCase());
+                    int oppK = war.getKillsFor(opp.toLowerCase());
+                    long remMin = war.getRemainingMs() / 60000;
+                    String warBar = ChatColor.RED + "⚔ GUERRE vs " + ChatColor.YELLOW + opp
+                            + ChatColor.RED + "  " + ChatColor.WHITE + myK
+                            + ChatColor.GRAY + "/" + ChatColor.WHITE + war.getKillsToWin()
+                            + ChatColor.GRAY + " kills  "
+                            + ChatColor.DARK_GRAY + "(" + oppK + " eux)"
+                            + ChatColor.GRAY + "  ⏱" + remMin + "min";
+                    // Afficher la boussole normale en-dessous si on en a une
+                    if (result == null) return warBar;
+                    // Si les deux: afficher guerre (alterner toutes les ~2s avec la boussole)
+                    long tick = (System.currentTimeMillis() / 2000) % 2;
+                    if (tick == 0) return warBar;
+                }
+            }
+        }
+
         if (result == null) {
             return ChatColor.GRAY + "✦ " + ChatColor.DARK_GRAY + "Aucun allié à portée";
         }

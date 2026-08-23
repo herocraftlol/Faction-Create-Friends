@@ -62,6 +62,14 @@ public class SharedInventoryManager implements Listener {
         saveInventories();
     }
 
+    /** Retourne ou crée l'inventaire partagé d'une faction (utilisé par WarManager pour le pillage) */
+    public Inventory getOrCreateSharedInventory(String factionName) {
+        String key = factionName.toLowerCase();
+        return sharedInventories.computeIfAbsent(key, k ->
+                Bukkit.createInventory(null, 54,
+                        ChatColor.GOLD + "⬡ " + ChatColor.YELLOW + factionName + ChatColor.GOLD + " — Coffre Partagé"));
+    }
+
     // ─── Events ──────────────────────────────────────────────────────────────────
 
     @EventHandler

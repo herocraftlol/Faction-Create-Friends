@@ -90,6 +90,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final HomeManager homeManager;
     private final PrivateChestManager privateChestManager;
     private final PlayerTeleportManager playerTeleportManager;
+    private fr.faction.war.WarManager warManager;
+    private fr.faction.gui.MainMenuGUI mainMenuGUI;
+    private fr.faction.power.FactionPowerManager powerManagerRef;
 
     public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
@@ -108,6 +111,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.factionGUI = factionGUI;
         this.rankingGUI = rankingGUI;
         this.powerManager = powerManager;
+        this.powerManagerRef = powerManager;
         this.claimManager = claimManager;
         this.claimPermissionGUI = claimPermissionGUI;
         this.bankGUI = bankGUI;
@@ -121,7 +125,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         this.homeManager           = homeManager;
         this.privateChestManager   = privateChestManager;
         this.playerTeleportManager = playerTeleportManager;
+        this.warManager = null; // injecté après via setWarManager
     }
+
+    public void setWarManager(fr.faction.war.WarManager wm) { this.warManager = wm; }
+    public void setMainMenuGUI(fr.faction.gui.MainMenuGUI gui) { this.mainMenuGUI = gui; }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -131,7 +139,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            factionGUI.openMainMenu(player);
+            if (mainMenuGUI != null) mainMenuGUI.openHome(player);
+            else factionGUI.openMainMenu(player);
             return true;
         }
 
@@ -149,7 +158,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "kick"                      -> handleKick(player, args);
             case "coffre", "chest"           -> sharedInvManager.openSharedInventory(player);
             case "tp"                        -> handleTp(player, args);
-            case "menu", "gui", "m"          -> factionGUI.openMainMenu(player);
+            case "menu", "gui", "m"          -> { if (mainMenuGUI != null) mainMenuGUI.openHome(player); else factionGUI.openMainMenu(player); }
 
             // ── Classement & puissance ───────────────────────────────────────────
             case "classement", "ranking"     -> rankingGUI.openRankingGUI(player);
@@ -201,6 +210,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "tpa"                       -> { if (args.length >= 2) playerTeleportManager.sendRequest(player, args[1]); else player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction tpa <joueur>"); }
             case "tpaccept", "tpac"          -> playerTeleportManager.acceptRequest(player);
             case "tpdeny", "tpd"             -> playerTeleportManager.denyRequest(player);
+
+            // ── GUI principal v5.1 ───────────────────────────────────────────
+
+            // ── Guerre v5.1 ──────────────────────────────────────────────────
+            case "guerre", "war"             -> handleGuerre(player, args);
 
             default                          -> sendHelp(player);
         }
@@ -1262,6 +1276,96 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         invSeeGUI.openInvSee(player, args[1]);
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // GUERRE v5.1
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleGuerre(Player player, String[] args) {
+        if (warManager == null) { player.sendMessage(prefix() + "§cSystème de guerre non disponible."); return; }
+
+        if (args.length < 2) { warManager.showHelp(player); return; }
+
+        switch (args[1].toLowerCase()) {
+
+            case "declarer", "declare" -> {
+                if (args.length < 3) {
+                    player.sendMessage(prefix() + "§cUsage: /fac guerre declarer <faction> [claims:0-5] [pillage] [kills:5-50]");
+                    return;
+                }
+                String targetFac = args[2];
+                int claims = 0, kills = fr.faction.war.WarManager.DEFAULT_KILLS_TO_WIN;
+                boolean pillage = false;
+                for (int i = 3; i < args.length; i++) {
+                    String opt = args[i].toLowerCase();
+                    if (opt.startsWith("claims:")) {
+                        try { claims = Integer.parseInt(opt.substring(7)); } catch (NumberFormatException ignored) {}
+                    } else if (opt.startsWith("kills:")) {
+                        try { kills = Integer.parseInt(opt.substring(6)); } catch (NumberFormatException ignored) {}
+                    } else if (opt.equals("pillage") || opt.equals("raid")) {
+                        pillage = true;
+                    }
+                }
+                fr.faction.war.WarManager.DeclareResult result =
+                        warManager.declare(player, targetFac, claims, pillage, kills, factionManager, powerManager);
+                switch (result) {
+                    case SUCCESS             -> {} // déjà notifié
+                    case NOT_IN_FACTION      -> player.sendMessage(prefix() + msg("not-in-faction"));
+                    case NOT_CHEF            -> player.sendMessage(prefix() + msg("not-chef"));
+                    case TARGET_NOT_FOUND    -> player.sendMessage(prefix() + "§cFaction §f" + targetFac + " §cintrouvable.");
+                    case ALREADY_AT_WAR      -> player.sendMessage(prefix() + "§cUne faction est déjà en guerre. Attendez la fin.");
+                    case ON_COOLDOWN         -> {
+                        long hrs = warManager.getCooldownRemaining(factionManager.getPlayerFaction(player.getUniqueId()).getName()) / 3600000;
+                        player.sendMessage(prefix() + "§cCooldown encore §e" + hrs + "h §cavant de pouvoir déclarer la guerre.");
+                    }
+                    case TARGET_ON_COOLDOWN  -> player.sendMessage(prefix() + "§cCette faction est en cooldown (guerre récente).");
+                    case IS_ALLY             -> player.sendMessage(prefix() + "§cTu ne peux pas déclarer la guerre à un allié !");
+                    case POWER_RATIO_TOO_HIGH-> player.sendMessage(prefix() + "§cDifférence de puissance trop grande (ratio max 3:1). Guerre refusée.");
+                    case TARGET_TOO_SMALL    -> player.sendMessage(prefix() + "§cLa faction cible doit avoir au moins 2 membres.");
+                    case INVALID_CLAIMS      -> player.sendMessage(prefix() + "§cClaims à miser : entre 0 et " + fr.faction.war.WarManager.MAX_CLAIMS_AT_STAKE + ".");
+                    case INVALID_KILLS       -> player.sendMessage(prefix() + "§cObjectif kills : entre " + fr.faction.war.WarManager.MIN_KILLS_TO_WIN + " et " + fr.faction.war.WarManager.MAX_KILLS_TO_WIN + ".");
+                }
+            }
+
+            case "accepter", "accept" -> {
+                fr.faction.war.WarManager.AcceptResult r = warManager.accept(player, factionManager);
+                switch (r) {
+                    case NOT_IN_FACTION   -> player.sendMessage(prefix() + msg("not-in-faction"));
+                    case NOT_CHEF         -> player.sendMessage(prefix() + msg("not-chef"));
+                    case NO_PENDING_WAR   -> player.sendMessage(prefix() + "§cAucune déclaration de guerre en attente pour ta faction.");
+                    case SUCCESS          -> {} // broadcast déjà fait
+                }
+            }
+
+            case "refuser", "decline", "refuse" -> {
+                if (!warManager.decline(player, factionManager))
+                    player.sendMessage(prefix() + "§cAucune déclaration de guerre à refuser (ou tu n'es pas chef).");
+            }
+
+            case "capituler", "surrend", "surrender" -> {
+                if (!warManager.surrender(player, factionManager))
+                    player.sendMessage(prefix() + "§cAucune guerre active, ou tu n'es pas chef.");
+            }
+
+            case "statut", "status", "score" -> warManager.showStatus(player, factionManager);
+
+            case "liste", "list"             -> warManager.listWars(player);
+
+            case "piller", "raid" -> {
+                fr.faction.models.Faction myFac = factionManager.getPlayerFaction(player.getUniqueId());
+                if (myFac == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+                fr.faction.war.WarSession raidSession = warManager.getRaidableWarFor(myFac.getName());
+                if (raidSession == null) {
+                    player.sendMessage(prefix() + "§cAucun pillage disponible pour ta faction.");
+                    return;
+                }
+                String loser = raidSession.getOpponent(myFac.getName());
+                warManager.openRaidChest(player, raidSession, loser, factionManager);
+            }
+
+            default -> warManager.showHelp(player);
+        }
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "— Gestion —");
@@ -1367,21 +1471,30 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!(sender instanceof Player player)) return Collections.emptyList();
+
         if (args.length == 1) {
             List<String> subs = Arrays.asList(
                     "create","disband","invite","join","leave","kick","setchef","rename",
-                    "info","list","tp","coffre","menu",
+                    "info","list","tp","coffre","menu","gui",
                     "top","topbanque","classement","rangs","power","stats","classementjoueurs",
-                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms","banque","troc","accepter",
-                    "shop","vendre","acheter","recuperer","mesannonces","invsee",
-                    "alliance","setspawn","spawn","sethome","home","delhome","homes","tpa","tpaccept","tpdeny"
+                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms",
+                    "banque","troc","accepter",
+                    "shop","vendre","acheter","recuperer","mesannonces",
+                    "invsee","alliance","setspawn","spawn",
+                    "sethome","home","delhome","homes",
+                    "tpa","tpaccept","tpdeny",
+                    "guerre"
             );
-            return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
+            return subs.stream()
+                    .filter(s -> s.startsWith(args[0].toLowerCase()))
+                    .collect(Collectors.toList());
         }
+
         if (args.length == 2) {
             return switch (args[0].toLowerCase()) {
-                case "info", "join" -> factionManager.getAllFactions().values().stream()
-                        .map(f -> f.getName())
+                case "info", "join", "alliance" -> factionManager.getAllFactions().values().stream()
+                        .map(Faction::getName)
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "invite", "kick", "setchef", "tp", "power", "stats", "troc", "invsee", "tpa" ->
@@ -1392,9 +1505,62 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 case "classementjoueurs", "cj" -> STATS_CATEGORIES.stream()
                         .filter(c -> c.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
+                case "home", "delhome" -> homeManager.getHomeNames(player.getUniqueId()).stream()
+                        .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "sethome" -> {
+                    // Suggérer home, home2, home3 selon limite
+                    int max = homeManager.getMaxHomes(player.getUniqueId());
+                    List<String> suggestions = new ArrayList<>(Arrays.asList("home", "home2", "home3").subList(0, max));
+                    suggestions.removeAll(homeManager.getHomeNames(player.getUniqueId()));
+                    yield suggestions.stream()
+                            .filter(n -> n.startsWith(args[1].toLowerCase()))
+                            .collect(Collectors.toList());
+                }
+                case "vendre" -> Collections.emptyList(); // prix en arg 2
+                case "guerre" -> Arrays.asList("declarer","accepter","refuser","capituler","statut","liste","piller")
+                        .stream().filter(s -> s.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+                case "claimallow", "claimdeny" -> factionManager.getAllFactions().values().stream()
+                        .map(Faction::getName)
+                        .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "acheter", "recuperer" -> Collections.emptyList(); // IDs dynamiques
                 default -> Collections.emptyList();
             };
         }
+
+        if (args.length == 3) {
+            return switch (args[0].toLowerCase()) {
+                case "vendre" -> Arrays.asList("fer","or","diamant","emeraude").stream()
+                        .filter(c -> c.startsWith(args[2].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "guerre" -> {
+                    if (args[1].equalsIgnoreCase("declarer")) {
+                        yield Arrays.asList("claims:0","claims:1","claims:2","claims:3","claims:5",
+                                "pillage","kills:10","kills:20","kills:30","kills:50").stream()
+                                .filter(s -> s.startsWith(args[2].toLowerCase()))
+                                .collect(Collectors.toList());
+                    }
+                    yield Collections.emptyList();
+                }
+                case "alliance" -> switch (args[1].toLowerCase()) {
+                    case "inviter","accepter","refuser","rompre" -> factionManager.getAllFactions().values().stream()
+                            .map(Faction::getName)
+                            .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                            .collect(Collectors.toList());
+                    default -> Collections.emptyList();
+                };
+                default -> Collections.emptyList();
+            };
+        }
+
+        if (args.length == 4 && args[0].equalsIgnoreCase("guerre") && args[1].equalsIgnoreCase("declarer")) {
+            return Arrays.asList("claims:0","claims:1","claims:2","claims:3","claims:5",
+                    "pillage","kills:10","kills:20","kills:30","kills:50").stream()
+                    .filter(s -> s.startsWith(args[3].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+
         return Collections.emptyList();
     }
 }

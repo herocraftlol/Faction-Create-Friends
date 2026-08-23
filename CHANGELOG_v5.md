@@ -1,3 +1,57 @@
+# CHANGELOG — FactionPlugin v5.1.1
+
+## Nouveautés v5.1.1
+
+### ⚔️ Système de Guerre inter-factions (`/faction guerre`)
+- **Déclaration négociée** : `/fac guerre declarer <faction> [claims:0-5] [pillage] [kills:5-50]`
+  - `claims:` — nombre de chunks que le perdant cède au vainqueur (0 à 5)
+  - `pillage` — accès temporaire au coffre partagé du perdant (max 27 items)
+  - `kills:` — objectif de kills PvP pour gagner (défaut 20, min 5, max 50)
+- **Acceptation obligatoire** : le chef adverse doit accepter ou refuser la déclaration — aucune guerre forcée
+- **Zone de combat** : seuls les kills effectués sur un chunk claimé par l'une des deux factions comptent au score
+- **Score public** : broadcast toutes les 5 kills, affichage permanent dans l'**action bar** (score, objectif, temps restant) et indicateur ⚔ dans le chat
+- **Résolution automatique** :
+  - Victoire → transfert automatique des claims en jeu (les plus éloignés du centre du perdant en premier) + pillage du coffre si négocié
+  - Capitulation via `/fac guerre capituler` (acceptée automatiquement)
+  - Match nul si la durée maximale (72h) est dépassée
+- **Anti-abus** :
+  - Cooldown de 48h par faction après une guerre
+  - Maximum 1 guerre active par faction
+  - Impossible de déclarer la guerre à un allié
+  - Écart de rang limité (max 2 rangs de puissance d'écart)
+  - La cible doit avoir au moins 2 membres actifs
+
+### 🖥️ Nouveau menu principal (`MainMenuGUI`)
+- `/faction` et `/fac menu` ouvrent un menu d'accueil repensé
+- Accès rapide à toutes les fonctionnalités : guerre, claims, banque, shop, homes, alliances, stats...
+- Les commandes sont affichées directement dans la description des items
+
+### 🔧 Corrections
+- **Coffres privés** : nouveau format de persistance (liste YAML) — corrige le rechargement des coffres situés dans des mondes dont le nom contient des virgules ou des underscores
+- **plugin.yml** : alias `/tpac` (`/tpaccept`) et `/tpd` (`/tpdeny`), descriptions enrichies
+- Corrections de compilation : `Material.BED` → `Material.RED_BED` (API 1.20), import `Location` manquant, pattern `instanceof` incompatible Java 17
+
+## Fichiers ajoutés
+```
+src/main/java/fr/faction/war/
+  ├── WarSession.java       ← État d'une guerre (enjeux, score, timers)
+  └── WarManager.java       ← Logique guerre : déclaration, kills, résolution
+src/main/java/fr/faction/gui/
+  └── MainMenuGUI.java      ← Menu principal repensé
+```
+
+## Fichiers modifiés
+- `FactionPlugin.java` : initialisation WarManager + MainMenuGUI
+- `FactionCommand.java` : sous-commandes `/fac guerre` (declarer, accepter, refuser, capituler, statut)
+- `ClaimManager.java` : `transferClaim()` (transfert de territoire en résolution de guerre)
+- `SharedInventoryManager.java` : accès coffre partagé pour le pillage
+- `ActionBarManager.java` : affichage du score de guerre
+- `PlayerListener.java` : indicateur de guerre dans le chat
+- `PrivateChestManager.java` : nouveau format de sauvegarde
+- `plugin.yml` : version 5.1.1, alias tpa, descriptions
+
+---
+
 # CHANGELOG — FactionPlugin v5.0.0
 
 ## Nouveautés v5.0.0

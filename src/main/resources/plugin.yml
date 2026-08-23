@@ -1,13 +1,15 @@
 name: FactionPlugin
-version: 5.0.0
+version: 5.1.1
 main: fr.faction.FactionPlugin
 api-version: 1.20
 author: FactionDev
-description: Plugin de factions complet — alliances, homes, coffres privés, shop, invsee
+description: >
+  Plugin de factions complet — claims, alliances, guerre inter-factions,
+  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, classements.
 
 commands:
   faction:
-    description: Commande principale des factions
+    description: Commande principale (alias /f /fac)
     usage: /faction [sous-commande]
     aliases: [f, fac]
   tpa:
@@ -16,11 +18,13 @@ commands:
   tpaccept:
     description: Accepter une demande de téléportation
     usage: /tpaccept
+    aliases: [tpac]
   tpdeny:
     description: Refuser une demande de téléportation
     usage: /tpdeny
+    aliases: [tpd]
   sethome:
-    description: Définir un home personnel
+    description: Définir un home personnel (1 sans faction, 2 avec, 3 si allié)
     usage: /sethome [nom]
   home:
     description: Se téléporter à un home
@@ -37,5 +41,5 @@ permissions:
     description: Utiliser les commandes de faction
     default: true
   faction.admin:
-    description: Commandes admin faction (invsee, bypass claim, casser coffres privés)
+    description: Commandes admin — invsee, bypass coffres privés
     default: op

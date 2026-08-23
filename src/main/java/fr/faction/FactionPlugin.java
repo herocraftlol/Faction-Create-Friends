@@ -59,6 +59,10 @@ public class FactionPlugin extends JavaPlugin {
     private PrivateChestManager privateChestManager;
     private PlayerTeleportManager playerTeleportManager;
 
+    // v5.1 — guerre, GUI principal
+    private fr.faction.war.WarManager warManager;
+    private fr.faction.gui.MainMenuGUI mainMenuGUI;
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
@@ -89,9 +93,16 @@ public class FactionPlugin extends JavaPlugin {
         // Injection du bonus d'alliance dans le calcul de puissance
         powerManager.setAllianceManager(allianceManager);
 
+        // GUIs (doivent être créés avant mainMenuGUI qui en dépend)
         factionGUI       = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
         rankingGUI       = new FactionRankingGUI(this, factionManager, powerManager, bankManager);
         actionBarManager = new ActionBarManager(this, factionManager);
+
+
+        // ── v5.1 — Guerre & GUI principal ───────────────────────────────────
+        warManager  = new fr.faction.war.WarManager(this, factionManager, claimManager, sharedInventoryManager);
+        mainMenuGUI = new fr.faction.gui.MainMenuGUI(this, factionManager, sharedInventoryManager,
+                teleportManager, powerManager, allianceManager, homeManager, warManager, factionGUI, rankingGUI);
 
         FactionCommand cmd = new FactionCommand(
                 this, factionManager, statsManager, sharedInventoryManager, teleportManager,
@@ -100,6 +111,11 @@ public class FactionPlugin extends JavaPlugin {
                 tradeManager, tradeGUI,
                 shopManager, shopGUI, invSeeGUI,
                 allianceManager, homeManager, privateChestManager, playerTeleportManager);
+
+        // Injection post-construction (warManager/mainMenuGUI créés après)
+        cmd.setWarManager(warManager);
+        cmd.setMainMenuGUI(mainMenuGUI);
+        actionBarManager.setWarManager(warManager);
 
         getCommand("faction").setExecutor(cmd);
         getCommand("faction").setTabCompleter(cmd);
@@ -144,8 +160,10 @@ public class FactionPlugin extends JavaPlugin {
             return true;
         });
 
-        getServer().getPluginManager().registerEvents(
-                new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI), this);
+        PlayerListener playerListener = new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI);
+        playerListener.setWarManager(warManager);
+        playerListener.setHomeManager(homeManager);
+        getServer().getPluginManager().registerEvents(playerListener, this);
         getServer().getPluginManager().registerEvents(
                 new PowerBridgeListener(factionManager, powerManager, statsManager), this);
         getServer().getPluginManager().registerEvents(new ClaimListener(claimManager, factionManager), this);
@@ -153,12 +171,14 @@ public class FactionPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(invSeeGUI, this);
         getServer().getPluginManager().registerEvents(allianceManager, this);
         getServer().getPluginManager().registerEvents(privateChestManager, this);
+        getServer().getPluginManager().registerEvents(warManager, this);
+        getServer().getPluginManager().registerEvents(mainMenuGUI, this);
 
         actionBarManager.start();
         playtimeTracker = new PlaytimeTracker(this, statsManager);
         playtimeTracker.start();
 
-        getLogger().info("FactionPlugin v5.0 actif — Alliances, Homes, Coffres privés, TPA !");
+        getLogger().info("FactionPlugin v5.1.1 actif — Guerre inter-alliances + GUI principal !");
     }
 
     private void handleSetHome(org.bukkit.entity.Player player, String name) {
@@ -206,6 +226,7 @@ public class FactionPlugin extends JavaPlugin {
         if (shopManager != null)            shopManager.save();
         if (homeManager != null)            homeManager.save();
         if (privateChestManager != null)    privateChestManager.save();
+        if (warManager != null)             { warManager.save(); warManager.stop(); }
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 
@@ -229,4 +250,6 @@ public class FactionPlugin extends JavaPlugin {
     public HomeManager getHomeManager()                    { return homeManager; }
     public PrivateChestManager getPrivateChestManager()    { return privateChestManager; }
     public PlayerTeleportManager getPlayerTeleportManager(){ return playerTeleportManager; }
+    public fr.faction.war.WarManager getWarManager()       { return warManager; }
+    public fr.faction.gui.MainMenuGUI getMainMenuGUI()     { return mainMenuGUI; }
 }

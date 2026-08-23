@@ -167,6 +167,32 @@ public class ClaimManager {
         return true;
     }
 
+    /** Alias pour getFactionClaims — utilisé par WarManager */
+    public List<ChunkKey> getClaimsOf(String factionName) {
+        return getFactionClaims(factionName);
+    }
+
+    /** Alias pour getClaim(ChunkKey) — utilisé par WarManager */
+    public ClaimData getClaimAt(ChunkKey key) {
+        return claims.get(key);
+    }
+
+    /**
+     * Transfère un claim d'une faction à une autre (résolution de guerre).
+     * Met à jour les compteurs et sauvegarde.
+     */
+    public void transferClaim(ChunkKey key, String newFactionName) {
+        ClaimData data = claims.get(key);
+        if (data == null) return;
+        String oldFaction = data.getFactionName();
+        // Créer un nouveau ClaimData pour la faction gagnante
+        claims.put(key, new ClaimData(newFactionName.toLowerCase()));
+        // Mettre à jour les compteurs
+        claimCounts.merge(oldFaction.toLowerCase(), -1, (a, b) -> Math.max(0, a + b));
+        claimCounts.merge(newFactionName.toLowerCase(), 1, Integer::sum);
+        save();
+    }
+
     /** Supprime tous les claims d'une faction (dissolution). */
     public void removeAllClaims(String factionName) {
         claims.entrySet().removeIf(e -> e.getValue().getFactionName().equalsIgnoreCase(factionName));

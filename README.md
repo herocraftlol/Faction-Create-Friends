@@ -1,18 +1,43 @@
 # 🏰 FactionPlugin
 
-> Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, claims, économie, commerce et bien plus !
+> Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, **guerres inter-factions**, claims, économie, commerce et bien plus !
 
-![Version](https://img.shields.io/badge/version-5.0.0-blue)
+![Version](https://img.shields.io/badge/version-5.1.1-blue)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.20.4-green)
 ![Java](https://img.shields.io/badge/java-17%2B-orange)
 
 ## 📖 Description
 
-**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, réclamez et protégez votre **territoire**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global** ou le **troc sécurisé**, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
+**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global** ou le **troc sécurisé**, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
 
 Le tout avec des **interfaces graphiques (GUI)** intuitives et une commande unique : **`/faction`** (alias `/f`).
 
-## ✨ Nouveautés de la v5.0.0
+## ✨ Nouveautés de la v5.1.1
+
+### ⚔️ Guerre inter-factions (`/faction guerre`)
+Déclarez une guerre **négociée** à une faction rivale et remportez ses territoires !
+
+- **Déclaration avec enjeux au choix** : `/fac guerre declarer <faction> [claims:0-5] [pillage] [kills:5-50]`
+  - `claims:` nombre de territoires (chunks) que le perdant devra céder au vainqueur
+  - `pillage` : le vainqueur obtient un accès temporaire au coffre partagé du perdant (max 27 items)
+  - `kills:` nombre de kills PvP nécessaires pour remporter la guerre (défaut : 20)
+- **Acceptation requise** : le chef adverse doit accepter (`/fac guerre accepter`) ou refuser — pas de guerre forcée
+- **Score en direct** : le score de guerre s'affiche dans l'**action bar** (kills, objectif, temps restant) et un indicateur ⚔ apparaît dans le chat
+- **Zone de combat** : seuls les kills en territoire claimé par l'une des deux factions comptent — les kills ailleurs ne gonflent pas le score
+- **Résolution automatique** : victoire par score atteint, **capitulation** (`/fac guerre capituler`), ou match nul après 72h — les claims perdus sont **transférés automatiquement** (les plus éloignés du centre d'abord)
+- **Anti-abus intégré** : cooldown de 48h, 1 seule guerre active par faction, impossible de déclarer la guerre à un allié, écart de rang limité entre les deux factions, cible avec au moins 2 membres actifs
+
+### 🖥️ Nouveau menu principal
+`/faction` (ou `/fac menu`) ouvre un **menu d'accueil repensé** : accès rapide à toutes les fonctionnalités (guerre, claims, banque, shop, homes, alliances...) avec les commandes affichées directement dans les items.
+
+### 🔧 Corrections et améliorations
+- **Coffres privés** : correction du format de sauvegarde (les coffres situés dans des mondes dont le nom contient des virgules ou des underscores étaient mal rechargés)
+- **plugin.yml** : ajout des alias `/tpac` et `/tpdeny` (`/tpd`), descriptions enrichies
+- Diverses corrections internes et amélioration de la stabilité
+
+---
+
+## 📜 Rappel — Nouveautés de la v5.0.0
 
 ### 🤝 Alliances entre factions
 Forgez des pactes avec d'autres factions et renforcez votre puissance commune !
@@ -86,7 +111,7 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.0.0.jar](../../releases/download/v5.0.0/FactionPlugin-5.0.0.jar)**
+1. Téléchargez la dernière version : **[FactionPlugin-5.1.1.jar](../../releases/download/v5.1.1/FactionPlugin-5.1.1.jar)**
 2. Déposez le JAR dans le dossier `plugins/` de votre serveur
 3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
 
@@ -98,10 +123,12 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 | `/faction info [faction]` | Informations d'une faction |
 | `/faction invite <joueur>` / `join` / `leave` / `kick` | Gestion des membres |
 | `/faction menu` | Interface graphique complète |
-| `/faction alliance <action>` | Gérer les alliances ⭐ |
-| `/faction setspawn` / `/faction spawn` | Spawn de faction ⭐ |
-| `/sethome` `/home` `/delhome` `/homes` | Homes personnels ⭐ |
-| `/tpa <joueur>` `/tpaccept` `/tpdeny` | Téléportation entre joueurs ⭐ |
+| `/faction guerre declarer <fac> [claims:n] [pillage] [kills:n]` | Déclarer une guerre ⚔️ |
+| `/faction guerre accepter` / `refuser` / `capituler` / `statut` | Gérer une guerre ⚔️ |
+| `/faction alliance <action>` | Gérer les alliances |
+| `/faction setspawn` / `/faction spawn` | Spawn de faction |
+| `/sethome` `/home` `/delhome` `/homes` | Homes personnels |
+| `/tpa <joueur>` `/tpaccept` `/tpdeny` | Téléportation entre joueurs |
 | `/faction claim` / `unclaim` / `claimmap` / `perms` | Territoire |
 | `/faction banque` | Banque d'émeraudes |
 | `/faction shop` / `vendre` / `acheter` | Shop global |
@@ -109,7 +136,7 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 | `/faction stats [joueur]` / `classementjoueurs` | Statistiques |
 | `/faction classement` / `rangs` / `power` | Puissance et classements |
 
-⭐ = nouveau en v5.0.0
+⚔️ = nouveau en v5.1.1
 
 ## 🔐 Permissions
 
@@ -123,13 +150,14 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 ```bash
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.0.0.jar` (Java 17+, Maven 3.9+).
+Le JAR est généré dans `target/FactionPlugin-5.1.1.jar` (Java 17+, Maven 3.9+).
 
 ## 📜 Historique des versions
 
 | Version | Nouveautés |
 |---|---|
-| **v5.0.0** | Alliances avec bonus de puissance, homes personnels, spawn de faction, /tpa, coffres privés |
+| **v5.1.1** | Guerre inter-factions avec enjeux négociables (claims, pillage, kills), nouveau menu principal, fix coffres privés |
+| v5.0.0 | Alliances avec bonus de puissance, homes personnels, spawn de faction, /tpa, coffres privés |
 | v4.0.0 | Shop global paginé avec recherche, InvSee admin |
 | v3.2.4 | Corrections et améliorations finales |
 | v3.2.x | Optimisations du système de puissance, fixes du troc |
