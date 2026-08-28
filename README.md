@@ -1,18 +1,45 @@
 # 🏰 FactionPlugin
 
-> Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, **guerres inter-factions**, claims, économie, commerce et bien plus !
+> Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, **guerres inter-factions**, claims, économie, commerce, **tri de coffre** et plus encore !
 
-![Version](https://img.shields.io/badge/version-5.2.0-blue)
+![Version](https://img.shields.io/badge/version-5.3.0-blue)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.20.4-green)
 ![Java](https://img.shields.io/badge/java-17%2B-orange)
 
 ## 📖 Description
 
-**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global**, passez des **ordres d'échange** au comptoir ou troquez en sécurité, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
+**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global**, passez des **ordres d'échange** au comptoir ou troquez en sécurité, gardez votre **coffre partagé et votre inventaire parfaitement rangés**, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
 
 Le tout avec des **interfaces graphiques (GUI)** intuitives et une commande unique : **`/faction`** (alias `/f`).
 
-## ✨ Nouveautés de la v5.2.0
+## ✨ Nouveautés de la v5.3.0
+
+### 🧹 Tri de coffre & d'inventaire (`/faction ranger`)
+
+Fini le coffre partagé en bazar ! La v5.3.0 ajoute un **moteur de tri complet** qui range automatiquement votre **coffre partagé de faction** et votre **inventaire personnel**.
+
+- **6 modes de tri** disponibles dans un **GUI dédié** :
+  - **⬡ Similaires regroupés** — fusionne les stacks identiques en un seul paquet
+  - **☰ Par catégorie** — regroupe par type : blocs, outils, armures, nourriture, matériaux, potions, redstone, livres…
+  - **🔤 Alphabétique A→Z** — trie par nom d'item
+  - **📦 Quantité ↓ / ↑** — du plus grand au plus petit stack (ou l'inverse)
+  - **✦ Par rareté** — items enchantés et rares en premier
+- **Aperçu avant confirmation** : le GUI affiche le nombre d'items présents et le mode choisi avant d'appliquer le tri
+- **Bouton « Organiser le coffre »** directement accessible dans le menu principal et dans le coffre partagé
+- **Inventaire personnel** : triez aussi votre propre inventaire, hotbar exclue pour ne rien déplacer de sensible
+
+#### 🖥️ Comment ça marche
+- `/faction ranger` (ou `/fac trier`, `/fac organiser`, `/fac sort`) ouvre le menu de tri pour le **coffre partagé**
+- `/faction ranger perso` (alias `inventaire`) ouvre le tri pour votre **inventaire personnel**
+- Choisissez un mode → un **aperçu** s'affiche → confirmez : le tri est appliqué instantanément et l'inventaire est mis à jour
+
+### 🔧 Corrections et améliorations
+- Correction du message d'acceptation `/tpa` (affichage propre du nom du demandeur)
+- Nettoyage et fiabilisation du tri (fusion des stacks, gestion des items endommagés)
+
+---
+
+## 📜 Rappel — Nouveautés de la v5.2.0
 
 ### 🏪 Comptoir d'échange — déposez votre monnaie contre un item
 
@@ -132,6 +159,11 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 - GUI paginé des ordres actifs (`/faction echange`) et gestion de vos ordres (`/faction mesordres`)
 - Collecte des items reçus et annulation avec remboursement à tout moment
 
+### 🧹 Tri de coffre & d'inventaire
+- **6 modes de tri** (similaires, catégorie, alphabétique, quantité, rareté) avec GUI dédié et aperçu avant confirmation
+- Coffre partagé de faction et inventaire personnel
+- `/faction ranger` • `/faction ranger perso` • bouton « Organiser le coffre » dans le menu principal
+
 ### 💱 Troc sécurisé
 - Échange d'items entre deux joueurs avec double confirmation anti-scam (`/faction troc`)
 
@@ -144,7 +176,7 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.2.0.jar](../../releases/download/v5.2.0/FactionPlugin-5.2.0.jar)**
+1. Téléchargez la dernière version : **[FactionPlugin-5.3.0.jar](../../releases/download/v5.3.0/FactionPlugin-5.3.0.jar)**
 2. Déposez le JAR dans le dossier `plugins/` de votre serveur
 3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
 
@@ -166,11 +198,12 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 | `/faction banque` | Banque d'émeraudes |
 | `/faction shop` / `vendre` / `acheter` | Shop global |
 | `/faction echange` / `deposer` / `fournir` / `collecter` / `retirerordre` / `mesordres` | Comptoir d'échange 💱 |
+| `/faction ranger` / `ranger perso` | Tri de coffre partagé / inventaire personnel 🧹 |
 | `/faction troc <joueur>` | Troc sécurisé |
 | `/faction stats [joueur]` / `classementjoueurs` | Statistiques |
 | `/faction classement` / `rangs` / `power` | Puissance et classements |
 
-💱 = nouveau en v5.2.0 • ⚔️ = guerre, ajouté en v5.1.1
+🧹 = nouveau en v5.3.0 • 💱 = nouveau en v5.2.0 • ⚔️ = guerre, ajouté en v5.1.1
 
 ## 🔐 Permissions
 
@@ -184,12 +217,13 @@ Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, w
 ```bash
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.2.0.jar` (Java 17+, Maven 3.9+).
+Le JAR est généré dans `target/FactionPlugin-5.3.0.jar` (Java 17+, Maven 3.9+).
 
 ## 📜 Historique des versions
 
 | Version | Nouveautés |
 |---|---|
+| **v5.3.0** | Tri de coffre & d'inventaire : 6 modes de tri avec GUI et aperçu, bouton « Organiser le coffre », fix /tpa |
 | **v5.2.0** | Comptoir d'échange : ordres de dépôt de monnaie contre items, GUI paginé, gestion et annulation de vos ordres |
 | **v5.1.1** | Guerre inter-factions avec enjeux négociables (claims, pillage, kills), nouveau menu principal, fix coffres privés |
 | v5.0.0 | Alliances avec bonus de puissance, homes personnels, spawn de faction, /tpa, coffres privés |

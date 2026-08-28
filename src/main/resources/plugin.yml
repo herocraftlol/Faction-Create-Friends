@@ -1,11 +1,12 @@
 name: FactionPlugin
-version: 5.2.0
+version: 5.3.0
 main: fr.faction.FactionPlugin
 api-version: 1.20
 author: FactionDev
 description: >
   Plugin de factions complet — claims, alliances, guerre inter-factions,
-  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, classements.
+  shop global, banque, troc, tri de coffre, homes, coffres privés,
+  TPA, InvSee, stats, classements.
 
 commands:
   faction:

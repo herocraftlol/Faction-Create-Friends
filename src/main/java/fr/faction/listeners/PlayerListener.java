@@ -6,7 +6,6 @@ import fr.faction.managers.PlayerStatsManager;
 import fr.faction.models.Faction;
 import fr.faction.power.FactionPowerManager;
 import fr.faction.ranking.FactionRank;
-import fr.faction.shop.ExchangeGUI;
 import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.war.WarManager;
@@ -32,19 +31,17 @@ public class PlayerListener implements Listener {
     private final FactionPowerManager powerManager;
     private final ShopManager shopManager;
     private final ShopGUI shopGUI;
-    private final ExchangeGUI exchangeGUI;
     private WarManager warManager;
     private HomeManager homeManager;
 
     public PlayerListener(FactionManager factionManager, PlayerStatsManager statsManager,
                           FactionPowerManager powerManager,
-                          ShopManager shopManager, ShopGUI shopGUI, ExchangeGUI exchangeGUI) {
+                          ShopManager shopManager, ShopGUI shopGUI) {
         this.factionManager = factionManager;
         this.statsManager   = statsManager;
         this.powerManager   = powerManager;
         this.shopManager    = shopManager;
         this.shopGUI        = shopGUI;
-        this.exchangeGUI    = exchangeGUI;
     }
 
     public void setWarManager(WarManager wm)    { this.warManager = wm; }
@@ -63,16 +60,6 @@ public class PlayerListener implements Listener {
             Bukkit.getScheduler().runTask(
                     Bukkit.getPluginManager().getPlugin("FactionPlugin"),
                     () -> shopGUI.handleSearchInput(player, msg));
-            return;
-        }
-
-        // Intercepter la saisie de création d'ordre d'échange
-        if (exchangeGUI.isAwaitingDeposit(player.getUniqueId())) {
-            event.setCancelled(true);
-            final String msg = event.getMessage();
-            Bukkit.getScheduler().runTask(
-                    Bukkit.getPluginManager().getPlugin("FactionPlugin"),
-                    () -> exchangeGUI.handleDepositInput(player, msg));
             return;
         }
 

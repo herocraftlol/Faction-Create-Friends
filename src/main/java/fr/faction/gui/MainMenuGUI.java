@@ -267,6 +267,12 @@ public class MainMenuGUI implements Listener {
         // Coffre partagé
         inv.setItem(22, make(Material.CHEST,        "§e§l/fac coffre",            "§7Coffre partagé de ta faction.", "§7Accessible à tous les membres.", "", "§eClic → ouvrir le coffre"));
 
+        // Organiser le coffre
+        inv.setItem(23, make(Material.HOPPER,       "§6§l/fac ranger",            "§7Organiser le coffre partagé.",
+                "§8• §bSimilaires §8• §aCatégorie §8• §eA→Z",
+                "§8• §6Quantité ↑↓ §8• §dRareté",
+                "", "§eClic → ouvrir le menu de tri"));
+
         // Troc
         inv.setItem(25, make(TRADING_SIGN_ITEM(), "§d§l/fac troc <joueur>","§7Proposer un échange direct à un joueur.", "§7Interface graphique de troc."));
         inv.setItem(26, make(Material.NETHER_STAR,  "§d§l/fac accepter",          "§7Accepter une invitation de troc."));
@@ -605,6 +611,7 @@ public class MainMenuGUI implements Listener {
             case 10 -> { player.closeInventory(); cmd(player, "/faction shop"); }
             case 19 -> { player.closeInventory(); cmd(player, "/faction banque"); }
             case 22 -> { player.closeInventory(); sharedInvManager.openSharedInventory(player); }
+            case 23 -> { player.closeInventory(); cmd(player, "/faction ranger"); }
             case 25 -> send(player, "§7Utilise §e/fac troc <joueur>§7.");
         }
     }
