@@ -39,6 +39,15 @@ l'**inventaire personnel**, accessible via un GUI dédié.
   durabilité)
 - Nettoyage général du code du trieur
 
+> ⚠️ **Note** : cette version du code source est basée sur le zip fourni
+> (`FactionPlugin-v5.2.0.zip`). Elle **remplace** le contenu de la branche
+> par la variante « Tri de coffre » : le système **Comptoir d'échange**
+> (`ExchangeGUI`, `ExchangeManager`, `ExchangeOrder`, `ItemAliasUtil`,
+> commandes `/faction echange`, `deposer`, `fournir`, `collecter`,
+> `retirerordre`, `mesordres`) de la v5.2.0 publiée précédemment n'est pas
+> présent dans cette branche. Pour le réintégrer, fusionnez-le à nouveau
+> depuis le tag `v5.2.0`.
+
 ## Fichiers ajoutés
 ```
 src/main/java/fr/faction/sort/
