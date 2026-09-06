@@ -49,11 +49,18 @@ public class VillagerGUI implements Listener {
         public Inventory getInventory() { return inv; }
     }
 
+    private enum PendingType { RENAME, RADIUS }
+    private static class PendingChatInput {
+        final UUID villagerId;
+        final PendingType type;
+        PendingChatInput(UUID villagerId, PendingType type) { this.villagerId = villagerId; this.type = type; }
+    }
+
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private final VillagerManager villagerManager;
     private final NamespacedKey idKey;
-    private final Map<UUID, UUID> pendingRename = new HashMap<>();
+    private final Map<UUID, PendingChatInput> pendingChat = new HashMap<>();
 
     public VillagerGUI(JavaPlugin plugin, FactionManager factionManager, VillagerManager villagerManager) {
         this.plugin = plugin;
@@ -88,6 +95,8 @@ public class VillagerGUI implements Listener {
         }
         ItemStack filler = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ");
         for (int i = 45; i < 54; i++) inv.setItem(i, filler);
+        inv.setItem(48, makeItem(Material.OAK_SIGN, "§eRanger en formation",
+                "§7Aligne devant toi tous tes villageois", "§7à moins de 40 blocs."));
         inv.setItem(49, makeItem(Material.BARRIER, "§cFermer"));
 
         player.openInventory(inv);
@@ -178,6 +187,24 @@ public class VillagerGUI implements Listener {
             inv.setItem(22, rv.getChestplate()); holder.slotKinds.put(22, SlotKind.CHESTPLATE);
             inv.setItem(23, rv.getLeggings()); holder.slotKinds.put(23, SlotKind.LEGGINGS);
             inv.setItem(24, rv.getBoots());    holder.slotKinds.put(24, SlotKind.BOOTS);
+
+            String manageTag = canManage ? "" : " §8(chef/sous-chef)";
+            inv.setItem(36, makeItem(Material.COMPASS, "§dDéfinir le poste ici",
+                    "§7Centre du périmètre de défense.", "§eClic → utiliser sa position actuelle" + manageTag));
+            inv.setItem(37, makeItem(Material.SPYGLASS, "§dRayon de défense",
+                    "§7Actuel : §e" + (int) rv.getDefenseRadius() + " blocs",
+                    "§eClic → tape un nombre (4-48) dans le chat" + manageTag));
+            inv.setItem(38, makeItem(Material.FILLED_MAP, "§dDéfinir une patrouille",
+                    rv.getPatrolPoints().isEmpty() ? "§cAucune patrouille définie." : "§a" + rv.getPatrolPoints().size() + " point(s) définis.",
+                    "§7Clic-droit dans le monde pour ajouter des points,",
+                    "§7shift+clic-droit pour terminer." + manageTag,
+                    "§eClic → démarrer la sélection"));
+            inv.setItem(39, makeItem(rv.isCombatEnabled() ? Material.SHIELD : Material.BARRIER,
+                    rv.isCombatEnabled() ? "§aCombat : activé" : "§cCombat : arrêté",
+                    "§7Clic → " + (rv.isCombatEnabled() ? "cesser le combat" : "reprendre le combat") + manageTag));
+            inv.setItem(41, makeItem(player.getUniqueId().equals(rv.getFollowTarget()) ? Material.LEAD : Material.STICK,
+                    player.getUniqueId().equals(rv.getFollowTarget()) ? "§aTe suit actuellement" : "§7Suivre",
+                    "§7Clic → " + (player.getUniqueId().equals(rv.getFollowTarget()) ? "arrêter de te suivre" : "le faire te suivre et te défendre")));
         } else {
             inv.setItem(22, makeItem(Material.BARRIER, "§7Aucun rôle assigné",
                     "§7Choisis Constructeur ou Guerrier", "§7en haut pour débloquer l'équipement."));
@@ -217,6 +244,7 @@ public class VillagerGUI implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
         if (clicked.getType() == Material.BARRIER) { player.closeInventory(); return; }
+        if (clicked.getType() == Material.OAK_SIGN) { player.closeInventory(); villagerManager.formation(player); return; }
         if (clicked.getType() != Material.VILLAGER_SPAWN_EGG) return;
 
         ItemMeta meta = clicked.getItemMeta();
@@ -267,16 +295,44 @@ public class VillagerGUI implements Listener {
             case 2 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.GUERRIER); openDetail(player, rv); } else denyManage(player); }
             case 8 -> {
                 if (canManage) {
-                    pendingRename.put(player.getUniqueId(), rv.getEntityId());
+                    pendingChat.put(player.getUniqueId(), new PendingChatInput(rv.getEntityId(), PendingType.RENAME));
                     player.closeInventory();
                     player.sendMessage(prefix() + "§eTape le nouveau nom de ce villageois dans le chat (ou §cannuler§e).");
                 } else denyManage(player);
+            }
+            case 36 -> {
+                if (!canManage) { denyManage(player); return; }
+                Entity e = Bukkit.getEntity(rv.getEntityId());
+                if (e == null) { player.sendMessage(prefix() + "§cVillageois introuvable (chunk non chargé)."); return; }
+                villagerManager.setPost(rv, e.getLocation());
+                player.sendMessage(prefix() + "§a✔ Poste défini à sa position actuelle.");
+                openDetail(player, rv);
+            }
+            case 37 -> {
+                if (!canManage) { denyManage(player); return; }
+                pendingChat.put(player.getUniqueId(), new PendingChatInput(rv.getEntityId(), PendingType.RADIUS));
+                player.closeInventory();
+                player.sendMessage(prefix() + "§eTape le rayon de défense en blocs (4-48) dans le chat (ou §cannuler§e).");
+            }
+            case 38 -> {
+                if (!canManage) { denyManage(player); return; }
+                player.closeInventory();
+                villagerManager.startPatrolSelection(player, rv);
+            }
+            case 39 -> {
+                if (!canManage) { denyManage(player); return; }
+                villagerManager.setCombatEnabled(rv, !rv.isCombatEnabled());
+                openDetail(player, rv);
             }
             case 40 -> {
                 if (rv.getRole() == VillagerRole.CONSTRUCTEUR) {
                     player.closeInventory();
                     villagerManager.startZoneSelection(player, rv);
                 }
+            }
+            case 41 -> {
+                villagerManager.toggleFollow(rv, player);
+                openDetail(player, rv);
             }
             case 45 -> openList(player);
             case 49 -> {
@@ -327,21 +383,36 @@ public class VillagerGUI implements Listener {
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        UUID villagerId = pendingRename.get(player.getUniqueId());
-        if (villagerId == null) return;
+        PendingChatInput pending = pendingChat.get(player.getUniqueId());
+        if (pending == null) return;
 
         event.setCancelled(true);
         String msg = event.getMessage().trim();
-        pendingRename.remove(player.getUniqueId());
+        pendingChat.remove(player.getUniqueId());
 
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (msg.equalsIgnoreCase("annuler")) { player.sendMessage(prefix() + "§7Renommage annulé."); return; }
-            RecruitedVillager rv = villagerManager.getByEntity(villagerId);
+            if (msg.equalsIgnoreCase("annuler")) { player.sendMessage(prefix() + "§7Annulé."); return; }
+            RecruitedVillager rv = villagerManager.getByEntity(pending.villagerId);
             if (rv == null) { player.sendMessage(prefix() + "§cVillageois introuvable."); return; }
-            String clean = ChatColor.stripColor(msg);
-            if (clean.length() > 24) clean = clean.substring(0, 24);
-            villagerManager.rename(rv, clean);
-            player.sendMessage(prefix() + "§a✔ Renommé en §e" + clean + "§a.");
+
+            switch (pending.type) {
+                case RENAME -> {
+                    String clean = ChatColor.stripColor(msg);
+                    if (clean.length() > 24) clean = clean.substring(0, 24);
+                    villagerManager.rename(rv, clean);
+                    player.sendMessage(prefix() + "§a✔ Renommé en §e" + clean + "§a.");
+                }
+                case RADIUS -> {
+                    try {
+                        double r = Double.parseDouble(msg.replace(",", "."));
+                        if (r < 4 || r > 48) { player.sendMessage(prefix() + "§cLe rayon doit être entre 4 et 48."); return; }
+                        villagerManager.setDefenseRadius(rv, r);
+                        player.sendMessage(prefix() + "§a✔ Rayon de défense réglé à §e" + (int) r + " blocs§a.");
+                    } catch (NumberFormatException ex) {
+                        player.sendMessage(prefix() + "§cNombre invalide.");
+                    }
+                }
+            }
         });
     }
 

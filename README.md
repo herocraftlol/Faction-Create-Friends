@@ -1,34 +1,91 @@
 # 🏰 FactionPlugin
 
-> Le plugin Minecraft **tout-en-un** pour gérer des factions, déclarer des guerres, bâtir des alliances, recruter des villageois et bâtir des empires sur **Spigot / Paper 1.21**.
+> Le plugin Minecraft **tout-en-un** pour gérer des factions, déclarer des guerres, bâtir des alliances, recruter et commander des **villageois guerriers** autonomes, et bâtir des empires sur **Paper 1.21**.
 
-![Version](https://img.shields.io/badge/version-5.9.0-blue)
+![Version](https://img.shields.io/badge/version-5.9.1-blue)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.21-green)
 ![Java](https://img.shields.io/badge/java-21%2B-orange)
 ![Statut](https://img.shields.io/badge/status-stable-success)
+![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
 
 ---
 
 ## ✨ Qu'est-ce que FactionPlugin ?
 
-**FactionPlugin** transforme votre serveur Minecraft en une véritable **épopée de factions**. Créez votre clan, recrutez vos membres, scellez des **alliances** ou partez en **guerre**, réclamez et défendez vos **territoires**, amassez une fortune dans la **banque d'émeraudes**, vendez vos trouvailles sur le **shop global**, troquez en toute sécurité avec les autres joueurs, organisez votre coffre et votre inventaire, et mesurez-vous aux autres factions grâce au **système de puissance** et à ses **7 rangs**.
+**FactionPlugin** transforme votre serveur Minecraft en une véritable **épopée de factions**. Créez votre clan, recrutez vos membres, scellez des **alliances** ou partez en **guerre**, réclamez et défendez vos **territoires**, amassez une fortune dans la **banque d'émeraudes**, vendez vos trouvailles sur le **shop global**, troquez en toute sécurité avec les autres joueurs, organisez votre coffre et votre inventaire, et mesurez-vous aux autres factions grâce au **système de puissance** à **7 rangs**.
 
-Et depuis la **v5.9.0**, donnez vie à votre faction en **recrutant des villageois** qui construiront vos murs et défendront votre base pendant que vous explorez, minez ou affrontez vos ennemis.
+Et depuis la **v5.9.0**, vos **villageois** peuvent rejoindre votre faction. Avec la **v5.9.1 — Les Guerriers**, ils prennent véritablement vie : **poste de garde**, **rayon de défense**, **patrouille sur zone tracée**, **formation militaire**, **combat intelligent** qui reconnaît vos alliés comme vos ennemis — y compris en pleine guerre inter-factions.
 
 Une seule commande pour tout faire : **`/faction`** (alias `/f`).
 
 ---
 
-## 🌟 Nouveautés de la v5.9.0 — *Les Villageois recrutés*
+## 🔥 Nouveautés de la v5.9.1 — *Les Guerriers prennent vie*
 
-Cette mise à jour introduit un tout nouveau système de **PNJ alliés** : vos villageois peuvent désormais rejoindre votre faction, recevoir un rôle, un équipement et des ordres — puis agir **autonomement** dans le monde.
+Cette mise à jour transforme vos villageois recrutés en de véritables **soldats autonomes**. Chaque guerrier peut désormais être posté, configuré et envoyé au combat avec une seule interaction dans le **GUI de gestion**.
 
-### 🛡️ Deux rôles spécialisés
+### ⚔️ Poste de garde (slot 36)
+
+Définissez en un clic le **poste** d'un guerrier : le villageois y reviendra automatiquement s'il s'en éloigne. Idéal pour garder l'entrée d'une base, un pont, un portail ou un point stratégique.
+
+### 📍 Rayon de défense (slot 37)
+
+Le guerrier patrouille autour de son poste dans un **rayon configurable de 4 à 48 blocs**. S'il détecte un mob hostile ou un joueur ennemi de votre faction, il **abandonne sa ronde pour l'affronter**, puis reprend sa position. Réglable directement depuis le GUI ou via le chat.
+
+### 🗺️ Patrouille sur zone (slot 38)
+
+Pour les bases complexes, tracez **deux points** dans le monde : le guerrier y effectuera **des allers-retours autonomes** en restant à l'intérieur du périmètre ainsi défini. Sélection annulable à tout moment avec `/faction annuler`.
+
+### 🛡️ Combat intelligent (slot 39)
+
+Activez ou désactivez le mode combat. Quand il est actif, le guerrier :
+
+- **Repère** automatiquement les mobs hostiles **et** les joueurs ennemis de votre faction (vérification via `FactionManager`).
+- **Vérifie l'état de guerre** : pendant une `WarSession`, les factions belligérantes sont automatiquement traitées comme hostiles.
+- **Poursuit** sa cible jusqu'à 24 blocs, l'attaque avec son arme équipée, puis reprend sa patrouille.
+- **Soin automatique** via l'emplacement *Nourriture* du GUI tant qu'il n'est pas à pleine vie.
+
+### 🪖 Formation militaire — `/faction villageois formation`
+
+Alignez en un clin d'œil **tous les villageois recrutés dans un rayon de 40 blocs** devant vous, à 1,5 blocs d'espacement, prêts à partir au combat ou à défiler. Parfait pour les cérémonies, les entraînements, ou les embuscades.
+
+### 🧠 Comportement de suivi (slot 41)
+
+Cliquez sur la tête de votre villageois pour qu'il **vous suive** comme un compagnon loyal. Re-cliquez pour annuler. Très utile pour escorter un Constructeur jusqu'à un nouveau chantier, ou simplement vous déplacer avec votre garde personnelle.
+
+### 🩹 Correctif du double-clic
+
+Les anciens écrans souffraient d'un bug où deux clics rapides exécutaient deux actions (le second cliquait à travers le menu qui se fermait). Le **double-clic est désormais neutralisé** par un *cooldown GUI de 150 ms* côté client, ce qui rend toutes les interactions fluides et prévisibles.
+
+---
+
+## 🆕 Récapitulatif des ajouts — v5.9.1 vs v5.9.0
+
+| Fonctionnalité | v5.9.0 (Villageois recrutés) | **v5.9.1 (Guerriers)** |
+|---|:---:|:---:|
+| `/faction recruter` — convertir un villageois en unité | ✅ | ✅ |
+| `/faction villageois` — GUI de gestion | ✅ | ✅ |
+| Rôles (Aucun / Constructeur / Guerrier) | ✅ | ✅ |
+| Chantier du Constructeur (zone cliquée) | ✅ | ✅ |
+| Équipement par rôle + Nourriture soignant | ✅ | ✅ |
+| Limite configurable par faction | ✅ | ✅ |
+| **Poste de garde** | ❌ | 🆕 |
+| **Rayon de défense (4 – 48 blocs)** | ❌ | 🆕 |
+| **Patrouille tracée par 2 clics** | ❌ | 🆕 |
+| **Détection d'ennemi via la faction** | ❌ | 🆕 |
+| **Compatibilité avec les guerres** | ❌ | 🆕 |
+| **Formation militaire (`/faction villageois formation`)** | ❌ | 🆕 |
+| **Mode suivi du chef/du joueur** | ❌ | 🆕 |
+| **Correctif double-clic des GUIs** | ❌ | 🆕 |
+
+---
+
+## 🛡️ Les deux rôles disponibles
 
 | Rôle | Comportement | Idéal pour… |
 |---|---|---|
-| 🪓 **Constructeur** | Reçoit un chantier (2 coins cliqués) dans un chunk claimé, et **comble automatiquement tout vide** qu'il rencontre dans la zone — il construit et répare en continu. | Bâtir des murs, remplir des trous, réparer des défenses. |
-| ⚔️ **Guerrier** | Équipé d'une arme + d'une armure, il **repère les mobs hostiles à proximité**, les poursuit et les combat — défendant au passage les villageois et autres alliés autour de lui. | Protéger votre base, escorter vos coéquipiers, monter la garde. |
+| 🪓 **Constructeur** | Reçoit un chantier (2 coins cliqués) dans un chunk claimé et **comble automatiquement tout vide** dans la zone. | Bâtir des murs, remplir des trous, réparer des défenses. |
+| ⚔️ **Guerrier** | Équipé d'une arme + d'une armure, il fait sa **ronde autour de son poste** dans son rayon, **détecte et combat** les mobs hostiles et les joueurs ennemis (vérification de faction + état de guerre). | Protéger votre base, escorter, harceler l'ennemi, monter la garde. |
 
 > Les dégâts et la résistance du guerrier dépendent de la qualité de son équipement : `bois < pierre/or < fer < diamant < netherite`.
 
@@ -36,26 +93,10 @@ Cette mise à jour introduit un tout nouveau système de **PNJ alliés** : vos v
 
 | Commande | Rôle requis | Effet |
 |---|---|---|
-| `/faction recruter` | Chef / sous-chef | Vise un villageois (à 8 blocs max) pour le convertir en unité de faction. |
-| `/faction villageois` | Tout membre | Ouvre le **GUI** listant les villageois recrutés (nom, rôle, vie, statut). |
-
-### 🎛️ GUI Villageois
-
-Une interface claire pour chaque villageois recruté :
-
-- **Renommer** (clic sur le nom → tape dans le chat)
-- **Changer le rôle** : Aucun / Constructeur / Guerrier
-- **Gérer l'équipement** :
-  - Slots restreints selon le rôle (seuls des blocs pour le Constructeur, arme + armure aux bons emplacements pour le Guerrier)
-  - Un emplacement **Nourriture** commun : le villageois se **soigne automatiquement** tant qu'il n'est pas à pleine vie
-- **Définir le chantier** du Constructeur (2 clics dans un chunk claimé par votre faction, volume plafonné)
-- **Libérer** un villageois (chef/sous-chef uniquement)
-
-### 📏 Limites & équilibrage
-
-- **Limite configurable** de villageois recrutés par faction (par défaut : **5**).
-- Un villageois **meurt normalement** (mobs hostiles, PvP, etc.) : la faction est notifiée et l'unité disparaît des données.
-- **Persistance complète** dans `villagers.yml` (rôle, équipement, chantier, ressources).
+| `/faction recruter` | Chef / sous-chef | Convertir un villageois ciblé en unité de faction. |
+| `/faction villageois` | Tout membre | Ouvre le **GUI** listant les villageois recrutés. |
+| `/faction villageois ranger` *ou* `formation` | Chef / sous-chef | Met tous les villageois à 40 blocs en formation devant vous. |
+| `/faction annuler` | Tout joueur | Annule la sélection de patrouille / chantier en cours. |
 
 ---
 
@@ -68,93 +109,65 @@ Le chef peut désormais **déléguer** une partie de son pouvoir à **jusqu'à 2
 - `/faction souschef liste` — voir les sous-chefs actuels
 - `/faction souschef limite <0-2>` — régler la limite (plafond absolu : 2)
 
-### 🔑 Ce qu'un sous-chef peut faire
+🔑 **Ce qu'un sous-chef peut faire** : inviter, expulser (sauf le chef), alliances, déclarations de guerre, définir le spawn, claim / unclaim, recruter des villageois.
 
-- ✅ Inviter des joueurs (`/faction invite`)
-- ✅ Expulser des membres, **sauf le chef** (`/faction kick`)
-- ✅ Proposer, accepter, refuser et rompre des **alliances**
-- ✅ Déclarer, accepter et refuser des **guerres**
-- ✅ Définir le **spawn de faction** (`/faction setspawn`)
-- ✅ **Claim / unclaim** des chunks
-- ✅ **Recruter des villageois** (nouveau !)
-
-### 🔒 Réservé au chef uniquement
-
-- `setchef` (transférer le leadership)
-- `rename` (renommer la faction)
-- `disband` (dissoudre la faction)
-- `claimallow` / `claimdeny` (permissions de claim)
-- `perms` (permissions)
-- La **capitulation** en guerre (`/faction guerre capituler`)
+🔒 **Réservé au chef** : `setchef`, `rename`, `disband`, `claimallow` / `claimdeny`, `perms`, capitulation en guerre.
 
 ---
 
-## 🎯 Fonctionnalités principales (rappel)
+## 🎯 Fonctionnalités principales
 
 ### 🏰 Factions
-- Création, invitation, expulsion, dissolution, transfert de chef
-- **Sous-chefs** (jusqu'à 2, v5.8.4)
-- **Inventaire partagé** (`/faction coffre`)
-- **Menu GUI complet** (`/faction` ou `/faction menu`)
+Création, invitation, expulsion, dissolution, transfert de chef, **sous-chefs** (jusqu'à 2), **inventaire partagé** (`/faction coffre`), **menu GUI complet** (`/faction` ou `/faction menu`).
 
 ### ⚡ Système de puissance
-- **Puissance Individuelle (PI)** basée sur le PvP, la survie, la progression et l'activité
-- **Puissance Globale (PG)** : somme des PI + bonus de taille de faction
+- **Puissance Individuelle (PI)** : PvP + survie + progression + activité
+- **Puissance Globale (PG)** : somme des PI + bonus de taille
 - **7 rangs** : Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire
-- **Effets passifs** croissants : Speed, Strength, Resistance, Jump Boost…
-- Classement (`/faction classement`, `/faction power`)
+- Effets passifs croissants : Speed, Strength, Resistance, Jump Boost, Haste, Regeneration
+- Classements (`/faction classement`, `/faction power`)
 
 ### 🗺️ Claims (territoire)
-- Réclamez et protégez vos chunks
-- Permissions par joueur via GUI (`/faction perms`)
-- Autorisez vos **alliés** sur vos claims (`claimallies`)
-- **Mini-map** visuelle (`/faction claimmap`)
+Chunks protégés, permissions par joueur (`/faction perms`), alliés autorisés (`claimallies`), mini-map visuelle (`/faction claimmap`).
 
 ### ⚔️ Guerres inter-factions (v5.1.1)
 - Déclaration **négociée** : `claims:0-5`, `pillage`, `kills:5-50`
 - Score en direct dans l'**action bar**
-- Transfert automatique des claims du perdant
-- Capitulation, match nul, anti-abus intégrés
+- Les villageois guerriers (v5.9.1) traitent automatiquement les belligérants comme hostiles
+- Transfert automatique des claims du perdant, capitulation, match nul, anti-abus intégrés
 
 ### 🤝 Alliances (v5.0.0)
-- Bonus de puissance par allié (+500, +1 200, +2 500…)
-- Homes personnels étendus avec alliés
+Bonus de puissance par allié (+500, +1 200, +2 500…), homes personnels étendus pour les membres de factions alliées.
 
 ### 🏦 Banque d'émeraudes
-- Coffre de faction partagé (GUI)
-- Historique des transactions
-- Classement des plus riches (`/faction topbanque`)
+Coffre de faction partagé (GUI), historique des transactions, classement des plus riches (`/faction topbanque`).
 
 ### 🛒 Shop global
-- GUI paginé 45 items/page, recherche par mot-clé, tri par prix
-- Monnaies : fer, or, diamant, émeraude
-- Paiement automatique du vendeur
+GUI paginé 45 items/page, recherche par mot-clé, tri par prix, monnaies : fer / or / diamant / émeraude.
 
 ### 🧹 Tri de coffre & inventaire (v5.3.0)
-- 6 modes de tri avec aperçu avant confirmation
-- Coffre partagé **et** inventaire personnel
+6 modes de tri avec aperçu avant confirmation, coffre partagé **et** inventaire personnel.
 
 ### 💱 Troc sécurisé
-- Échange d'items entre deux joueurs avec double confirmation anti-scam
+Échange d'items entre deux joueurs avec double confirmation anti-scam.
 
 ### 👁️ InvSee (admin)
-- Visualisation **en lecture seule** de l'inventaire complet d'un joueur
+Visualisation **en lecture seule** de l'inventaire complet d'un joueur.
 
 ### 📊 Statistiques joueurs
-- `/faction stats [joueur]` : kills, mobs, K/D, blocs, temps de jeu…
-- `/faction classementjoueurs` : top 10 par catégorie
+Kills, mobs tués, K/D, blocs posés/cassés, temps de jeu, top 10 par catégorie.
 
 ---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.9.0.jar](../../releases/download/v5.9.0/FactionPlugin-5.9.0.jar)**
-2. Déposez le JAR dans le dossier `plugins/` de votre serveur Paper 1.21
+1. Téléchargez la dernière version : **[FactionPlugin-5.9.1.jar](../../releases/download/v5.9.1/FactionPlugin-5.9.1.jar)**
+2. Déposez le JAR dans le dossier `plugins/` de votre serveur **Paper 1.21**
 3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
 
 ---
 
-## ⚙️ Commandes principales
+## ⚙️ Commandes principales (résumé)
 
 | Commande | Description |
 |---|---|
@@ -162,9 +175,10 @@ Le chef peut désormais **déléguer** une partie de son pouvoir à **jusqu'à 2
 | `/faction info [faction]` | Voir les informations d'une faction |
 | `/faction invite` / `join` / `leave` / `kick` | Gestion des membres |
 | `/faction menu` | Interface graphique complète |
-| `/faction souschef <action>` | Gérer les sous-chefs 🆕 |
-| `/faction recruter` | Recruter un villageois visé 🆕 |
-| `/faction villageois` | GUI des villageois recrutés 🆕 |
+| `/faction souschef <action>` | Gérer les sous-chefs |
+| `/faction recruter` | Recruter un villageois |
+| `/faction villageois` / `formation` | GUI villageois / formation militaire 🆕 |
+| `/faction annuler` | Annuler une sélection en cours 🆕 |
 | `/faction guerre <action>` | Gestion des guerres ⚔️ |
 | `/faction alliance <action>` | Gestion des alliances |
 | `/faction setspawn` / `/faction spawn` | Spawn de faction |
@@ -178,7 +192,7 @@ Le chef peut désormais **déléguer** une partie de son pouvoir à **jusqu'à 2
 | `/faction stats` / `classementjoueurs` | Statistiques |
 | `/faction classement` / `rangs` / `power` | Puissance |
 
-🆕 = nouveau en v5.8.x / v5.9.0 • ⚔️ = guerre (v5.1.1)
+🆕 = nouveauté v5.9.1 • ⚔️ = guerre (v5.1.1)
 
 ---
 
@@ -196,7 +210,7 @@ Le chef peut désormais **déléguer** une partie de son pouvoir à **jusqu'à 2
 ```bash
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.9.0.jar` (Java 21+, Maven 3.9+).
+Le JAR est généré dans `target/FactionPlugin-5.9.1.jar` (Java 21+, Maven 3.9+).
 
 ---
 
@@ -204,16 +218,15 @@ Le JAR est généré dans `target/FactionPlugin-5.9.0.jar` (Java 21+, Maven 3.9+
 
 | Version | Nouveautés |
 |---|---|
-| **v5.9.0** | **Villageois recrutés** : `/faction recruter`, GUI de gestion, rôles Constructeur & Guerrier, chantier, équipement, nourriture 🆕 |
-| **v5.8.4** | **Sous-chefs** : promotion / destitution, jusqu'à 2 sous-chefs, GUI mises à jour |
+| **v5.9.1** | **Guerriers autonomes** : poste, rayon, patrouille tracée, formation militaire, détection d'ennemi, compatibilité guerre, suivi du chef, correctif double-clic 🆕 |
+| v5.9.0 | Villageois recrutés : `/faction recruter`, GUI de gestion, rôles Constructeur & Guerrier, chantier, équipement, nourriture |
+| v5.8.4 | Sous-chefs : promotion / destitution, jusqu'à 2 sous-chefs |
 | v5.3.0 | Tri de coffre & d'inventaire : 6 modes, GUI d'aperçu |
 | v5.2.0 | Comptoir d'échange (retiré ensuite) |
 | v5.1.1 | Guerre inter-factions avec enjeux négociables |
 | v5.0.0 | Alliances, homes personnels, spawn, /tpa, coffres privés |
 | v4.0.0 | Shop global paginé + InvSee admin |
-| v3.2.4 | Corrections et améliorations finales |
-| v3.2.x | Optimisations du système de puissance, fixes du troc |
-| v3.2.0 | Banque d'émeraudes, claims, commerce entre joueurs |
+| v3.2.x | Banque d'émeraudes, optimisations diverses |
 | v3.1.0 | Fusion avec FactionStats : stats joueurs et classements intégrés |
 | v2.0.0 | Système de puissance, rangs, classement des factions |
 | v1.1.0 | GUI, téléportation intérieure, inventaire partagé |

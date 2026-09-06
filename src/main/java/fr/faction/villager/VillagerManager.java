@@ -4,8 +4,11 @@ import fr.faction.claim.ClaimManager;
 import fr.faction.managers.FactionManager;
 import fr.faction.models.Faction;
 import fr.faction.util.MobUtils;
+import fr.faction.war.WarManager;
+import fr.faction.war.WarSession;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -17,18 +20,22 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,8 +48,9 @@ import java.util.UUID;
 
 /**
  * Gère les villageois recrutés par les factions : conversion, rôles
- * (Constructeur / Guerrier), IA simplifiée (construction de zone, combat),
- * soin par la nourriture, et persistance dans villagers.yml.
+ * (Constructeur / Guerrier), IA simplifiée (construction de zone, combat,
+ * patrouille, suivi, formation), soin par la nourriture, et persistance
+ * dans villagers.yml.
  */
 public class VillagerManager implements Listener {
 
@@ -51,9 +59,10 @@ public class VillagerManager implements Listener {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private ClaimManager claimManager;
+    private WarManager warManager;
 
     private final Map<UUID, RecruitedVillager> villagers = new HashMap<>();
-    private final Map<UUID, PendingZone> pendingZones = new HashMap<>();
+    private final Map<UUID, PendingSelection> pendingSelections = new HashMap<>();
     private final File dataFile;
 
     public VillagerManager(JavaPlugin plugin, FactionManager factionManager) {
@@ -64,6 +73,7 @@ public class VillagerManager implements Listener {
     }
 
     public void setClaimManager(ClaimManager claimManager) { this.claimManager = claimManager; }
+    public void setWarManager(WarManager warManager)       { this.warManager = warManager; }
 
     public void start() {
         long interval = plugin.getConfig().getLong("villager.tick-interval", 20L);
@@ -91,6 +101,7 @@ public class VillagerManager implements Listener {
         if (countForFaction(faction.getName()) >= max) return RecruitResult.FACTION_FULL;
 
         RecruitedVillager rv = new RecruitedVillager(villager.getUniqueId(), faction.getName());
+        rv.setPostLocation(villager.getLocation());
         villagers.put(villager.getUniqueId(), rv);
         applyVisuals(rv, villager);
         save();
@@ -113,7 +124,7 @@ public class VillagerManager implements Listener {
             }
         }
         villagers.remove(rv.getEntityId());
-        pendingZones.values().removeIf(pz -> pz.villagerId.equals(rv.getEntityId()));
+        pendingSelections.values().removeIf(pz -> pz.villagerId.equals(rv.getEntityId()));
         save();
     }
 
@@ -192,69 +203,163 @@ public class VillagerManager implements Listener {
     public void markDirty() { save(); }
 
     // ════════════════════════════════════════════════════════════════════════
-    // SÉLECTION DE ZONE DE CHANTIER (constructeur)
+    // RÉGLAGES GUERRIER : poste, périmètre, combat, suivi, formation
     // ════════════════════════════════════════════════════════════════════════
 
-    private static class PendingZone {
+    public void setPost(RecruitedVillager rv, Location loc) {
+        rv.setPostLocation(loc);
+        save();
+    }
+
+    public void setDefenseRadius(RecruitedVillager rv, double radius) {
+        rv.setDefenseRadius(Math.max(4.0, Math.min(48.0, radius)));
+        save();
+    }
+
+    public void setCombatEnabled(RecruitedVillager rv, boolean enabled) {
+        rv.setCombatEnabled(enabled);
+        if (!enabled) rv.setCurrentTarget(null);
+        save();
+    }
+
+    public void toggleFollow(RecruitedVillager rv, Player player) {
+        if (player.getUniqueId().equals(rv.getFollowTarget())) rv.setFollowTarget(null);
+        else rv.setFollowTarget(player.getUniqueId());
+        save();
+    }
+
+    /** Aligne en formation, devant le joueur, tous ses villageois recrutés à moins de 40 blocs. */
+    public void formation(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + "§cTu n'es pas dans une faction."); return; }
+
+        List<Villager> present = new ArrayList<>();
+        for (RecruitedVillager rv : getFactionVillagers(faction.getName())) {
+            Entity e = Bukkit.getEntity(rv.getEntityId());
+            if (e instanceof Villager v && !v.isDead() && v.getWorld().equals(player.getWorld())
+                    && v.getLocation().distance(player.getLocation()) <= 40) {
+                present.add(v);
+            }
+        }
+        if (present.isEmpty()) { player.sendMessage(prefix() + "§cAucun villageois à moins de 40 blocs."); return; }
+
+        Location base = player.getLocation();
+        Vector dir = base.getDirection().setY(0);
+        if (dir.lengthSquared() < 1.0E-4) dir = new Vector(0, 0, 1);
+        dir.normalize();
+        Vector right = new Vector(-dir.getZ(), 0, dir.getX());
+
+        int n = present.size();
+        for (int i = 0; i < n; i++) {
+            double offset = (i - (n - 1) / 2.0) * 2.0;
+            Location slot = base.clone().add(dir.clone().multiply(3)).add(right.clone().multiply(offset));
+            present.get(i).getPathfinder().moveTo(slot, 0.6);
+        }
+        player.sendMessage(prefix() + "§a✔ " + n + " villageois se mettent en formation devant toi.");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SÉLECTION DE ZONE / PATROUILLE (clics dans le monde)
+    // ════════════════════════════════════════════════════════════════════════
+
+    private enum SelectionType { ZONE, PATROL }
+
+    private static class PendingSelection {
         final UUID villagerId;
-        Location corner1;
-        PendingZone(UUID villagerId) { this.villagerId = villagerId; }
+        final SelectionType type;
+        final List<Location> points = new ArrayList<>();
+        PendingSelection(UUID villagerId, SelectionType type) { this.villagerId = villagerId; this.type = type; }
     }
 
     public void startZoneSelection(Player player, RecruitedVillager rv) {
-        pendingZones.put(player.getUniqueId(), new PendingZone(rv.getEntityId()));
+        pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.ZONE));
         player.sendMessage(prefix() + "§eClique-droit sur le §b1er coin§e du chantier (bloc au sol par ex.).");
     }
 
+    public void startPatrolSelection(Player player, RecruitedVillager rv) {
+        pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.PATROL));
+        player.sendMessage(prefix() + "§eClique-droit pour ajouter un point de ronde. §bShift+clic-droit§e pour terminer.");
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onInteractForZone(PlayerInteractEvent event) {
+    public void onInteractForSelection(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        PendingZone pz = pendingZones.get(player.getUniqueId());
-        if (pz == null) return;
+        PendingSelection sel = pendingSelections.get(player.getUniqueId());
+        if (sel == null) return;
+        // PlayerInteractEvent se déclenche 2 fois par clic (main + off-hand) : on ignore l'off-hand.
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
         event.setCancelled(true);
 
-        RecruitedVillager rv = villagers.get(pz.villagerId);
-        if (rv == null) { pendingZones.remove(player.getUniqueId()); return; }
+        RecruitedVillager rv = villagers.get(sel.villagerId);
+        if (rv == null) { pendingSelections.remove(player.getUniqueId()); return; }
 
         Location loc = event.getClickedBlock().getLocation();
+        if (sel.type == SelectionType.ZONE) {
+            handleZoneClick(player, rv, sel, loc);
+        } else {
+            handlePatrolClick(player, rv, sel, loc, player.isSneaking());
+        }
+    }
 
-        if (pz.corner1 == null) {
-            pz.corner1 = loc;
+    private void handleZoneClick(Player player, RecruitedVillager rv, PendingSelection sel, Location loc) {
+        if (sel.points.isEmpty()) {
+            sel.points.add(loc);
             player.sendMessage(prefix() + "§aCoin A défini. §eClique-droit sur le §b2e coin§e.");
             return;
         }
 
-        if (!Objects.equals(pz.corner1.getWorld(), loc.getWorld())) {
+        Location corner1 = sel.points.get(0);
+        if (!Objects.equals(corner1.getWorld(), loc.getWorld())) {
             player.sendMessage(prefix() + "§cLes deux coins doivent être dans le même monde. Sélection annulée.");
-            pendingZones.remove(player.getUniqueId());
+            pendingSelections.remove(player.getUniqueId());
             return;
         }
 
-        int volume = computeVolume(pz.corner1, loc);
+        int volume = computeVolume(corner1, loc);
         int maxVolume = plugin.getConfig().getInt("villager.max-zone-volume", 3375);
         if (volume > maxVolume) {
             player.sendMessage(prefix() + "§cZone trop grande (" + volume + " blocs, max " + maxVolume + "). Réessaie avec une zone plus petite.");
-            pendingZones.remove(player.getUniqueId());
+            pendingSelections.remove(player.getUniqueId());
             return;
         }
 
         if (claimManager != null) {
-            boolean okA = claimBelongsToFaction(pz.corner1, rv.getFactionName());
+            boolean okA = claimBelongsToFaction(corner1, rv.getFactionName());
             boolean okB = claimBelongsToFaction(loc, rv.getFactionName());
             if (!okA || !okB) {
                 player.sendMessage(prefix() + "§cLes deux coins doivent être dans un chunk claimé par ta faction.");
-                pendingZones.remove(player.getUniqueId());
+                pendingSelections.remove(player.getUniqueId());
                 return;
             }
         }
 
-        rv.setZoneA(pz.corner1);
+        rv.setZoneA(corner1);
         rv.setZoneB(loc);
-        pendingZones.remove(player.getUniqueId());
+        pendingSelections.remove(player.getUniqueId());
         save();
         player.sendMessage(prefix() + "§a✔ Chantier défini pour §e" + rv.getDisplayName() + " §a(" + volume + " blocs). "
                 + "Donne-lui des blocs et il comblera les vides de la zone (construction ET réparation).");
+    }
+
+    private void handlePatrolClick(Player player, RecruitedVillager rv, PendingSelection sel, Location loc, boolean finish) {
+        if (claimManager != null && !claimBelongsToFaction(loc, rv.getFactionName())) {
+            player.sendMessage(prefix() + "§cCe point doit être dans un chunk claimé par ta faction.");
+            return;
+        }
+        sel.points.add(loc);
+        int max = plugin.getConfig().getInt("villager.max-patrol-points", 10);
+        if (finish || sel.points.size() >= max) {
+            rv.setPatrolPoints(sel.points);
+            rv.setPatrolIndex(0);
+            pendingSelections.remove(player.getUniqueId());
+            save();
+            player.sendMessage(prefix() + "§a✔ Patrouille définie pour §e" + rv.getDisplayName()
+                    + " §a(" + sel.points.size() + " point(s)). Il fera la ronde quand il n'a rien d'autre à faire.");
+        } else {
+            player.sendMessage(prefix() + "§aPoint " + sel.points.size() + " ajouté. §eClique-droit pour en ajouter un autre, "
+                    + "§bshift+clic-droit§e pour terminer.");
+        }
     }
 
     private boolean claimBelongsToFaction(Location loc, String factionName) {
@@ -368,53 +473,128 @@ public class VillagerManager implements Listener {
         return -1;
     }
 
-    // ── Guerrier : combat les mobs hostiles à proximité (et donc défend les villageois voisins) ──
+    // ── Guerrier : combat, périmètre, patrouille, suivi ───────────────────────
     private void warriorTick(RecruitedVillager rv, Villager v) {
         if (rv.getWeapon() == null) return; // pas d'arme = pas de combat
 
-        double radius = plugin.getConfig().getDouble("villager.combat-radius", 14.0);
-
-        LivingEntity target = resolveCurrentTarget(rv, v, radius);
-        if (target == null) {
-            target = findNearestHostile(v, radius);
+        LivingEntity target = rv.isCombatEnabled() ? resolveCurrentTarget(rv, v) : null;
+        if (target == null && rv.isCombatEnabled()) {
+            target = findThreat(rv, v);
             rv.setCurrentTarget(target != null ? target.getUniqueId() : null);
         }
-        if (target == null) return;
 
-        double dist = v.getLocation().distance(target.getLocation());
-        if (dist > 2.2) {
-            v.getPathfinder().moveTo(target, 0.6);
-            v.lookAt(target);
-        } else {
-            long now = System.currentTimeMillis();
-            if (now - rv.getLastActionTick() >= ATTACK_COOLDOWN_MS) {
-                target.damage(computeDamage(rv), v);
-                v.swingMainHand();
-                v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1f, 1f);
-                rv.setLastActionTick(now);
+        if (target != null) {
+            Location anchor = engagementAnchor(rv);
+            double leash = effectiveRadius(rv) * 1.6;
+            if (anchor != null && target.getLocation().distance(anchor) > leash) {
+                rv.setCurrentTarget(null); // la cible fuit trop loin du périmètre : abandon
+                return;
             }
+            double dist = v.getLocation().distance(target.getLocation());
+            if (dist > 2.2) {
+                v.getPathfinder().moveTo(target, 0.6);
+                v.lookAt(target);
+            } else {
+                long now = System.currentTimeMillis();
+                if (now - rv.getLastActionTick() >= ATTACK_COOLDOWN_MS) {
+                    target.damage(computeDamage(rv), v);
+                    v.swingMainHand();
+                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1f, 1f);
+                    rv.setLastActionTick(now);
+                }
+            }
+            return;
+        }
+
+        // Pas de cible : suivre le joueur assigné, sinon patrouiller, sinon tenir le poste
+        if (rv.getFollowTarget() != null) {
+            Player followed = Bukkit.getPlayer(rv.getFollowTarget());
+            if (followed != null && followed.isOnline() && followed.getWorld().equals(v.getWorld())) {
+                double d = v.getLocation().distance(followed.getLocation());
+                if (d > 3.5) v.getPathfinder().moveTo(followed.getLocation(), 0.6);
+                return;
+            }
+        }
+
+        if (!rv.getPatrolPoints().isEmpty()) {
+            List<Location> points = rv.getPatrolPoints();
+            int idx = rv.getPatrolIndex() % points.size();
+            Location wp = points.get(idx);
+            if (v.getLocation().distance(wp) <= 2.0) {
+                rv.setPatrolIndex((idx + 1) % points.size());
+            } else {
+                v.getPathfinder().moveTo(wp, 0.4);
+            }
+            return;
+        }
+
+        if (rv.getPostLocation() != null && v.getLocation().distance(rv.getPostLocation()) > 4.0) {
+            v.getPathfinder().moveTo(rv.getPostLocation(), 0.4);
         }
     }
 
-    private LivingEntity resolveCurrentTarget(RecruitedVillager rv, Villager v, double radius) {
+    /** Centre utilisé pour le calcul du périmètre : le joueur suivi si présent, sinon le poste. */
+    private Location engagementAnchor(RecruitedVillager rv) {
+        if (rv.getFollowTarget() != null) {
+            Player p = Bukkit.getPlayer(rv.getFollowTarget());
+            if (p != null && p.isOnline()) return p.getLocation();
+        }
+        return rv.getPostLocation();
+    }
+
+    private double effectiveRadius(RecruitedVillager rv) {
+        return rv.getDefenseRadius();
+    }
+
+    /** Cible déjà engagée (attaque en cours ou auto-défense) : on ne revalide pas son statut d'ennemi. */
+    private LivingEntity resolveCurrentTarget(RecruitedVillager rv, Villager v) {
         UUID id = rv.getCurrentTarget();
         if (id == null) return null;
         Entity e = Bukkit.getEntity(id);
-        if (!(e instanceof LivingEntity le) || le.isDead() || !MobUtils.isHostileMob(le)) return null;
-        if (le.getWorld() != v.getWorld() || le.getLocation().distance(v.getLocation()) > radius * 1.5) return null;
+        if (!(e instanceof LivingEntity le) || le.isDead()) return null;
+        if (!le.getWorld().equals(v.getWorld())) return null;
         return le;
     }
 
-    private LivingEntity findNearestHostile(Villager v, double radius) {
+    /** Cherche un mob hostile ou un joueur d'une faction ennemie (en guerre) dans le périmètre. */
+    private LivingEntity findThreat(RecruitedVillager rv, Villager v) {
+        Location anchor = engagementAnchor(rv);
+        double radius = effectiveRadius(rv);
+        double scanRadius = Math.max(radius, 6.0);
+
         LivingEntity nearest = null;
         double best = Double.MAX_VALUE;
-        for (Entity e : v.getNearbyEntities(radius, radius / 2.0, radius)) {
+        for (Entity e : v.getNearbyEntities(scanRadius, scanRadius / 2.0, scanRadius)) {
             if (!(e instanceof LivingEntity le) || le.isDead()) continue;
-            if (!MobUtils.isHostileMob(le)) continue;
+            boolean isThreat = (le instanceof Player p) ? isEnemyPlayer(rv, p) : MobUtils.isHostileMob(le);
+            if (!isThreat) continue;
+            if (anchor != null && le.getLocation().distance(anchor) > radius) continue;
             double d = le.getLocation().distanceSquared(v.getLocation());
             if (d < best) { best = d; nearest = le; }
         }
         return nearest;
+    }
+
+    /** Une faction B est "ennemie" de A si elle est actuellement en guerre active contre A (ni alliée, ni elle-même). */
+    private boolean isEnemyFaction(String myFaction, String otherFaction) {
+        if (myFaction.equalsIgnoreCase(otherFaction)) return false;
+        Faction mine = factionManager.getFaction(myFaction);
+        if (mine != null && mine.isAlly(otherFaction)) return false;
+        if (warManager != null) {
+            WarSession session = warManager.getActiveWarOf(myFaction);
+            if (session != null) {
+                String opponent = session.getOpponent(myFaction);
+                return opponent != null && opponent.equalsIgnoreCase(otherFaction);
+            }
+        }
+        return false;
+    }
+
+    private boolean isEnemyPlayer(RecruitedVillager rv, Player p) {
+        if (p.getGameMode() == GameMode.CREATIVE || p.getGameMode() == GameMode.SPECTATOR) return false;
+        Faction theirFaction = factionManager.getPlayerFaction(p.getUniqueId());
+        if (theirFaction == null) return false;
+        return isEnemyFaction(rv.getFactionName(), theirFaction.getName());
     }
 
     private double computeDamage(RecruitedVillager rv) {
@@ -430,6 +610,66 @@ public class VillagerManager implements Listener {
         else if (name.contains("WOOD")) base = 3.0;
         if (name.contains("AXE") && !name.contains("PICKAXE")) base += 1.0;
         return base;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // AUTO-DÉFENSE : riposte si le villageois, un membre de la faction,
+    // ou un autre villageois recruté à proximité se fait attaquer.
+    // ════════════════════════════════════════════════════════════════════════
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamageForDefense(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof LivingEntity victim)) return;
+        LivingEntity attacker = resolveAttackerEntity(event.getDamager());
+        if (attacker == null || attacker.equals(victim)) return;
+
+        String victimFaction = resolveFactionOf(victim);
+
+        // Cas 1 : le villageois lui-même est attaqué → auto-défense
+        RecruitedVillager selfRv = villagers.get(victim.getUniqueId());
+        if (selfRv != null && selfRv.getRole() == VillagerRole.GUERRIER && selfRv.isCombatEnabled()
+                && !isFriendly(selfRv.getFactionName(), attacker)) {
+            selfRv.setCurrentTarget(attacker.getUniqueId());
+        }
+
+        // Cas 2 : un joueur de faction (ou un autre villageois recruté) proche est attaqué → les guerriers défendent
+        if (victimFaction == null || isFriendly(victimFaction, attacker)) return;
+        for (RecruitedVillager rv : getFactionVillagers(victimFaction)) {
+            if (rv.getRole() != VillagerRole.GUERRIER || !rv.isCombatEnabled()) continue;
+            if (rv.getEntityId().equals(victim.getUniqueId())) continue; // déjà géré au-dessus
+            Entity e = Bukkit.getEntity(rv.getEntityId());
+            if (!(e instanceof Villager guard) || guard.isDead()) continue;
+            if (!guard.getWorld().equals(victim.getWorld())) continue;
+            double radius = Math.max(effectiveRadius(rv), 10.0);
+            if (guard.getLocation().distance(victim.getLocation()) <= radius) {
+                rv.setCurrentTarget(attacker.getUniqueId());
+            }
+        }
+    }
+
+    private boolean isFriendly(String factionName, LivingEntity attacker) {
+        if (!(attacker instanceof Player p)) return false;
+        Faction f = factionManager.getPlayerFaction(p.getUniqueId());
+        return f != null && f.getName().equalsIgnoreCase(factionName);
+    }
+
+    private LivingEntity resolveAttackerEntity(Entity damager) {
+        if (damager instanceof Player p) return p;
+        if (damager instanceof Projectile proj) {
+            ProjectileSource source = proj.getShooter();
+            return (source instanceof LivingEntity le) ? le : null;
+        }
+        if (damager instanceof LivingEntity le) return le; // mob attaquant directement (ex : zombie)
+        return null;
+    }
+
+    private String resolveFactionOf(LivingEntity victim) {
+        if (victim instanceof Player p) {
+            Faction f = factionManager.getPlayerFaction(p.getUniqueId());
+            return f != null ? f.getName() : null;
+        }
+        RecruitedVillager rv = villagers.get(victim.getUniqueId());
+        return rv != null ? rv.getFactionName() : null;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -487,6 +727,15 @@ public class VillagerManager implements Listener {
                 cfg.set(key + ".zoneA", locToString(rv.getZoneA()));
                 cfg.set(key + ".zoneB", locToString(rv.getZoneB()));
             }
+
+            if (rv.getPostLocation() != null) cfg.set(key + ".post", locToString(rv.getPostLocation()));
+            cfg.set(key + ".defenseRadius", rv.getDefenseRadius());
+            cfg.set(key + ".combatEnabled", rv.isCombatEnabled());
+            if (!rv.getPatrolPoints().isEmpty()) {
+                List<String> pts = new ArrayList<>();
+                for (Location l : rv.getPatrolPoints()) pts.add(locToString(l));
+                cfg.set(key + ".patrol", pts);
+            }
         }
         try { cfg.save(dataFile); } catch (IOException e) {
             plugin.getLogger().severe("Erreur sauvegarde villageois : " + e.getMessage());
@@ -522,6 +771,18 @@ public class VillagerManager implements Listener {
                 Location a = stringToLoc(cfg.getString(path + ".zoneA"));
                 Location b = stringToLoc(cfg.getString(path + ".zoneB"));
                 if (a != null && b != null) { rv.setZoneA(a); rv.setZoneB(b); }
+            }
+
+            if (cfg.contains(path + ".post")) rv.setPostLocation(stringToLoc(cfg.getString(path + ".post")));
+            rv.setDefenseRadius(cfg.getDouble(path + ".defenseRadius", 16.0));
+            rv.setCombatEnabled(cfg.getBoolean(path + ".combatEnabled", true));
+            if (cfg.contains(path + ".patrol")) {
+                List<Location> pts = new ArrayList<>();
+                for (String s : cfg.getStringList(path + ".patrol")) {
+                    Location l = stringToLoc(s);
+                    if (l != null) pts.add(l);
+                }
+                rv.setPatrolPoints(pts);
             }
 
             villagers.put(id, rv);

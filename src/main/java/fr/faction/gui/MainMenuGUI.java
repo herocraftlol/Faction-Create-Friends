@@ -169,20 +169,20 @@ public class MainMenuGUI implements Listener {
                     "§7Voir toutes les factions existantes."));
         } else {
             // Commandes universelles (tous membres)
-            inv.setItem(10, cmdItem(Material.RED_BED, "§c§l/fac leave", !isChef, "§7Quitter ta faction."));
-            inv.setItem(11, cmdItem(Material.BOOK, "§f§l/fac info", true, "§7Voir les infos de ta faction."));
-            inv.setItem(12, cmdItem(Material.PAPER, "§f§l/fac info <nom>", true, "§7Infos d'une autre faction."));
-            inv.setItem(13, cmdItem(Material.COMPASS, "§f§l/fac list", true, "§7Lister toutes les factions."));
-            inv.setItem(14, cmdItem(Material.BOOK, "§f§l/fac top", true, "§7Top 10 par puissance."));
+            inv.setItem(10, cmdItem(Material.RED_BED,        "§c§l/fac leave",         "§7Quitter ta faction.", !isChef));
+            inv.setItem(11, cmdItem(Material.BOOK,           "§f§l/fac info",           "§7Voir les infos de ta faction.", true));
+            inv.setItem(12, cmdItem(Material.PAPER,          "§f§l/fac info <nom>",     "§7Infos d'une autre faction.", true));
+            inv.setItem(13, cmdItem(Material.COMPASS,        "§f§l/fac list",           "§7Lister toutes les factions.", true));
+            inv.setItem(14, cmdItem(Material.BOOK,           "§f§l/fac top",            "§7Top 10 par puissance.", true));
 
             // Commandes chef + sous-chef
-            inv.setItem(19, cmdItem(Material.NAME_TAG, "§a§l/fac invite <joueur>", canMng, "§7Inviter un joueur dans la faction."));
-            inv.setItem(20, cmdItem(Material.IRON_BOOTS, "§e§l/fac kick <joueur>", canMng, "§7Expulser un membre (sauf le chef)."));
+            inv.setItem(19, cmdItem(Material.NAME_TAG,       "§a§l/fac invite <joueur>","§7Inviter un joueur dans la faction.", canMng));
+            inv.setItem(20, cmdItem(Material.IRON_BOOTS,     "§e§l/fac kick <joueur>",  "§7Expulser un membre (sauf le chef).", canMng));
             // Commandes chef uniquement
-            inv.setItem(21, cmdItem(Material.GOLDEN_HELMET, "§6§l/fac setchef <joueur>", isChef, "§7Transférer le rôle de Chef."));
-            inv.setItem(22, cmdItem(Material.NAME_TAG, "§b§l/fac rename <nom>", isChef, "§7Renommer la faction."));
-            inv.setItem(23, cmdItem(Material.ENDER_PEARL, "§d§l/fac setspawn", canMng, "§7Définir le spawn de la faction."));
-            inv.setItem(25, cmdItem(Material.TNT, "§c§l/fac disband", isChef, "§c§lDissoudre la faction §c(irréversible)."));
+            inv.setItem(21, cmdItem(Material.GOLDEN_HELMET,  "§6§l/fac setchef <joueur>","§7Transférer le rôle de Chef.", isChef));
+            inv.setItem(22, cmdItem(Material.NAME_TAG,       "§b§l/fac rename <nom>",   "§7Renommer la faction.", isChef));
+            inv.setItem(23, cmdItem(Material.ENDER_PEARL,    "§d§l/fac setspawn",       "§7Définir le spawn de la faction.", canMng));
+            inv.setItem(25, cmdItem(Material.TNT,            "§c§l/fac disband",        "§c§lDissoudre la faction §c(irréversible).", isChef));
 
             if (!isChef) {
                 inv.setItem(40, make(Material.ORANGE_STAINED_GLASS_PANE, "§7Note", "§7Les commandes §8grisées §7sont réservées au Chef (ou au sous-chef selon la commande)."));
@@ -210,20 +210,24 @@ public class MainMenuGUI implements Listener {
         fillBorder(inv, Material.GREEN_STAINED_GLASS_PANE);
 
         // Claims
-        inv.setItem(10, cmdItem(Material.GRASS_BLOCK, "§a§l/fac claim", canMng, "§7Claimer le chunk sous tes pieds."));
-        inv.setItem(11, cmdItem(Material.DIRT, "§c§l/fac unclaim", canMng, "§7Retirer le claim du chunk."));
-        inv.setItem(12, cmdItem(Material.MAP, "§b§l/fac claims", faction != null, "§7Voir les claims de ta faction."));
-        inv.setItem(13, cmdItem(Material.FILLED_MAP, "§b§l/fac claimmap", faction != null, "§7Carte visuelle des claims."));
-        inv.setItem(14, cmdItem(Material.IRON_DOOR, "§e§l/fac perms", isChef, "§7Gérer les permissions du chunk."));
+        inv.setItem(10, cmdItem(Material.GRASS_BLOCK,   "§a§l/fac claim",        "§7Claimer le chunk sous tes pieds.", canMng));
+        inv.setItem(11, cmdItem(Material.DIRT,          "§c§l/fac unclaim",       "§7Retirer le claim du chunk.", canMng));
+        inv.setItem(12, cmdItem(Material.MAP,           "§b§l/fac claims",        "§7Voir les claims de ta faction.", faction != null));
+        inv.setItem(13, cmdItem(Material.FILLED_MAP,    "§b§l/fac claimmap",      "§7Carte visuelle des claims.", faction != null));
+        inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR, "§d§l/fac spawn [1|2]", faction != null && faction.hasSpawn(), "§7Aller au spawn de ta faction.", "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"), "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)")));
-        inv.setItem(20, cmdItem(Material.LODESTONE, "§d§l/fac setspawn [1|2]", canMng, "§7Définir un spawn de faction.", "§7/fac setspawn   → spawn principal", "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)"));
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",   "§7Aller au spawn de ta faction.", faction != null && faction.hasSpawn(),
+                "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
+                "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)")));
+        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]","§7Définir un spawn de faction.", canMng,
+                "§7/fac setspawn   → spawn principal",
+                "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)"));
 
         // Homes
         String homeLore = "§7Homes : §e" + curHomes + "§7/§e" + maxHomes
                 + "\n§7(1 sans faction, 2 avec, 3 si allié)";
-        inv.setItem(22, make(Material.WHITE_BED, "§a§l/fac sethome [nom]", homeLore.split("\n")));
+        inv.setItem(22, make(Material.RED_BED, "§a§l/fac sethome [nom]", homeLore.split("\n")));
         inv.setItem(23, make(Material.ENDER_EYE, "§a§l/fac home [nom]",    "§7Se TP à un home.", "§7Warmup 5s, cooldown 30s."));
         inv.setItem(24, make(Material.BARRIER,   "§c§l/fac delhome <nom>", "§7Supprimer un home."));
 
@@ -239,7 +243,7 @@ public class MainMenuGUI implements Listener {
         inv.setItem(33, make(Material.BARRIER,     "§c§l/fac tpdeny",         "§7Refuser une demande de TP."));
 
         // TP membres
-        inv.setItem(34, cmdItem(Material.COMPASS, "§d§l/fac tp [membre]", faction != null, "§7Se TP vers un membre de la faction."));
+        inv.setItem(34, cmdItem(Material.COMPASS,      "§d§l/fac tp [membre]", "§7Se TP vers un membre de la faction.", faction != null));
 
         addNavBar(inv, "territoire");
         inv.setItem(49, make(Material.ARROW, "§7◀ Retour", ""));
@@ -302,10 +306,10 @@ public class MainMenuGUI implements Listener {
 
         // Alliances
         inv.setItem(10, make(Material.LIME_BANNER,   "§d§lGUI Alliances",           "§7Interface graphique des alliances.", "§7Voir, accepter, rompre.", "", "§eClic → ouvrir"));
-        inv.setItem(11, cmdItem(Material.PAPER, "§d§l/fac alliance inviter <faction>", canMng, "§7Proposer une alliance."));
-        inv.setItem(12, cmdItem(Material.LIME_DYE, "§a§l/fac alliance accepter <faction>", canMng, "§7Accepter une invitation."));
-        inv.setItem(13, cmdItem(Material.RED_DYE, "§c§l/fac alliance refuser <faction>", canMng, "§7Refuser une invitation."));
-        inv.setItem(14, cmdItem(Material.SHEARS, "§c§l/fac alliance rompre <faction>", canMng, "§7Rompre une alliance."));
+        inv.setItem(11, cmdItem(Material.PAPER,      "§d§l/fac alliance inviter <faction>", "§7Proposer une alliance.", canMng));
+        inv.setItem(12, cmdItem(Material.LIME_DYE,   "§a§l/fac alliance accepter <faction>","§7Accepter une invitation.", canMng));
+        inv.setItem(13, cmdItem(Material.RED_DYE,    "§c§l/fac alliance refuser <faction>", "§7Refuser une invitation.", canMng));
+        inv.setItem(14, cmdItem(Material.SHEARS,     "§c§l/fac alliance rompre <faction>",  "§7Rompre une alliance.", canMng));
         inv.setItem(15, make(Material.NETHER_STAR,   "§d§l/fac alliance liste",      "§7Voir les alliés.",
                 "§7Bonus actuel : §6+" + (int) allyBonus + " power"));
 
@@ -325,13 +329,13 @@ public class MainMenuGUI implements Listener {
                 "§7Options : [claims:0-5] [pillage] [kills:5-50]",
                 "§8Conditions : chef ou sous-chef, ratio power ≤3:1,",
                 "§8cooldown 48h, pas d'allié, cible ≥2 membres"));
-        inv.setItem(29, cmdItem(Material.GREEN_DYE, "§a§l/fac guerre accepter", canMng, "§7Accepter une déclaration de guerre."));
-        inv.setItem(30, cmdItem(Material.RED_DYE, "§c§l/fac guerre refuser", canMng, "§7Refuser une déclaration de guerre."));
+        inv.setItem(29, cmdItem(Material.GREEN_DYE,  "§a§l/fac guerre accepter",    "§7Accepter une déclaration de guerre.", canMng));
+        inv.setItem(30, cmdItem(Material.RED_DYE,    "§c§l/fac guerre refuser",     "§7Refuser une déclaration de guerre.", canMng));
         inv.setItem(31, make(Material.FILLED_MAP,    "§e§l/fac guerre statut",      "§7Score, temps restant, enjeux.",
                 atWar ? "§aClic → voir le statut" : "§7(aucune guerre active)"));
         inv.setItem(32, make(Material.COMPASS,       "§b§l/fac guerre liste",       "§7Toutes les guerres actives du serveur."));
-        inv.setItem(33, cmdItem(WHITE_FLAG_ITEM(), "§7§l/fac guerre capituler", isChef, "§cAbandonner la guerre (perds automatiquement, chef uniquement)."));
-        inv.setItem(34, cmdItem(Material.CHEST, "§6§l/fac guerre piller", canMng && atWar, "§7Piller le coffre du vaincu (si négocié)."));
+        inv.setItem(33, cmdItem(WHITE_FLAG_ITEM(), "§7§l/fac guerre capituler","§cAbandonner la guerre (perds automatiquement, chef uniquement).", isChef));
+        inv.setItem(34, cmdItem(Material.CHEST,      "§6§l/fac guerre piller",      "§7Piller le coffre du vaincu (si négocié).", canMng && atWar));
 
         addNavBar(inv, "alliances");
         inv.setItem(49, make(Material.ARROW, "§7◀ Retour", ""));
@@ -406,7 +410,7 @@ public class MainMenuGUI implements Listener {
                 "§e/fac claimdeny <fac>    §7Révoquer autorisation",
                 "§e/fac claimallies        §7Lister autorisations"));
 
-        inv.setItem(14, make(Material.WHITE_BED, "§a§lHomes & Spawn",
+        inv.setItem(14, make(Material.RED_BED, "§a§lHomes & Spawn",
                 "§e/sethome [nom]          §7Définir un home",
                 "§e/home [nom]             §7Aller à un home",
                 "§e/delhome <nom>          §7Supprimer un home",
@@ -1120,13 +1124,16 @@ public class MainMenuGUI implements Listener {
     }
 
     /** Item grisé si disabled */
-    private ItemStack cmdItem(Material mat, String name, boolean enabled, String... descLines) {
+    private ItemStack cmdItem(Material mat, String name, String desc, boolean enabled, String... extraLore) {
         if (enabled) {
-            String[] lore = new String[descLines.length + 2];
-            System.arraycopy(descLines, 0, lore, 0, descLines.length);
-            lore[descLines.length]     = "";
-            lore[descLines.length + 1] = "§7Clic pour info";
-            return make(mat, name, lore);
+            if (extraLore != null && extraLore.length > 0) {
+                String[] lore = new String[extraLore.length + 2];
+                lore[0] = desc;
+                System.arraycopy(extraLore, 0, lore, 1, extraLore.length);
+                lore[lore.length - 1] = "§7Clic pour info";
+                return make(mat, name, lore);
+            }
+            return make(mat, name, desc, "", "§7Clic pour info");
         }
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");

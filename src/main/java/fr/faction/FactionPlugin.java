@@ -136,6 +136,7 @@ public class FactionPlugin extends JavaPlugin {
         // ── v5.9 — Villageois recrutés ───────────────────────────────────────
         villagerManager = new fr.faction.villager.VillagerManager(this, factionManager);
         villagerManager.setClaimManager(claimManager);
+        villagerManager.setWarManager(warManager);
         villagerGUI = new fr.faction.villager.VillagerGUI(this, factionManager, villagerManager);
         villagerManager.start();
 
