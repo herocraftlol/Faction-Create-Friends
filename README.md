@@ -1,199 +1,216 @@
 # 🏰 FactionPlugin
 
-> Plugin Minecraft **tout-en-un** de gestion de factions pour serveur **Spigot/Paper 1.20.4** — factions, alliances, **guerres inter-factions**, claims, économie, commerce, **tri de coffre** et plus encore !
+> Le plugin Minecraft **tout-en-un** pour gérer des factions, déclarer des guerres, bâtir des alliances, recruter des villageois et bâtir des empires sur **Spigot / Paper 1.21**.
 
-![Version](https://img.shields.io/badge/version-5.3.0-blue)
-![Minecraft](https://img.shields.io/badge/minecraft-1.20.4-green)
-![Java](https://img.shields.io/badge/java-17%2B-orange)
-
-## 📖 Description
-
-**FactionPlugin** transforme votre serveur Minecraft en une véritable expérience de factions : créez votre faction, recrutez des membres, forgez des **alliances stratégiques**, déclarez la **guerre** aux factions rivales et arrachez-leur leurs territoires, réclamez et protégez vos **claims**, amassez des richesses dans la **banque d'émeraudes**, commercez avec les autres joueurs via le **shop global**, troquez en sécurité avec les autres joueurs, gardez votre **coffre partagé et votre inventaire parfaitement rangés**, et mesurez-vous aux autres factions grâce au **système de puissance** et ses **7 rangs** (de Pierre à Légendaire).
-
-Le tout avec des **interfaces graphiques (GUI)** intuitives et une commande unique : **`/faction`** (alias `/f`).
-
-## ✨ Nouveautés de la v5.3.0
-
-### 🧹 Tri de coffre & d'inventaire (`/faction ranger`)
-
-Fini le coffre partagé en bazar ! La v5.3.0 ajoute un **moteur de tri complet** qui range automatiquement votre **coffre partagé de faction** et votre **inventaire personnel**.
-
-- **6 modes de tri** disponibles dans un **GUI dédié** :
-  - **⬡ Similaires regroupés** — fusionne les stacks identiques en un seul paquet
-  - **☰ Par catégorie** — regroupe par type : blocs, outils, armures, nourriture, matériaux, potions, redstone, livres…
-  - **🔤 Alphabétique A→Z** — trie par nom d'item
-  - **📦 Quantité ↓ / ↑** — du plus grand au plus petit stack (ou l'inverse)
-  - **✦ Par rareté** — items enchantés et rares en premier
-- **Aperçu avant confirmation** : le GUI affiche le nombre d'items présents et le mode choisi avant d'appliquer le tri
-- **Bouton « Organiser le coffre »** directement accessible dans le menu principal et dans le coffre partagé
-- **Inventaire personnel** : triez aussi votre propre inventaire, hotbar exclue pour ne rien déplacer de sensible
-
-#### 🖥️ Comment ça marche
-- `/faction ranger` (ou `/fac trier`, `/fac organiser`, `/fac sort`) ouvre le menu de tri pour le **coffre partagé**
-- `/faction ranger perso` (alias `inventaire`) ouvre le tri pour votre **inventaire personnel**
-- Choisissez un mode → un **aperçu** s'affiche → confirmez : le tri est appliqué instantanément et l'inventaire est mis à jour
-
-### 🔧 Corrections et améliorations
-- Correction du message d'acceptation `/tpa` (affichage propre du nom du demandeur)
-- Nettoyage et fiabilisation du tri (fusion des stacks, gestion des items endommagés)
+![Version](https://img.shields.io/badge/version-5.9.0-blue)
+![Minecraft](https://img.shields.io/badge/minecraft-1.21-green)
+![Java](https://img.shields.io/badge/java-21%2B-orange)
+![Statut](https://img.shields.io/badge/status-stable-success)
 
 ---
 
-## 📜 Rappel — Nouveautés de la v5.1.1
+## ✨ Qu'est-ce que FactionPlugin ?
 
-### ⚔️ Guerre inter-factions (`/faction guerre`)
-Déclarez une guerre **négociée** à une faction rivale et remportez ses territoires !
+**FactionPlugin** transforme votre serveur Minecraft en une véritable **épopée de factions**. Créez votre clan, recrutez vos membres, scellez des **alliances** ou partez en **guerre**, réclamez et défendez vos **territoires**, amassez une fortune dans la **banque d'émeraudes**, vendez vos trouvailles sur le **shop global**, troquez en toute sécurité avec les autres joueurs, organisez votre coffre et votre inventaire, et mesurez-vous aux autres factions grâce au **système de puissance** et à ses **7 rangs**.
 
-- **Déclaration avec enjeux au choix** : `/fac guerre declarer <faction> [claims:0-5] [pillage] [kills:5-50]`
-  - `claims:` nombre de territoires (chunks) que le perdant devra céder au vainqueur
-  - `pillage` : le vainqueur obtient un accès temporaire au coffre partagé du perdant (max 27 items)
-  - `kills:` nombre de kills PvP nécessaires pour remporter la guerre (défaut : 20)
-- **Acceptation requise** : le chef adverse doit accepter (`/fac guerre accepter`) ou refuser — pas de guerre forcée
-- **Score en direct** : le score de guerre s'affiche dans l'**action bar** (kills, objectif, temps restant) et un indicateur ⚔ apparaît dans le chat
-- **Zone de combat** : seuls les kills en territoire claimé par l'une des deux factions comptent — les kills ailleurs ne gonflent pas le score
-- **Résolution automatique** : victoire par score atteint, **capitulation** (`/fac guerre capituler`), ou match nul après 72h — les claims perdus sont **transférés automatiquement** (les plus éloignés du centre d'abord)
-- **Anti-abus intégré** : cooldown de 48h, 1 seule guerre active par faction, impossible de déclarer la guerre à un allié, écart de rang limité entre les deux factions, cible avec au moins 2 membres actifs
+Et depuis la **v5.9.0**, donnez vie à votre faction en **recrutant des villageois** qui construiront vos murs et défendront votre base pendant que vous explorez, minez ou affrontez vos ennemis.
 
-### 🖥️ Nouveau menu principal
-`/faction` (ou `/fac menu`) ouvre un **menu d'accueil repensé** : accès rapide à toutes les fonctionnalités (guerre, claims, banque, shop, homes, alliances...) avec les commandes affichées directement dans les items.
-
-### 🔧 Corrections et améliorations
-- **Coffres privés** : correction du format de sauvegarde (les coffres situés dans des mondes dont le nom contient des virgules ou des underscores étaient mal rechargés)
-- **plugin.yml** : ajout des alias `/tpac` et `/tpdeny` (`/tpd`), descriptions enrichies
-- Diverses corrections internes et amélioration de la stabilité
+Une seule commande pour tout faire : **`/faction`** (alias `/f`).
 
 ---
 
-## 📜 Rappel — Nouveautés de la v5.0.0
+## 🌟 Nouveautés de la v5.9.0 — *Les Villageois recrutés*
 
-### 🤝 Alliances entre factions
-Forgez des pactes avec d'autres factions et renforcez votre puissance commune !
+Cette mise à jour introduit un tout nouveau système de **PNJ alliés** : vos villageois peuvent désormais rejoindre votre faction, recevoir un rôle, un équipement et des ordres — puis agir **autonomement** dans le monde.
 
-| Nombre d'alliés | Bonus de puissance |
-|---|---|
-| 1 allié | **+500 power** |
-| 2 alliés | **+1 200 power** |
-| 3 alliés | **+2 500 power** |
-| 4+ alliés | **+500 par allié en plus** |
+### 🛡️ Deux rôles spécialisés
 
-Gérez vos alliances par commande ou via un GUI dédié : `/faction alliance inviter|accepter|refuser|rompre|liste|gui`
+| Rôle | Comportement | Idéal pour… |
+|---|---|---|
+| 🪓 **Constructeur** | Reçoit un chantier (2 coins cliqués) dans un chunk claimé, et **comble automatiquement tout vide** qu'il rencontre dans la zone — il construit et répare en continu. | Bâtir des murs, remplir des trous, réparer des défenses. |
+| ⚔️ **Guerrier** | Équipé d'une arme + d'une armure, il **repère les mobs hostiles à proximité**, les poursuit et les combat — défendant au passage les villageois et autres alliés autour de lui. | Protéger votre base, escorter vos coéquipiers, monter la garde. |
 
-### 🏠 Homes personnels
-Plusieurs **homes nommés** par joueur avec des règles anti-abus (distance min. 160 blocs, warmup 5 s) :
-- Sans faction : **1 home**
-- Faction avec alliés : **3 homes**
+> Les dégâts et la résistance du guerrier dépendent de la qualité de son équipement : `bois < pierre/or < fer < diamant < netherite`.
 
-`/sethome [nom]` • `/home [nom]` • `/delhome <nom>` • `/homes`
+### 🧑‍🌾 Commandes ajoutées
 
-### 📦 Spawn de faction
-Le chef définit un point de ralliement (`/faction setspawn`) auquel tous les membres peuvent se téléporter (`/faction spawn`).
+| Commande | Rôle requis | Effet |
+|---|---|---|
+| `/faction recruter` | Chef / sous-chef | Vise un villageois (à 8 blocs max) pour le convertir en unité de faction. |
+| `/faction villageois` | Tout membre | Ouvre le **GUI** listant les villageois recrutés (nom, rôle, vie, statut). |
 
-### 🚀 Téléportation entre joueurs
-Système **/tpa** complet : demande avec expiration (30 s), acceptation/refus, warmup de sécurité (3 s) et cooldown anti-spam.
-`/tpa <joueur>` • `/tpaccept` • `/tpdeny`
+### 🎛️ GUI Villageois
 
-### 🔒 Coffres privés
-**Sneak + clic droit avec un panneau** sur un coffre pour le verrouiller ! Seuls vous (et les admins `faction.admin`) pouvez l'ouvrir, et personne ne peut le casser.
+Une interface claire pour chaque villageois recruté :
+
+- **Renommer** (clic sur le nom → tape dans le chat)
+- **Changer le rôle** : Aucun / Constructeur / Guerrier
+- **Gérer l'équipement** :
+  - Slots restreints selon le rôle (seuls des blocs pour le Constructeur, arme + armure aux bons emplacements pour le Guerrier)
+  - Un emplacement **Nourriture** commun : le villageois se **soigne automatiquement** tant qu'il n'est pas à pleine vie
+- **Définir le chantier** du Constructeur (2 clics dans un chunk claimé par votre faction, volume plafonné)
+- **Libérer** un villageois (chef/sous-chef uniquement)
+
+### 📏 Limites & équilibrage
+
+- **Limite configurable** de villageois recrutés par faction (par défaut : **5**).
+- Un villageois **meurt normalement** (mobs hostiles, PvP, etc.) : la faction est notifiée et l'unité disparaît des données.
+- **Persistance complète** dans `villagers.yml` (rôle, équipement, chantier, ressources).
 
 ---
 
-## 🎯 Fonctionnalités principales
+## 🆕 Nouveautés de la v5.8.4 — *Les Sous-chefs*
+
+Le chef peut désormais **déléguer** une partie de son pouvoir à **jusqu'à 2 sous-chefs** :
+
+- `/faction souschef promouvoir <joueur>` — nommer un sous-chef (chef uniquement)
+- `/faction souschef retirer <joueur>` — retirer le rang (chef uniquement)
+- `/faction souschef liste` — voir les sous-chefs actuels
+- `/faction souschef limite <0-2>` — régler la limite (plafond absolu : 2)
+
+### 🔑 Ce qu'un sous-chef peut faire
+
+- ✅ Inviter des joueurs (`/faction invite`)
+- ✅ Expulser des membres, **sauf le chef** (`/faction kick`)
+- ✅ Proposer, accepter, refuser et rompre des **alliances**
+- ✅ Déclarer, accepter et refuser des **guerres**
+- ✅ Définir le **spawn de faction** (`/faction setspawn`)
+- ✅ **Claim / unclaim** des chunks
+- ✅ **Recruter des villageois** (nouveau !)
+
+### 🔒 Réservé au chef uniquement
+
+- `setchef` (transférer le leadership)
+- `rename` (renommer la faction)
+- `disband` (dissoudre la faction)
+- `claimallow` / `claimdeny` (permissions de claim)
+- `perms` (permissions)
+- La **capitulation** en guerre (`/faction guerre capituler`)
+
+---
+
+## 🎯 Fonctionnalités principales (rappel)
 
 ### 🏰 Factions
 - Création, invitation, expulsion, dissolution, transfert de chef
-- Inventaire partagé (`/faction coffre`)
-- Interface GUI complète (`/faction menu`)
+- **Sous-chefs** (jusqu'à 2, v5.8.4)
+- **Inventaire partagé** (`/faction coffre`)
+- **Menu GUI complet** (`/faction` ou `/faction menu`)
 
 ### ⚡ Système de puissance
-- **Puissance Individuelle (PI)** calculée sur le PvP, la survie, la progression et l'activité
-- **7 rangs de faction** : Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire
-- **Effets passifs** croissants : speed, force, résistance...
-- Classement des factions (`/faction classement`)
+- **Puissance Individuelle (PI)** basée sur le PvP, la survie, la progression et l'activité
+- **Puissance Globale (PG)** : somme des PI + bonus de taille de faction
+- **7 rangs** : Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire
+- **Effets passifs** croissants : Speed, Strength, Resistance, Jump Boost…
+- Classement (`/faction classement`, `/faction power`)
 
 ### 🗺️ Claims (territoire)
-- Réclamez des chunks et protégez votre territoire contre les intrus
+- Réclamez et protégez vos chunks
 - Permissions par joueur via GUI (`/faction perms`)
 - Autorisez vos **alliés** sur vos claims (`claimallies`)
-- Carte des claims (`/faction claimmap`)
+- **Mini-map** visuelle (`/faction claimmap`)
+
+### ⚔️ Guerres inter-factions (v5.1.1)
+- Déclaration **négociée** : `claims:0-5`, `pillage`, `kills:5-50`
+- Score en direct dans l'**action bar**
+- Transfert automatique des claims du perdant
+- Capitulation, match nul, anti-abus intégrés
+
+### 🤝 Alliances (v5.0.0)
+- Bonus de puissance par allié (+500, +1 200, +2 500…)
+- Homes personnels étendus avec alliés
 
 ### 🏦 Banque d'émeraudes
-- Coffre de faction pour déposer/retirer des émeraudes (GUI)
-- Historique des transactions, top richesse (`/faction topbanque`)
+- Coffre de faction partagé (GUI)
+- Historique des transactions
+- Classement des plus riches (`/faction topbanque`)
 
 ### 🛒 Shop global
-- Vendez et achetez avec un GUI paginé (45 items/page), recherche et tri par prix
+- GUI paginé 45 items/page, recherche par mot-clé, tri par prix
 - Monnaies : fer, or, diamant, émeraude
-- Paiement automatique du vendeur, livraison même hors-ligne
-- `/faction shop` • `/faction vendre <prix> <monnaie>` • `/faction mesannonces`
+- Paiement automatique du vendeur
 
-### 🧹 Tri de coffre & d'inventaire
-- **6 modes de tri** (similaires, catégorie, alphabétique, quantité, rareté) avec GUI dédié et aperçu avant confirmation
-- Coffre partagé de faction et inventaire personnel
-- `/faction ranger` • `/faction ranger perso` • bouton « Organiser le coffre » dans le menu principal
+### 🧹 Tri de coffre & inventaire (v5.3.0)
+- 6 modes de tri avec aperçu avant confirmation
+- Coffre partagé **et** inventaire personnel
 
 ### 💱 Troc sécurisé
-- Échange d'items entre deux joueurs avec double confirmation anti-scam (`/faction troc`)
+- Échange d'items entre deux joueurs avec double confirmation anti-scam
 
 ### 👁️ InvSee (admin)
-- Visualisation **en lecture seule** de l'inventaire complet d'un joueur (`/faction invsee <joueur>`)
+- Visualisation **en lecture seule** de l'inventaire complet d'un joueur
 
 ### 📊 Statistiques joueurs
-- `/faction stats [joueur]` : kills, mobs, K/D, blocs, temps de jeu... même pour les joueurs hors-ligne
+- `/faction stats [joueur]` : kills, mobs, K/D, blocs, temps de jeu…
 - `/faction classementjoueurs` : top 10 par catégorie
+
+---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.3.0.jar](../../releases/download/v5.3.0/FactionPlugin-5.3.0.jar)**
-2. Déposez le JAR dans le dossier `plugins/` de votre serveur
+1. Téléchargez la dernière version : **[FactionPlugin-5.9.0.jar](../../releases/download/v5.9.0/FactionPlugin-5.9.0.jar)**
+2. Déposez le JAR dans le dossier `plugins/` de votre serveur Paper 1.21
 3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
+
+---
 
 ## ⚙️ Commandes principales
 
 | Commande | Description |
 |---|---|
 | `/faction create <nom>` | Créer une faction |
-| `/faction info [faction]` | Informations d'une faction |
-| `/faction invite <joueur>` / `join` / `leave` / `kick` | Gestion des membres |
+| `/faction info [faction]` | Voir les informations d'une faction |
+| `/faction invite` / `join` / `leave` / `kick` | Gestion des membres |
 | `/faction menu` | Interface graphique complète |
-| `/faction guerre declarer <fac> [claims:n] [pillage] [kills:n]` | Déclarer une guerre ⚔️ |
-| `/faction guerre accepter` / `refuser` / `capituler` / `statut` | Gérer une guerre ⚔️ |
-| `/faction alliance <action>` | Gérer les alliances |
+| `/faction souschef <action>` | Gérer les sous-chefs 🆕 |
+| `/faction recruter` | Recruter un villageois visé 🆕 |
+| `/faction villageois` | GUI des villageois recrutés 🆕 |
+| `/faction guerre <action>` | Gestion des guerres ⚔️ |
+| `/faction alliance <action>` | Gestion des alliances |
 | `/faction setspawn` / `/faction spawn` | Spawn de faction |
 | `/sethome` `/home` `/delhome` `/homes` | Homes personnels |
 | `/tpa <joueur>` `/tpaccept` `/tpdeny` | Téléportation entre joueurs |
 | `/faction claim` / `unclaim` / `claimmap` / `perms` | Territoire |
 | `/faction banque` | Banque d'émeraudes |
-| `/faction shop` / `vendre` / `acheter` | Shop global |
-| `/faction ranger` / `ranger perso` | Tri de coffre partagé / inventaire personnel 🧹 |
+| `/faction shop` / `vendre` / `acheter` / `mesannonces` | Shop global |
+| `/faction ranger` / `ranger perso` | Tri de coffre / inventaire |
 | `/faction troc <joueur>` | Troc sécurisé |
-| `/faction stats [joueur]` / `classementjoueurs` | Statistiques |
-| `/faction classement` / `rangs` / `power` | Puissance et classements |
+| `/faction stats` / `classementjoueurs` | Statistiques |
+| `/faction classement` / `rangs` / `power` | Puissance |
 
-🧹 = nouveau en v5.3.0 • ⚔️ = guerre, ajouté en v5.1.1
+🆕 = nouveau en v5.8.x / v5.9.0 • ⚔️ = guerre (v5.1.1)
+
+---
 
 ## 🔐 Permissions
 
 | Permission | Description | Défaut |
 |---|---|---|
-| `faction.use` | Utiliser les commandes de faction | tout le monde |
-| `faction.admin` | InvSee, bypass claims, ouvrir les coffres privés | op |
+| `faction.use` | Commandes de base | tout le monde |
+| `faction.admin` | InvSee, bypass des coffres privés, recrutement sans limite | op |
+
+---
 
 ## 🛠️ Compilation
 
 ```bash
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.3.0.jar` (Java 17+, Maven 3.9+).
+Le JAR est généré dans `target/FactionPlugin-5.9.0.jar` (Java 21+, Maven 3.9+).
+
+---
 
 ## 📜 Historique des versions
 
 | Version | Nouveautés |
 |---|---|
-| **v5.3.0** | Tri de coffre & d'inventaire : 6 modes de tri avec GUI et aperçu, bouton « Organiser le coffre », fix /tpa |
-| **v5.2.0** | Comptoir d'échange : ordres de dépôt de monnaie contre items, GUI paginé, gestion et annulation de vos ordres *(retiré dans le code source v5.3.0)* |
-| **v5.1.1** | Guerre inter-factions avec enjeux négociables (claims, pillage, kills), nouveau menu principal, fix coffres privés |
-| v5.0.0 | Alliances avec bonus de puissance, homes personnels, spawn de faction, /tpa, coffres privés |
-| v4.0.0 | Shop global paginé avec recherche, InvSee admin |
+| **v5.9.0** | **Villageois recrutés** : `/faction recruter`, GUI de gestion, rôles Constructeur & Guerrier, chantier, équipement, nourriture 🆕 |
+| **v5.8.4** | **Sous-chefs** : promotion / destitution, jusqu'à 2 sous-chefs, GUI mises à jour |
+| v5.3.0 | Tri de coffre & d'inventaire : 6 modes, GUI d'aperçu |
+| v5.2.0 | Comptoir d'échange (retiré ensuite) |
+| v5.1.1 | Guerre inter-factions avec enjeux négociables |
+| v5.0.0 | Alliances, homes personnels, spawn, /tpa, coffres privés |
+| v4.0.0 | Shop global paginé + InvSee admin |
 | v3.2.4 | Corrections et améliorations finales |
 | v3.2.x | Optimisations du système de puissance, fixes du troc |
 | v3.2.0 | Banque d'émeraudes, claims, commerce entre joueurs |
@@ -201,6 +218,8 @@ Le JAR est généré dans `target/FactionPlugin-5.3.0.jar` (Java 17+, Maven 3.9+
 | v2.0.0 | Système de puissance, rangs, classement des factions |
 | v1.1.0 | GUI, téléportation intérieure, inventaire partagé |
 | v1.0.0 | Version initiale |
+
+---
 
 ## 📄 Licence
 

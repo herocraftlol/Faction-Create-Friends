@@ -13,6 +13,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.UUID;
@@ -116,4 +117,37 @@ public class ClaimListener implements Listener {
                 + data.getFactionName() + ChatColor.RED + ". Accès refusé.");
         return false;
     }
+
+    // ── Trade de villageois dans un claim ────────────────────────────────────────
+    // Les factions ennemies ne peuvent pas trader avec les villageois claimés.
+    // Les membres de la même faction et les alliés le peuvent.
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onVillagerTrade(org.bukkit.event.inventory.InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!(event.getInventory().getHolder() instanceof org.bukkit.entity.AbstractVillager villager)) return;
+
+        Chunk chunk = villager.getLocation().getChunk();
+        if (!claimManager.isClaimed(chunk)) return; // chunk libre → tout le monde peut trader
+
+        ClaimManager.ClaimData data = claimManager.getClaim(chunk);
+        if (data == null) return;
+
+        String ownerFaction = data.getFactionName();
+        fr.faction.models.Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+
+        // Membre de la faction propriétaire → OK
+        if (playerFaction != null && playerFaction.getName().equalsIgnoreCase(ownerFaction)) return;
+
+        // Faction alliée → OK
+        if (playerFaction != null && playerFaction.isAlly(ownerFaction)) return;
+
+        // Admin bypass
+        if (player.hasPermission("faction.admin")) return;
+
+        // Tout le reste → bloqué
+        event.setCancelled(true);
+        player.sendMessage(ChatColor.RED + "✘ Ce villageois appartient à la faction §e" + ownerFaction
+                + ChatColor.RED + ". Les factions ennemies ne peuvent pas le trader.");
+    }
+
 }

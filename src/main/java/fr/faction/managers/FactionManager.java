@@ -81,6 +81,39 @@ public class FactionManager {
         return true;
     }
 
+    // ─── SOUS-CHEFS ─────────────────────────────────────────────────────────────
+
+    public Faction.SousChefResult addSousChef(String factionName, UUID player) {
+        Faction faction = factions.get(factionName.toLowerCase());
+        if (faction == null) return Faction.SousChefResult.NOT_MEMBER;
+        Faction.SousChefResult result = faction.addSousChef(player);
+        if (result == Faction.SousChefResult.SUCCESS) saveFactions();
+        return result;
+    }
+
+    public Faction.SousChefResult removeSousChef(String factionName, UUID player) {
+        Faction faction = factions.get(factionName.toLowerCase());
+        if (faction == null) return Faction.SousChefResult.NOT_SOUS_CHEF;
+        Faction.SousChefResult result = faction.removeSousChef(player);
+        if (result == Faction.SousChefResult.SUCCESS) saveFactions();
+        return result;
+    }
+
+    public boolean setMaxSousChefs(String factionName, int max) {
+        Faction faction = factions.get(factionName.toLowerCase());
+        if (faction == null) return false;
+        faction.setMaxSousChefs(max);
+        // Si la nouvelle limite est inférieure au nombre de sous-chefs actuels,
+        // on retire les excédentaires (les plus récemment ajoutés en premier n'étant pas trackés,
+        // on retire arbitrairement jusqu'à revenir dans la limite).
+        while (faction.getSousChefCount() > faction.getMaxSousChefs()) {
+            UUID toRemove = faction.getSousChefs().iterator().next();
+            faction.removeSousChef(toRemove);
+        }
+        saveFactions();
+        return true;
+    }
+
     public void addInvite(String factionName, UUID player) {
         Faction faction = factions.get(factionName.toLowerCase());
         if (faction != null) faction.addInvite(player);
@@ -104,9 +137,16 @@ public class FactionManager {
 
     // ─── SPAWN ──────────────────────────────────────────────────────────────────
 
+    /** Définit le spawn principal (slot 1). */
     public void setFactionSpawn(String factionName, Location loc) {
         Faction faction = factions.get(factionName.toLowerCase());
         if (faction != null) { faction.setFactionSpawn(loc); saveFactions(); }
+    }
+
+    /** Définit un spawn par numéro de slot (1 ou 2). */
+    public void setFactionSpawn(String factionName, Location loc, int slot) {
+        Faction faction = factions.get(factionName.toLowerCase());
+        if (faction != null) { faction.setSpawnBySlot(slot, loc); saveFactions(); }
     }
 
     // ─── ALLIANCES ──────────────────────────────────────────────────────────────
@@ -171,6 +211,12 @@ public class FactionManager {
             for (UUID u : f.getMembers()) ms.add(u.toString());
             cfg.set(key + ".members", ms);
 
+            // Sous-chefs
+            List<String> scs = new ArrayList<>();
+            for (UUID u : f.getSousChefs()) scs.add(u.toString());
+            cfg.set(key + ".sousChefs", scs);
+            cfg.set(key + ".maxSousChefs", f.getMaxSousChefs());
+
             // Spawn
             if (f.hasSpawn()) {
                 Location s = f.getFactionSpawn();
@@ -180,6 +226,15 @@ public class FactionManager {
                 cfg.set(key + ".spawn.z", s.getZ());
                 cfg.set(key + ".spawn.yaw",   (double) s.getYaw());
                 cfg.set(key + ".spawn.pitch", (double) s.getPitch());
+            }
+            if (f.hasSpawn2()) {
+                Location s2 = f.getFactionSpawn2();
+                cfg.set(key + ".spawn2.world", s2.getWorld().getName());
+                cfg.set(key + ".spawn2.x", s2.getX());
+                cfg.set(key + ".spawn2.y", s2.getY());
+                cfg.set(key + ".spawn2.z", s2.getZ());
+                cfg.set(key + ".spawn2.yaw",   (double) s2.getYaw());
+                cfg.set(key + ".spawn2.pitch", (double) s2.getPitch());
             }
             // Allies
             cfg.set(key + ".allies", new ArrayList<>(f.getAllies()));
@@ -205,6 +260,12 @@ public class FactionManager {
                 faction.addMember(u);
                 playerFactionMap.put(u, key);
             }
+            // Sous-chefs
+            if (cfg.contains(path + ".maxSousChefs")) faction.setMaxSousChefs(cfg.getInt(path + ".maxSousChefs"));
+            for (String s : cfg.getStringList(path + ".sousChefs")) {
+                faction.addSousChef(UUID.fromString(s));
+            }
+
             // Spawn
             if (cfg.contains(path + ".spawn")) {
                 try {
@@ -216,6 +277,19 @@ public class FactionManager {
                         float yaw   = (float) cfg.getDouble(path + ".spawn.yaw");
                         float pitch = (float) cfg.getDouble(path + ".spawn.pitch");
                         faction.setFactionSpawn(new Location(world, x, y, z, yaw, pitch));
+                    }
+                } catch (Exception e) { /* ignore */ }
+            }
+            if (cfg.contains(path + ".spawn2")) {
+                try {
+                    World world2 = Bukkit.getWorld(Objects.requireNonNull(cfg.getString(path + ".spawn2.world")));
+                    if (world2 != null) {
+                        double x2 = cfg.getDouble(path + ".spawn2.x");
+                        double y2 = cfg.getDouble(path + ".spawn2.y");
+                        double z2 = cfg.getDouble(path + ".spawn2.z");
+                        float yaw2   = (float) cfg.getDouble(path + ".spawn2.yaw");
+                        float pitch2 = (float) cfg.getDouble(path + ".spawn2.pitch");
+                        faction.setFactionSpawn2(new Location(world2, x2, y2, z2, yaw2, pitch2));
                     }
                 } catch (Exception e) { /* ignore */ }
             }

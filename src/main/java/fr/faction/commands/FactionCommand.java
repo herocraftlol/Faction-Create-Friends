@@ -79,6 +79,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private final FactionPowerManager powerManager;
     private final ClaimManager claimManager;
     private final ClaimPermissionGUI claimPermissionGUI;
+    private fr.faction.claim.ClaimVisualizer claimVisualizer;
+    private fr.faction.villager.VillagerManager villagerManager;
+    private fr.faction.villager.VillagerGUI villagerGUI;
     private final BankGUI bankGUI;
     private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
@@ -94,6 +97,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private fr.faction.gui.MainMenuGUI mainMenuGUI;
     private fr.faction.power.FactionPowerManager powerManagerRef;
     private fr.faction.sort.SortMenuGUI sortMenuGUI;
+    private fr.faction.power.FactionTabManager tabManager;
+    private fr.faction.map.FactionMapManager mapManager;
+    private fr.faction.shop.ShopCreateGUI shopCreateGUI;
 
     public FactionCommand(JavaPlugin plugin, FactionManager factionManager, PlayerStatsManager statsManager,
                           SharedInventoryManager sharedInvManager, FactionTeleportManager teleportManager,
@@ -132,6 +138,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public void setWarManager(fr.faction.war.WarManager wm) { this.warManager = wm; }
     public void setMainMenuGUI(fr.faction.gui.MainMenuGUI gui) { this.mainMenuGUI = gui; }
     public void setSortMenuGUI(fr.faction.sort.SortMenuGUI gui) { this.sortMenuGUI = gui; }
+    public void setShopCreateGUI(fr.faction.shop.ShopCreateGUI gui) { this.shopCreateGUI = gui; }
+    public void setClaimVisualizer(fr.faction.claim.ClaimVisualizer cv) { this.claimVisualizer = cv; }
+    public void setVillagerManager(fr.faction.villager.VillagerManager vm) { this.villagerManager = vm; }
+    public void setVillagerGUI(fr.faction.villager.VillagerGUI vg) { this.villagerGUI = vg; }
+    public void setTabManager(fr.faction.power.FactionTabManager tm) { this.tabManager = tm; }
+    public void setMapManager(fr.faction.map.FactionMapManager mm) { this.mapManager = mm; }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -154,6 +166,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "join"                      -> handleJoin(player, args);
             case "leave"                     -> handleLeave(player);
             case "setchef"                   -> handleSetChef(player, args);
+            case "souschef", "subchief"       -> handleSousChef(player, args);
             case "rename", "renommer"        -> handleRename(player, args);
             case "info"                      -> handleInfo(player, args);
             case "list"                      -> handleList(player);
@@ -176,7 +189,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "claim"                     -> handleClaim(player);
             case "unclaim"                   -> handleUnclaim(player);
             case "claims"                    -> handleClaims(player);
-            case "claimmap", "map"           -> handleClaimMap(player);
+            case "claimmap"                  -> handleClaimMap(player);
+            case "map", "minimap"            -> handleFacMap(player, args);
+            case "claimshow", "showclaim",
+                 "claims-visual", "cv"       -> handleClaimShow(player);
             case "claimallow"                -> handleClaimAllow(player, args);
             case "claimdeny"                 -> handleClaimDeny(player, args);
             case "claimallies"               -> handleClaimAllies(player);
@@ -199,8 +215,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "alliance"                  -> handleAlliance(player, args);
 
             // ── Spawn de faction v5 ──────────────────────────────────────────
-            case "setspawn"                  -> handleSetFactionSpawn(player);
-            case "spawn"                     -> handleFactionSpawn(player);
+            case "setspawn"                  -> handleSetFactionSpawn(player, args);
+            case "spawn"                     -> handleFactionSpawn(player, args);
 
             // ── Homes v5 ─────────────────────────────────────────────────────
             case "sethome"                   -> handleSetHomeCmd(player, args);
@@ -220,6 +236,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
             // ── Tri de coffre v5.2 ───────────────────────────────────────────
             case "ranger", "trier", "organiser", "sort" -> handleRanger(player, args);
+
+            // ── Villageois recrutés v5.9 ─────────────────────────────────────
+            case "recruter"                  -> handleRecruter(player);
+            case "villageois", "villagers"    -> handleVillageois(player);
 
             default                          -> sendHelp(player);
         }
@@ -241,6 +261,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (!name.matches("[a-zA-Z0-9_\\-]+")) { player.sendMessage(prefix() + ChatColor.RED + "Nom invalide (lettres, chiffres, _ et - uniquement)."); return; }
         if (!factionManager.createFaction(name, player.getUniqueId())) { player.sendMessage(prefix() + msg("faction-already-exists")); return; }
         player.sendMessage(prefix() + msg("faction-created").replace("%name%", name));
+        if (tabManager != null) tabManager.refresh(player);
     }
 
     private void handleDisband(Player player) {
@@ -261,7 +282,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction invite <joueur>"); return; }
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
-        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
+        if (!faction.canManage(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut inviter des joueurs."); return; }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) { player.sendMessage(prefix() + msg("player-not-found")); return; }
         if (target.equals(player)) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas t'inviter toi-même."); return; }
@@ -281,6 +302,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (faction.getMemberCount() >= plugin.getConfig().getInt("faction.max-members", 50)) { player.sendMessage(prefix() + msg("faction-full")); return; }
         factionManager.addMember(args[1], player.getUniqueId());
         player.sendMessage(prefix() + msg("joined-faction").replace("%name%", faction.getName()));
+        if (tabManager != null) tabManager.refresh(player);
         notifyMembers(faction, player, ChatColor.GREEN + player.getName() + " a rejoint la faction !");
     }
 
@@ -355,14 +377,105 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         notifyMembers(faction, player, ChatColor.GOLD + target.getName() + " est le nouveau chef !", target);
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // SOUS-CHEFS
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * /faction souschef promouvoir <joueur>
+     * /faction souschef retirer <joueur>
+     * /faction souschef liste
+     * /faction souschef limite <0-2>
+     */
+    private void handleSousChef(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.GOLD + "══ Sous-chefs ══");
+            player.sendMessage(ChatColor.YELLOW + "/faction souschef promouvoir <joueur> " + ChatColor.GRAY + "Nommer un sous-chef (chef uniquement)");
+            player.sendMessage(ChatColor.YELLOW + "/faction souschef retirer <joueur>    " + ChatColor.GRAY + "Retirer un sous-chef (chef uniquement)");
+            player.sendMessage(ChatColor.YELLOW + "/faction souschef liste               " + ChatColor.GRAY + "Voir les sous-chefs");
+            player.sendMessage(ChatColor.YELLOW + "/faction souschef limite <0-2>        " + ChatColor.GRAY + "Régler le nombre max de sous-chefs (chef uniquement, max " + Faction.ABSOLUTE_MAX_SOUS_CHEFS + ")");
+            return;
+        }
+
+        switch (args[1].toLowerCase()) {
+            case "promouvoir", "promote", "add" -> {
+                if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut nommer un sous-chef."); return; }
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction souschef promouvoir <joueur>"); return; }
+                Player target = Bukkit.getPlayer(args[2]);
+                if (target == null) { player.sendMessage(prefix() + msg("player-not-found")); return; }
+                Faction.SousChefResult result = factionManager.addSousChef(faction.getName(), target.getUniqueId());
+                switch (result) {
+                    case SUCCESS -> {
+                        player.sendMessage(prefix() + ChatColor.GREEN + "✔ " + target.getName() + " est désormais sous-chef de la faction.");
+                        target.sendMessage(prefix() + ChatColor.GOLD + "Tu es maintenant sous-chef de la faction " + faction.getName() + " !");
+                        notifyMembers(faction, player, ChatColor.GOLD + target.getName() + " est désormais sous-chef !", target);
+                    }
+                    case NOT_MEMBER        -> player.sendMessage(prefix() + ChatColor.RED + target.getName() + " n'est pas dans ta faction.");
+                    case IS_CHEF           -> player.sendMessage(prefix() + ChatColor.RED + "Le chef ne peut pas être son propre sous-chef.");
+                    case ALREADY_SOUS_CHEF -> player.sendMessage(prefix() + ChatColor.RED + target.getName() + " est déjà sous-chef.");
+                    case LIMIT_REACHED     -> player.sendMessage(prefix() + ChatColor.RED + "Limite de sous-chefs atteinte (" + faction.getMaxSousChefs() + "). Utilise §e/faction souschef limite§c pour l'augmenter (max " + Faction.ABSOLUTE_MAX_SOUS_CHEFS + ").");
+                    default -> {}
+                }
+            }
+            case "retirer", "demote", "remove" -> {
+                if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut retirer un sous-chef."); return; }
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction souschef retirer <joueur>"); return; }
+                @SuppressWarnings("deprecation") OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
+                Faction.SousChefResult result = factionManager.removeSousChef(faction.getName(), target.getUniqueId());
+                String tName = target.getName() != null ? target.getName() : args[2];
+                if (result == Faction.SousChefResult.SUCCESS) {
+                    player.sendMessage(prefix() + ChatColor.YELLOW + tName + " n'est plus sous-chef.");
+                    if (target.isOnline() && target.getPlayer() != null)
+                        target.getPlayer().sendMessage(prefix() + ChatColor.YELLOW + "Tu n'es plus sous-chef de la faction " + faction.getName() + ".");
+                    notifyMembers(faction, player, ChatColor.YELLOW + tName + " n'est plus sous-chef.");
+                } else {
+                    player.sendMessage(prefix() + ChatColor.RED + tName + " n'est pas sous-chef.");
+                }
+            }
+            case "liste", "list" -> {
+                player.sendMessage(ChatColor.GOLD + "══ Sous-chefs de §e" + faction.getName() + ChatColor.GOLD + " ══");
+                player.sendMessage(ChatColor.GRAY + "Limite : §f" + faction.getSousChefCount() + "§7/§f" + faction.getMaxSousChefs()
+                        + ChatColor.GRAY + " (max possible : " + Faction.ABSOLUTE_MAX_SOUS_CHEFS + ")");
+                if (faction.getSousChefs().isEmpty()) {
+                    player.sendMessage(ChatColor.GRAY + "  Aucun sous-chef pour le moment.");
+                } else {
+                    for (UUID uuid : faction.getSousChefs()) {
+                        Player m = Bukkit.getPlayer(uuid);
+                        String status = (m != null && m.isOnline()) ? ChatColor.GREEN + "● " : ChatColor.DARK_GRAY + "○ ";
+                        player.sendMessage("  " + status + ChatColor.WHITE + getPlayerName(uuid));
+                    }
+                }
+            }
+            case "limite", "limit" -> {
+                if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut régler la limite de sous-chefs."); return; }
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction souschef limite <0-" + Faction.ABSOLUTE_MAX_SOUS_CHEFS + ">"); return; }
+                int max;
+                try { max = Integer.parseInt(args[2]); } catch (NumberFormatException e) {
+                    player.sendMessage(prefix() + ChatColor.RED + "Nombre invalide."); return;
+                }
+                if (max < 0 || max > Faction.ABSOLUTE_MAX_SOUS_CHEFS) {
+                    player.sendMessage(prefix() + ChatColor.RED + "La limite doit être comprise entre 0 et " + Faction.ABSOLUTE_MAX_SOUS_CHEFS + ".");
+                    return;
+                }
+                factionManager.setMaxSousChefs(faction.getName(), max);
+                player.sendMessage(prefix() + ChatColor.GREEN + "✔ Limite de sous-chefs réglée à §e" + max + ChatColor.GREEN + ".");
+            }
+            default -> player.sendMessage(prefix() + ChatColor.RED + "Sous-commande inconnue. Utilise /faction souschef pour l'aide.");
+        }
+    }
+
     private void handleKick(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction kick <joueur>"); return; }
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
-        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
+        if (!faction.canManage(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut expulser un membre."); return; }
         @SuppressWarnings("deprecation") OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
         if (!faction.isMember(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + args[1] + " n'est pas dans ta faction."); return; }
         if (target.getUniqueId().equals(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas te kick toi-même."); return; }
+        if (faction.isChef(target.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Tu ne peux pas expulser le chef de la faction."); return; }
         String tName = target.getName() != null ? target.getName() : args[1];
         factionManager.removeMember(faction.getName(), target.getUniqueId());
         player.sendMessage(prefix() + ChatColor.YELLOW + tName + " expulsé de la faction.");
@@ -389,7 +502,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         for (UUID uuid : faction.getMembers()) {
             Player m = Bukkit.getPlayer(uuid);
             String status = (m != null && m.isOnline()) ? ChatColor.GREEN + "● " : ChatColor.DARK_GRAY + "○ ";
-            player.sendMessage("  " + status + ChatColor.WHITE + getPlayerName(uuid) + (uuid.equals(faction.getChef()) ? ChatColor.GOLD + " [Chef]" : ""));
+            String tag = uuid.equals(faction.getChef()) ? ChatColor.GOLD + " [Chef]"
+                    : faction.isSousChef(uuid) ? ChatColor.AQUA + " [Sous-chef]" : "";
+            player.sendMessage("  " + status + ChatColor.WHITE + getPlayerName(uuid) + tag);
         }
     }
 
@@ -711,7 +826,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private void handleClaim(Player player) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu dois être dans une faction pour claimer."); return; }
-        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut claimer un chunk."); return; }
+        if (!faction.canManage(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut claimer un chunk."); return; }
 
         Chunk chunk = player.getLocation().getChunk();
         if (claimManager.isClaimed(chunk)) {
@@ -754,6 +869,76 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     /** /faction claimmap — carte ASCII des chunks claimés autour du joueur */
+    // ════════════════════════════════════════════════════════════════════════════
+    // CLAIM SHOW — visualisation particules
+    // ════════════════════════════════════════════════════════════════════════════
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // MINI-MAP DE FACTION
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleFacMap(Player player, String[] args) {
+        if (mapManager == null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Système de carte non disponible.");
+            return;
+        }
+
+        // /fac map partage → toggle le partage de position aux alliés
+        if (args.length >= 2 && args[1].equalsIgnoreCase("partage")) {
+            boolean now = mapManager.toggleSharing(player);
+            if (now) {
+                player.sendMessage(prefix() + ChatColor.YELLOW + "✔ Position partagée aux factions alliées.");
+                player.sendMessage(ChatColor.GRAY + "  Les alliés peuvent voir un point jaune sur leur carte.");
+            } else {
+                player.sendMessage(prefix() + ChatColor.GRAY + "✘ Partage de position désactivé.");
+            }
+            return;
+        }
+
+        // /fac map → donner la carte
+        org.bukkit.inventory.ItemStack mapItem = mapManager.getOrCreateMap(player);
+
+        // Essayer de l'ajouter à l'inventaire
+        Map<Integer, org.bukkit.inventory.ItemStack> leftover =
+                player.getInventory().addItem(mapItem);
+
+        if (leftover.isEmpty()) {
+            player.sendMessage(prefix() + ChatColor.GREEN + "✦ Mini-Map de Faction reçue !");
+            player.sendMessage(ChatColor.GRAY + "  Tiens-la en main pour voir les positions en temps réel.");
+            player.sendMessage(ChatColor.GRAY + "  §e/fac map partage §7→ partager ta position aux alliés");
+        } else {
+            player.sendMessage(prefix() + ChatColor.RED + "Inventaire plein ! Libère une place pour recevoir la carte.");
+        }
+        player.playSound(player.getLocation(), org.bukkit.Sound.ITEM_ARMOR_EQUIP_LEATHER, 1f, 1.5f);
+    }
+
+    private void handleClaimShow(Player player) {
+        if (claimVisualizer == null) {
+            player.sendMessage(prefix() + ChatColor.RED + "Visualiseur non disponible.");
+            return;
+        }
+
+        if (claimVisualizer.isActive(player.getUniqueId())) {
+            claimVisualizer.cancel(player.getUniqueId());
+            player.sendMessage(prefix() + ChatColor.GRAY + "Visualisation des claims désactivée.");
+            return;
+        }
+
+        claimVisualizer.show(player);
+
+        Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        player.sendMessage("");
+        player.sendMessage(prefix() + ChatColor.GREEN + "✦ " + ChatColor.BOLD + "Visualisation des claims"
+                + ChatColor.RESET + ChatColor.GREEN + " activée " + ChatColor.GRAY + "(10 secondes)");
+        player.sendMessage(ChatColor.GREEN + "  ██ " + ChatColor.WHITE + "Claims de ta faction");
+        if (myFaction != null && !myFaction.getAllies().isEmpty())
+            player.sendMessage(ChatColor.YELLOW + "  ██ " + ChatColor.WHITE + "Claims d'une faction alliée");
+        player.sendMessage(ChatColor.RED + "  ██ " + ChatColor.WHITE + "Claims d'une faction ennemie");
+        player.sendMessage(ChatColor.GRAY + "     (zones sans particules = non claimées)");
+        player.sendMessage(ChatColor.GRAY + "  Rayon : 4 chunks — rejoue : §e/fac claimshow");
+        player.sendMessage("");
+    }
+
     private void handleClaimMap(Player player) {
         Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
         String myFacName = myFaction != null ? myFaction.getName().toLowerCase() : null;
@@ -906,7 +1091,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private void handleUnclaim(Player player) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
-        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut retirer un claim."); return; }
+        if (!faction.canManage(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut retirer un claim."); return; }
 
         Chunk chunk = player.getLocation().getChunk();
         if (!claimManager.isClaimed(chunk)) { player.sendMessage(prefix() + ChatColor.RED + "Ce chunk n'est pas claimé."); return; }
@@ -1020,45 +1205,56 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
      * Monnaies acceptées : fer, or, diamant, emeraude (insensible à la casse)
      * Met en vente TOUT le stack tenu en main.
      */
+    /**
+     * /faction vendre → ouvre le GUI de création d'annonce.
+     * L'ancienne syntaxe en ligne de commande est conservée comme raccourci optionnel.
+     */
     private void handleShopSell(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction vendre <prix> <fer|or|diamant|emeraude>");
-            player.sendMessage(prefix() + ChatColor.GRAY + "Tiens l'item que tu veux vendre dans ta main principale.");
+        // Sans argument → ouvre le GUI de création
+        if (args.length < 2) {
+            if (shopCreateGUI != null) {
+                shopCreateGUI.open(player);
+            } else {
+                player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction vendre [prix] [monnaie]");
+                player.sendMessage(prefix() + ChatColor.GRAY + "Ou ouvre §e/fac shop §7et clique sur §e+ Créer une annonce§7.");
+            }
             return;
         }
 
-        int price;
-        try {
-            price = Integer.parseInt(args[1]);
-            if (price <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            player.sendMessage(prefix() + ChatColor.RED + "Le prix doit être un entier positif.");
+        // Raccourci texte : /fac vendre <prix> <monnaie> (item en main)
+        if (args.length >= 3) {
+            int price;
+            try {
+                price = Integer.parseInt(args[1]);
+                if (price <= 0) throw new NumberFormatException();
+            } catch (NumberFormatException e) {
+                player.sendMessage(prefix() + ChatColor.RED + "Le prix doit être un entier positif.");
+                return;
+            }
+            ShopListing.Currency currency = parseCurrency(args[2]);
+            if (currency == null) {
+                player.sendMessage(prefix() + ChatColor.RED + "Monnaie invalide. Utilise : fer, or, diamant, emeraude");
+                return;
+            }
+            org.bukkit.inventory.ItemStack hand = player.getInventory().getItemInMainHand();
+            if (hand == null || hand.getType() == Material.AIR) {
+                player.sendMessage(prefix() + ChatColor.RED + "Tu ne tiens rien dans ta main !");
+                return;
+            }
+            int qty = hand.getAmount();
+            org.bukkit.inventory.ItemStack forSale = hand.clone();
+            player.getInventory().setItemInMainHand(new org.bukkit.inventory.ItemStack(Material.AIR));
+            ShopListing listing = shopManager.createCurrencyListing(player, forSale, currency, price);
+            player.sendMessage(prefix() + ChatColor.GREEN + "Annonce créée ! "
+                    + ChatColor.YELLOW + qty + "× " + ShopManager.formatMat(forSale.getType())
+                    + ChatColor.GREEN + " → " + ChatColor.GOLD + price + "× " + currency.getDisplayName()
+                    + ChatColor.DARK_GRAY + " [ID: " + listing.getId() + "]");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Récupérable via : §e/faction recuperer " + listing.getId());
             return;
         }
 
-        ShopListing.Currency currency = parseCurrency(args[2]);
-        if (currency == null) {
-            player.sendMessage(prefix() + ChatColor.RED + "Monnaie invalide. Utilise : fer, or, diamant, emeraude");
-            return;
-        }
-
-        org.bukkit.inventory.ItemStack hand = player.getInventory().getItemInMainHand();
-        if (hand == null || hand.getType() == Material.AIR) {
-            player.sendMessage(prefix() + ChatColor.RED + "Tu ne tiens rien dans ta main !");
-            return;
-        }
-
-        ShopListing listing = shopManager.createListing(player, price, currency);
-        if (listing == null) {
-            player.sendMessage(prefix() + ChatColor.RED + "Impossible de mettre cet item en vente.");
-            return;
-        }
-
-        player.sendMessage(prefix() + ChatColor.GREEN + "Annonce créée ! "
-                + ChatColor.YELLOW + listing.getItem().getAmount() + "× " + ShopManager.formatMat(listing.getItem().getType())
-                + ChatColor.GREEN + " → " + ChatColor.GOLD + listing.getTotalPrice() + " " + currency.getDisplayName() + "(s)"
-                + ChatColor.DARK_GRAY + " [ID: " + listing.getId() + "]");
-        player.sendMessage(prefix() + ChatColor.GRAY + "Récupérable via : §e/faction recuperer " + listing.getId());
+        // /fac vendre avec 1 seul arg → ouvrir le GUI
+        if (shopCreateGUI != null) shopCreateGUI.open(player);
     }
 
     /**
@@ -1088,17 +1284,20 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
         // Afficher un résumé avant d'acheter
         player.sendMessage(prefix() + ChatColor.YELLOW + "Confirmation d'achat :");
-        player.sendMessage(ChatColor.GRAY + "  Item   : §f" + listing.getItem().getAmount() + "× " + ShopManager.formatMat(listing.getItem().getType()));
-        player.sendMessage(ChatColor.GRAY + "  Prix   : §e" + listing.getTotalPrice() + " " + listing.getCurrency().getDisplayName() + "(s)");
+        player.sendMessage(ChatColor.GRAY + "  Item   : §f" + listing.getItemLine());
+        player.sendMessage(ChatColor.GRAY + "  " + (listing.getPriceMode() == ShopListing.PriceMode.BARTER ? "Troc  : §f" : "Prix  : §f") + listing.getPriceLine());
         player.sendMessage(ChatColor.GRAY + "  Vendeur: §f" + listing.getSellerName());
 
         ShopManager.BuyResult result = shopManager.buy(player, id);
         switch (result) {
             case SUCCESS ->
-                player.sendMessage(prefix() + ChatColor.GREEN + "Achat effectué ! Item ajouté à ton inventaire.");
-            case NOT_ENOUGH_MONEY ->
+                player.sendMessage(prefix() + ChatColor.GREEN + "Échange effectué ! Item ajouté à ton inventaire.");
+            case NOT_ENOUGH_PAYMENT ->
                 player.sendMessage(prefix() + ChatColor.RED + "Tu n'as pas assez de "
-                        + listing.getCurrency().getDisplayName() + " (besoin : " + listing.getTotalPrice() + ").");
+                        + (listing.getPriceMode() == ShopListing.PriceMode.CURRENCY
+                            ? listing.getCurrency().getDisplayName()
+                            : ShopListing.displayName(listing.getPriceItem()))
+                        + " pour cet échange.");
             case ALREADY_SOLD ->
                 player.sendMessage(prefix() + ChatColor.RED + "Cet article vient d'être vendu !");
             case NOT_FOUND ->
@@ -1123,8 +1322,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(prefix() + ChatColor.YELLOW + "Tes annonces actives :");
             for (ShopListing l : mine) {
                 player.sendMessage(ChatColor.DARK_GRAY + "  [" + l.getId() + "] §f"
-                        + l.getItem().getAmount() + "× " + ShopManager.formatMat(l.getItem().getType())
-                        + " §7→ §e" + l.getTotalPrice() + " " + l.getCurrency().getDisplayName() + "(s)");
+                        + l.getItemLine()
+                        + " §7→ §e" + l.getPriceLine());
             }
             player.sendMessage(prefix() + ChatColor.GRAY + "Usage: §e/faction recuperer <ID>");
             return;
@@ -1182,29 +1381,82 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     // SPAWN DE FACTION v5
     // ════════════════════════════════════════════════════════════════════════════
 
-    private void handleSetFactionSpawn(Player player) {
+    private void handleSetFactionSpawn(Player player, String[] args) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
-        if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
-        factionManager.setFactionSpawn(faction.getName(), player.getLocation());
-        player.sendMessage(prefix() + ChatColor.GREEN + "Spawn de la faction §e" + faction.getName() + " §adéfini ici !");
+        if (!faction.canManage(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut définir le spawn de la faction."); return; }
+
+        fr.faction.ranking.FactionRank rank = powerManager.getFactionRank(faction.getName());
+        int maxSpawns = rank.getMaxSpawns();
+
+        // Déterminer le slot demandé (1 par défaut, 2 si arg "2")
+        int slot = 1;
+        if (args.length >= 2) {
+            try { slot = Integer.parseInt(args[1]); } catch (NumberFormatException ignored) {}
+        }
+        slot = Math.max(1, Math.min(2, slot));
+
+        if (slot == 2 && maxSpawns < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Le spawn n°2 est réservé au rang "
+                    + ChatColor.AQUA + "◆ Diamant" + ChatColor.RED + " ou supérieur.");
+            player.sendMessage(prefix() + ChatColor.GRAY + "Votre rang actuel : " + rank.getLabel()
+                    + ChatColor.GRAY + " — puissance nécessaire : §e12 000");
+            return;
+        }
+
+        factionManager.setFactionSpawn(faction.getName(), player.getLocation(), slot);
+
+        player.sendMessage(prefix() + ChatColor.GREEN + "Spawn §e#" + slot + " §ade la faction §e"
+                + faction.getName() + " §adéfini ici !");
+
+        // Si rang Diamant+ et spawn 2, indiquer que les deux spawns sont actifs
+        if (maxSpawns >= 2) {
+            int defined = (faction.hasSpawn() ? 1 : 0) + (faction.hasSpawn2() ? 1 : 0);
+            player.sendMessage(ChatColor.GRAY + "  Spawns définis : §f" + defined + "§7/§f2");
+        }
+
         // Notifier les membres
         for (java.util.UUID uuid : faction.getMembers()) {
             Player m = Bukkit.getPlayer(uuid);
             if (m != null && !m.equals(player))
-                m.sendMessage(prefix() + ChatColor.YELLOW + "Le spawn de la faction a été mis à jour par le chef !");
+                m.sendMessage(prefix() + ChatColor.YELLOW + "Le spawn §e#" + slot
+                        + " §ede la faction a été mis à jour par le chef !");
         }
     }
 
-    private void handleFactionSpawn(Player player) {
+    private void handleFactionSpawn(Player player, String[] args) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
-        if (!faction.hasSpawn()) {
-            player.sendMessage(prefix() + ChatColor.RED + "Aucun spawn de faction défini. Le chef peut utiliser §e/faction setspawn§c.");
+
+        fr.faction.ranking.FactionRank rank = powerManager.getFactionRank(faction.getName());
+        int maxSpawns = rank.getMaxSpawns();
+
+        // Slot demandé (1 par défaut, 2 si arg "2")
+        int slot = 1;
+        if (args.length >= 2) {
+            try { slot = Integer.parseInt(args[1]); } catch (NumberFormatException ignored) {}
+        }
+        slot = Math.max(1, Math.min(2, slot));
+
+        if (slot == 2 && maxSpawns < 2) {
+            player.sendMessage(prefix() + ChatColor.RED + "Le spawn n°2 n'est pas disponible "
+                    + "(rang §c◆ Diamant §crequis).");
             return;
         }
-        org.bukkit.Location spawn = faction.getFactionSpawn();
-        player.sendMessage(prefix() + ChatColor.GREEN + "Téléportation au spawn de la faction...");
+
+        if (!faction.hasSpawnBySlot(slot)) {
+            if (slot == 2)
+                player.sendMessage(prefix() + ChatColor.RED + "Aucun spawn n°2 défini. "
+                        + "Le chef peut utiliser §e/faction setspawn 2§c.");
+            else
+                player.sendMessage(prefix() + ChatColor.RED + "Aucun spawn de faction défini. "
+                        + "Le chef peut utiliser §e/faction setspawn§c.");
+            return;
+        }
+
+        org.bukkit.Location spawn = faction.getSpawnBySlot(slot);
+        String label = maxSpawns >= 2 ? " §7(spawn §f#" + slot + "§7)" : "";
+        player.sendMessage(prefix() + ChatColor.GREEN + "Téléportation au spawn de la faction…" + label);
         player.teleport(spawn);
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 0.7f, 1.2f);
     }
@@ -1220,8 +1472,16 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         String pf = "§8[§a🏠 Home§8] §r";
         switch (r) {
             case SUCCESS -> player.sendMessage(pf + "§aHome §e" + name + " §adéfini !");
-            case TOO_MANY_HOMES -> player.sendMessage(pf + "§cLimite de §e" + max + " §chome(s) atteinte. "
-                    + "§7Rejoins une faction ou allie-toi pour débloquer plus de homes.");
+            case TOO_MANY_HOMES -> {
+                String progressHint = switch (max) {
+                    case 1 -> "§7Rejoins une faction (§eBronze§7 → 2 homes)";
+                    case 2 -> "§7Atteins le rang §eOr §7ou §eDiamant §7(→ 3 homes)";
+                    case 3 -> "§7Atteins le rang §eÉmeraude §7(→ 4 homes)";
+                    case 4 -> "§7Atteins le rang §dLégendaire §7(→ 5 homes)";
+                    default -> "";
+                };
+                player.sendMessage(pf + "§cLimite de §e" + max + " §chome(s) atteinte. " + progressHint);
+            }
             case TOO_CLOSE_TO_OTHER_HOME -> player.sendMessage(pf
                     + "§cImpossible : un home d'un autre joueur se trouve à moins de §e10 chunks§c. "
                     + "§7(exempt : membres de ta faction et factions alliées)");
@@ -1256,12 +1516,16 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         + ", " + (int)h.location.getZ() + ")");
             }
         }
-        if (max < 3) {
-            int missing = 3 - max;
-            if (factionManager.getPlayerFaction(player.getUniqueId()) == null)
-                player.sendMessage(ChatColor.GRAY + "Rejoins une faction pour débloquer §e" + (max+1) + "/3 §7homes.");
-            else
-                player.sendMessage(ChatColor.GRAY + "Forge une alliance pour débloquer §e3/3 §7homes.");
+        if (max < 5) {
+            String hint = switch (max) {
+                case 1 -> "Rejoins une faction (rang §eBronze§7 → 2 homes)";
+                case 2 -> "Atteins le rang §eOr §7ou §bDiamant §7(→ 3 homes)";
+                case 3 -> "Atteins le rang §aÉmeraude §7(→ 4 homes)";
+                case 4 -> "Atteins le rang §dLégendaire §7(→ 5 homes)";
+                default -> "";
+            };
+            if (!hint.isEmpty())
+                player.sendMessage(ChatColor.GRAY + hint);
         }
     }
 
@@ -1405,6 +1669,32 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         sortMenuGUI.openForSharedChest(player);
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // VILLAGEOIS RECRUTÉS v5.9
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleRecruter(Player player) {
+        if (villagerManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
+
+        fr.faction.villager.VillagerManager.RecruitResult result = villagerManager.recruit(player);
+        switch (result) {
+            case SUCCESS -> {
+                player.sendMessage(prefix() + ChatColor.GREEN + "✔ Villageois recruté ! Gère-le avec §e/faction villageois§a.");
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_YES, 1f, 1f);
+            }
+            case NOT_IN_FACTION -> player.sendMessage(prefix() + msg("not-in-faction"));
+            case NO_PERMISSION  -> player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut recruter un villageois.");
+            case NO_TARGET      -> player.sendMessage(prefix() + ChatColor.RED + "Vise un villageois (8 blocs max) et réessaie.");
+            case ALREADY_RECRUITED -> player.sendMessage(prefix() + ChatColor.RED + "Ce villageois est déjà recruté.");
+            case FACTION_FULL   -> player.sendMessage(prefix() + ChatColor.RED + "Ta faction a atteint sa limite de villageois recrutés.");
+        }
+    }
+
+    private void handleVillageois(Player player) {
+        if (villagerGUI == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
+        villagerGUI.openList(player);
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "— Gestion —");
@@ -1415,6 +1705,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.YELLOW + "/faction leave               " + ChatColor.GRAY + "Quitter sa faction");
         player.sendMessage(ChatColor.YELLOW + "/faction kick <joueur>       " + ChatColor.GRAY + "Expulser un membre");
         player.sendMessage(ChatColor.YELLOW + "/faction setchef <joueur>    " + ChatColor.GRAY + "Transférer le chef");
+        player.sendMessage(ChatColor.YELLOW + "/faction souschef            " + ChatColor.GRAY + "Gérer les sous-chefs (promouvoir/retirer/liste/limite)");
         player.sendMessage(ChatColor.YELLOW + "/faction rename <nouveau_nom>" + ChatColor.GRAY + "Renommer la faction (chef uniquement)");
         player.sendMessage(ChatColor.YELLOW + "/faction info [nom]          " + ChatColor.GRAY + "Info faction");
         player.sendMessage(ChatColor.YELLOW + "/faction list                " + ChatColor.GRAY + "Liste des factions");
@@ -1433,6 +1724,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GREEN  + "/faction unclaim             " + ChatColor.GRAY + "Retirer le claim du chunk actuel");
         player.sendMessage(ChatColor.GREEN  + "/faction claims              " + ChatColor.GRAY + "Voir les claims de ta faction");
         player.sendMessage(ChatColor.GREEN  + "/faction claimmap            " + ChatColor.GRAY + "Carte visuelle des claims autour de ta position");
+        player.sendMessage(ChatColor.GREEN  + "/faction claimshow           " + ChatColor.GRAY + "§aVisualiser les claims en §bparticules §a(10s) autour de toi");
+        player.sendMessage(ChatColor.AQUA   + "/faction map                 " + ChatColor.GRAY + "§bMini-map de faction§7 (item carte 128×128)");
+        player.sendMessage(ChatColor.AQUA   + "/faction map partage         " + ChatColor.GRAY + "Partager/masquer ta position aux factions alliées");
         player.sendMessage(ChatColor.GREEN  + "/faction claimallow <faction>" + ChatColor.GRAY + "Autoriser une faction à claimer à moins de " + ClaimManager.MIN_CLAIM_DISTANCE + " chunks de vos claims");
         player.sendMessage(ChatColor.GREEN  + "/faction claimdeny <faction> " + ChatColor.GRAY + "Révoquer l'autorisation de proximité de claim");
         player.sendMessage(ChatColor.GREEN  + "/faction claimallies         " + ChatColor.GRAY + "Lister les factions autorisées à claimer près de vous");
@@ -1454,8 +1748,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "— Alliances —");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction alliance            " + ChatColor.GRAY + "Gérer les alliances (sous-commandes + GUI)");
         player.sendMessage(ChatColor.GRAY + "— Spawn de faction —");
-        player.sendMessage(ChatColor.AQUA + "/faction setspawn            " + ChatColor.GRAY + "Définir le spawn (chef uniquement)");
-        player.sendMessage(ChatColor.AQUA + "/faction spawn               " + ChatColor.GRAY + "Se téléporter au spawn de sa faction");
+        player.sendMessage(ChatColor.AQUA + "/faction setspawn [1|2]      " + ChatColor.GRAY + "Définir un spawn (chef) — §b2 spawns dès le rang ◆ Diamant");
+        player.sendMessage(ChatColor.AQUA + "/faction spawn [1|2]         " + ChatColor.GRAY + "Se téléporter à un spawn de faction");
         player.sendMessage(ChatColor.GRAY + "— Homes perso —");
         player.sendMessage(ChatColor.GREEN + "/faction sethome [nom]       " + ChatColor.GRAY + "Définir un home (1 sans faction, 2 avec, 3 si allié)");
         player.sendMessage(ChatColor.GREEN + "/faction home [nom]          " + ChatColor.GRAY + "Se téléporter à un home");
@@ -1463,6 +1757,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GREEN + "/faction homes               " + ChatColor.GRAY + "Lister ses homes");
         player.sendMessage(ChatColor.GRAY + "— Coffres privés —");
         player.sendMessage(ChatColor.YELLOW + "Sneak + §eclic§7 panneau sur coffre " + ChatColor.GRAY + "Verrouiller/déverrouiller");
+        player.sendMessage(ChatColor.GRAY + "— Villageois recrutés —");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction recruter            " + ChatColor.GRAY + "Recruter le villageois visé (chef/sous-chef)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction villageois          " + ChatColor.GRAY + "Gérer tes villageois recrutés (GUI)");
         player.sendMessage(ChatColor.GRAY + "— TP joueur —");
         player.sendMessage(ChatColor.AQUA + "/faction tpa <joueur>        " + ChatColor.GRAY + "Demande de TP vers un joueur");
         player.sendMessage(ChatColor.AQUA + "/faction tpaccept            " + ChatColor.GRAY + "Accepter une demande de TP");
@@ -1518,16 +1815,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 1) {
             List<String> subs = Arrays.asList(
-                    "create","disband","invite","join","leave","kick","setchef","rename",
+                    "create","disband","invite","join","leave","kick","setchef","souschef","rename",
                     "info","list","tp","coffre","menu","gui",
                     "top","topbanque","classement","rangs","power","stats","classementjoueurs",
-                    "claim","unclaim","claims","claimmap","claimallow","claimdeny","claimallies","perms",
+                    "claim","unclaim","claims","claimmap","claimshow","map","claimallow","claimdeny","claimallies","perms",
                     "banque","troc","accepter",
                     "shop","vendre","acheter","recuperer","mesannonces",
                     "invsee","alliance","setspawn","spawn",
                     "sethome","home","delhome","homes",
                     "tpa","tpaccept","tpdeny",
-                    "guerre","ranger","trier","organiser"
+                    "guerre","ranger","trier","organiser",
+                    "recruter","villageois"
             );
             return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -1545,24 +1843,41 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                                 .map(Player::getName)
                                 .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                                 .collect(Collectors.toList());
+                case "souschef", "subchief" -> Arrays.asList("promouvoir","retirer","liste","limite").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
                 case "classementjoueurs", "cj" -> STATS_CATEGORIES.stream()
                         .filter(c -> c.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "home", "delhome" -> homeManager.getHomeNames(player.getUniqueId()).stream()
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
+                case "setspawn", "spawn" -> {
+                    // Proposer "1" toujours, "2" seulement si rang Diamant+
+                    Faction spFac = factionManager.getPlayerFaction(player.getUniqueId());
+                    List<String> slots = new ArrayList<>();
+                    slots.add("1");
+                    if (spFac != null) {
+                        fr.faction.ranking.FactionRank spRank = powerManager.getFactionRank(spFac.getName());
+                        if (spRank.getMaxSpawns() >= 2) slots.add("2");
+                    }
+                    yield slots.stream().filter(s -> s.startsWith(args[1])).collect(Collectors.toList());
+                }
                 case "sethome" -> {
-                    // Suggérer home, home2, home3 selon limite
+                    // Suggérer home, home2…home5 selon la limite du rang
                     int max = homeManager.getMaxHomes(player.getUniqueId());
-                    List<String> suggestions = new ArrayList<>(Arrays.asList("home", "home2", "home3").subList(0, max));
-                    suggestions.removeAll(homeManager.getHomeNames(player.getUniqueId()));
-                    yield suggestions.stream()
+                    List<String> allNames = new ArrayList<>();
+                    for (int i = 1; i <= max; i++) allNames.add(i == 1 ? "home" : "home" + i);
+                    allNames.removeAll(homeManager.getHomeNames(player.getUniqueId()));
+                    yield allNames.stream()
                             .filter(n -> n.startsWith(args[1].toLowerCase()))
                             .collect(Collectors.toList());
                 }
                 case "vendre" -> Collections.emptyList(); // prix en arg 2
                 case "guerre" -> Arrays.asList("declarer","accepter","refuser","capituler","statut","liste","piller")
                         .stream().filter(s -> s.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+                case "map", "minimap" -> Arrays.asList("partage").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
                 case "ranger", "trier", "organiser", "sort" ->
                         Arrays.asList("coffre","perso","inventaire").stream()
                                 .filter(s -> s.startsWith(args[1].toLowerCase()))
@@ -1594,6 +1909,24 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     case "inviter","accepter","refuser","rompre" -> factionManager.getAllFactions().values().stream()
                             .map(Faction::getName)
                             .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                            .collect(Collectors.toList());
+                    default -> Collections.emptyList();
+                };
+                case "souschef", "subchief" -> switch (args[1].toLowerCase()) {
+                    case "promouvoir","promote","add" -> Bukkit.getOnlinePlayers().stream()
+                            .map(Player::getName)
+                            .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                            .collect(Collectors.toList());
+                    case "retirer","demote","remove" -> {
+                        Faction scFac = factionManager.getPlayerFaction(player.getUniqueId());
+                        if (scFac == null) yield Collections.emptyList();
+                        yield scFac.getSousChefs().stream()
+                                .map(this::getPlayerName)
+                                .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                                .collect(Collectors.toList());
+                    }
+                    case "limite","limit" -> Arrays.asList("0","1","2").stream()
+                            .filter(s -> s.startsWith(args[2]))
                             .collect(Collectors.toList());
                     default -> Collections.emptyList();
                 };

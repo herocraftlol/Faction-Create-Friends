@@ -102,13 +102,15 @@ public class FactionGUI implements Listener {
                         ChatColor.RED + "" + ChatColor.BOLD + "Dissoudre la faction",
                         ChatColor.GRAY + "Supprime definitivement la faction.",
                         ChatColor.RED + "Action irreversible !"));
-                inv.setItem(29, makeItem(Material.NAME_TAG,
-                        ChatColor.GREEN + "" + ChatColor.BOLD + "Inviter un joueur",
-                        ChatColor.GRAY + "Usage : /faction invite <joueur>"));
             } else {
                 inv.setItem(25, makeItem(Material.RED_BED,
                         ChatColor.RED + "" + ChatColor.BOLD + "Quitter la faction",
                         ChatColor.GRAY + "Quitte la faction actuelle."));
+            }
+            if (faction.canManage(player.getUniqueId())) {
+                inv.setItem(29, makeItem(Material.NAME_TAG,
+                        ChatColor.GREEN + "" + ChatColor.BOLD + "Inviter un joueur",
+                        ChatColor.GRAY + "Usage : /faction invite <joueur>"));
             }
 
             inv.setItem(31, makeItem(Material.BOOK,
@@ -132,6 +134,7 @@ public class FactionGUI implements Listener {
         int size = Math.min(54, Math.max(27, ((faction.getMemberCount() / 9) + 2) * 9));
         Inventory inv = Bukkit.createInventory(null, size, TITLE_MEMBERS);
         boolean isChef = faction.isChef(player.getUniqueId());
+        boolean canMng = faction.canManage(player.getUniqueId());
 
         int slot = 0;
         for (UUID uuid : faction.getMembers()) {
@@ -145,12 +148,13 @@ public class FactionGUI implements Listener {
             List<String> lore = new ArrayList<>();
             lore.add(isOnline ? ChatColor.GREEN + "En ligne" : ChatColor.DARK_GRAY + "Hors ligne");
             if (memberIsChef) lore.add(ChatColor.GOLD + "Chef");
+            else if (faction.isSousChef(uuid)) lore.add(ChatColor.AQUA + "Sous-chef");
             lore.add("");
             if (isOnline && !isSelf) {
                 lore.add(ChatColor.YELLOW + "Clic gauche : Teleporter vers ce joueur");
-                if (isChef) {
+                if (canMng && !memberIsChef) {
                     lore.add(ChatColor.RED + "Clic droit : Expulser");
-                    if (!memberIsChef) lore.add(ChatColor.GOLD + "Shift+clic : Nommer Chef");
+                    if (isChef) lore.add(ChatColor.GOLD + "Shift+clic : Nommer Chef");
                 }
             }
 
@@ -313,6 +317,7 @@ public class FactionGUI implements Listener {
                 Faction faction = factionManager.getPlayerFaction(uuid);
                 if (faction == null) return;
                 boolean isChef = faction.isChef(uuid);
+                boolean canMng = faction.canManage(uuid);
 
                 String rawName = stripped.replace(" [Chef]", "").replace(" (Toi)", "").trim();
                 Player target = Bukkit.getPlayer(rawName);
@@ -324,7 +329,7 @@ public class FactionGUI implements Listener {
                     factionManager.setChef(faction.getName(), target.getUniqueId());
                     player.sendMessage(ChatColor.GREEN + target.getName() + " est maintenant chef !");
                     target.sendMessage(ChatColor.GOLD + "Tu es maintenant chef de " + faction.getName() + " !");
-                } else if (event.isRightClick() && isChef) {
+                } else if (event.isRightClick() && canMng && !faction.isChef(target.getUniqueId())) {
                     player.closeInventory();
                     factionManager.removeMember(faction.getName(), target.getUniqueId());
                     player.sendMessage(ChatColor.YELLOW + target.getName() + " expulse de la faction.");
@@ -403,7 +408,7 @@ public class FactionGUI implements Listener {
         ItemStack item = makeItem(mat, name, lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.addEnchant(Enchantment.LUCK, 1, true);
+            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
         }

@@ -241,6 +241,11 @@ public class BankGUI implements Listener {
         if (amount <= 0) { player.sendMessage(ChatColor.RED + "Solde insuffisant."); return; }
         long toWithdraw = Math.min(amount, bankManager.getPlayerBalance(uuid));
         if (toWithdraw <= 0) { player.sendMessage(ChatColor.RED + "Solde insuffisant."); return; }
+        if (!inventoryHasSpace(player, (int) toWithdraw)) {
+            player.sendMessage(ChatColor.RED + "⚠ Inventaire plein !");
+            player.sendMessage(ChatColor.GRAY + "Libère de la place dans ton inventaire avant de retirer §e" + toWithdraw + " 💎§7.");
+            return;
+        }
         bankManager.withdrawPlayer(uuid, toWithdraw);
         giveEmeralds(player, (int) toWithdraw);
         player.sendMessage(ChatColor.YELLOW + "-" + toWithdraw + " 💎 retirés. Solde : §a"
@@ -268,6 +273,11 @@ public class BankGUI implements Listener {
         }
         long toWithdraw = Math.min(amount, bankManager.getFactionBalance(faction.getName()));
         if (toWithdraw <= 0) { player.sendMessage(ChatColor.RED + "Solde faction insuffisant."); return; }
+        if (!inventoryHasSpace(player, (int) toWithdraw)) {
+            player.sendMessage(ChatColor.RED + "⚠ Inventaire plein !");
+            player.sendMessage(ChatColor.GRAY + "Libère de la place avant de retirer §e" + toWithdraw + " 💎§7 du coffre faction.");
+            return;
+        }
         bankManager.withdrawFaction(faction.getName(), toWithdraw);
         giveEmeralds(player, (int) toWithdraw);
         player.sendMessage(ChatColor.YELLOW + "-" + toWithdraw + " 💎 retirés du coffre de §e"
@@ -302,11 +312,35 @@ public class BankGUI implements Listener {
         return toRemove;
     }
 
+    /**
+     * Donne des émeraudes au joueur.
+     * Si l'inventaire est plein, affiche un message d'erreur et retourne false
+     * (les fonds ne sont pas retirés — l'appelant doit tester avant).
+     */
+    private boolean inventoryHasSpace(Player player, int amount) {
+        // Compter les slots libres et l'espace dans les slots émeraude existants
+        int space = 0;
+        for (ItemStack is : player.getInventory().getStorageContents()) {
+            if (is == null || is.getType() == Material.AIR) {
+                space += 64;
+            } else if (is.getType() == Material.EMERALD) {
+                space += (64 - is.getAmount());
+            }
+        }
+        return space >= amount;
+    }
+
     private void giveEmeralds(Player player, int amount) {
         int remaining = amount;
         while (remaining > 0) {
             int stack = Math.min(64, remaining);
-            player.getInventory().addItem(new ItemStack(Material.EMERALD, stack));
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(new ItemStack(Material.EMERALD, stack));
+            if (!leftover.isEmpty()) {
+                // Inventaire plein pendant le don — drop au sol
+                for (ItemStack drop : leftover.values())
+                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                player.sendMessage(ChatColor.YELLOW + "⚠ Inventaire plein — les émeraudes restantes ont été dropées à tes pieds !");
+            }
             remaining -= stack;
         }
     }

@@ -91,7 +91,7 @@ public class PrivateChestManager implements Listener {
         player.sendMessage(prefix() + "§aCoffre verrouillé ! §7Seul toi peux l'ouvrir.");
         player.sendMessage(prefix() + "§7Sneak+clic gauche à nouveau pour déverrouiller.");
         // Particule visuelle
-        block.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, block.getLocation().add(0.5, 1, 0.5), 8, 0.3, 0.3, 0.3, 0);
+        block.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, block.getLocation().add(0.5, 1, 0.5), 8, 0.3, 0.3, 0.3, 0);
         return true;
     }
 

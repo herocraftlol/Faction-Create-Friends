@@ -113,7 +113,7 @@ public class WarManager implements Listener {
                                   FactionManager factionManager, fr.faction.power.FactionPowerManager powerManager) {
         Faction myFaction = factionManager.getPlayerFaction(declarer.getUniqueId());
         if (myFaction == null)                        return DeclareResult.NOT_IN_FACTION;
-        if (!myFaction.isChef(declarer.getUniqueId())) return DeclareResult.NOT_CHEF;
+        if (!myFaction.canManage(declarer.getUniqueId())) return DeclareResult.NOT_CHEF;
 
         Faction target = factionManager.getFaction(targetFactionName);
         if (target == null)                           return DeclareResult.TARGET_NOT_FOUND;
@@ -182,7 +182,7 @@ public class WarManager implements Listener {
     public AcceptResult accept(Player player, FactionManager fm) {
         Faction faction = fm.getPlayerFaction(player.getUniqueId());
         if (faction == null)                          return AcceptResult.NOT_IN_FACTION;
-        if (!faction.isChef(player.getUniqueId()))    return AcceptResult.NOT_CHEF;
+        if (!faction.canManage(player.getUniqueId()))    return AcceptResult.NOT_CHEF;
 
         WarSession session = getPendingWarAgainst(faction.getName());
         if (session == null)                          return AcceptResult.NO_PENDING_WAR;
@@ -205,7 +205,7 @@ public class WarManager implements Listener {
 
     public boolean decline(Player player, FactionManager fm) {
         Faction faction = fm.getPlayerFaction(player.getUniqueId());
-        if (faction == null || !faction.isChef(player.getUniqueId())) return false;
+        if (faction == null || !faction.canManage(player.getUniqueId())) return false;
         WarSession session = getPendingWarAgainst(faction.getName());
         if (session == null) return false;
 
@@ -242,8 +242,7 @@ public class WarManager implements Listener {
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent e) {
         Player victim = e.getEntity();
-        Player killer = victim.getKiller();
-        if (killer == null) return;
+        if (!(victim.getKiller() instanceof Player killer)) return;
 
         Faction victimFaction  = factionManager.getPlayerFaction(victim.getUniqueId());
         Faction killerFaction  = factionManager.getPlayerFaction(killer.getUniqueId());

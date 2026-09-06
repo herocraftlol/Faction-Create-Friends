@@ -531,7 +531,7 @@ public class FactionRankingGUI implements Listener {
         ItemStack item = makeItem(mat, name, lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.addEnchant(Enchantment.LUCK, 1, true);
+            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
         }

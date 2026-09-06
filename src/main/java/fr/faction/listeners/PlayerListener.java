@@ -5,6 +5,7 @@ import fr.faction.managers.FactionManager;
 import fr.faction.managers.PlayerStatsManager;
 import fr.faction.models.Faction;
 import fr.faction.power.FactionPowerManager;
+import fr.faction.power.FactionTabManager;
 import fr.faction.ranking.FactionRank;
 import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
@@ -26,13 +27,14 @@ import java.util.UUID;
 
 public class PlayerListener implements Listener {
 
-    private final FactionManager factionManager;
-    private final PlayerStatsManager statsManager;
+    private final FactionManager      factionManager;
+    private final PlayerStatsManager  statsManager;
     private final FactionPowerManager powerManager;
-    private final ShopManager shopManager;
-    private final ShopGUI shopGUI;
-    private WarManager warManager;
-    private HomeManager homeManager;
+    private final ShopManager         shopManager;
+    private final ShopGUI             shopGUI;
+    private WarManager     warManager;
+    private HomeManager    homeManager;
+    private FactionTabManager tabManager;
 
     public PlayerListener(FactionManager factionManager, PlayerStatsManager statsManager,
                           FactionPowerManager powerManager,
@@ -44,16 +46,25 @@ public class PlayerListener implements Listener {
         this.shopGUI        = shopGUI;
     }
 
-    public void setWarManager(WarManager wm)    { this.warManager = wm; }
-    public void setHomeManager(HomeManager hm)  { this.homeManager = hm; }
+    public void setWarManager(WarManager wm)      { this.warManager  = wm; }
+    public void setHomeManager(HomeManager hm)    { this.homeManager = hm; }
+    public void setTabManager(FactionTabManager t){ this.tabManager   = t; }
 
     // ── Chat ─────────────────────────────────────────────────────────────────────
-
-    @EventHandler(priority = EventPriority.HIGHEST)
+    /**
+     * Paper 1.21 utilise AsyncPlayerChatEvent (encore supporté en mode legacy).
+     * Le vrai texte affiché dans le chat est contrôlé par setFormat().
+     * Le préfixe dans le tab-list est géré via FactionTabManager (Scoreboard Teams).
+     *
+     * Format :
+     *   [icone_rang][Faction] NomJoueur: message
+     *   ex: §e§l[★] §e[TitanS] §fSteve§r: bonjour
+     */
+    @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
 
-        // Intercepter la saisie de recherche shop
+        // Intercepter la saisie recherche shop
         if (shopGUI.isAwaitingSearch(player.getUniqueId())) {
             event.setCancelled(true);
             final String msg = event.getMessage();
@@ -64,34 +75,37 @@ public class PlayerListener implements Listener {
         }
 
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) {
-            event.setFormat(ChatColor.GRAY + "[Sans faction] "
-                    + ChatColor.WHITE + "%s" + ChatColor.RESET + ": %s");
-            return;
-        }
+        FactionRank rank = faction != null
+                ? powerManager.getFactionRank(faction.getName())
+                : null;
 
-        FactionRank rank = powerManager.getFactionRank(faction.getName());
-
-        // Indicateur de guerre dans le tag si en guerre
+        // Icône de guerre si en cours
         String warTag = "";
-        if (warManager != null && warManager.isAtWar(faction.getName())) {
+        if (warManager != null && faction != null && warManager.isAtWar(faction.getName())) {
             warTag = ChatColor.RED + "⚔ ";
         }
 
-        String factionTag;
-        if (rank.ordinal() >= FactionRank.OR.ordinal()) {
-            factionTag = warTag + rank.couleur + "" + ChatColor.BOLD
-                    + "[" + faction.getName() + "]" + ChatColor.RESET;
+        String format;
+        if (faction == null) {
+            // Sans faction : nom gris
+            format = ChatColor.DARK_GRAY + "[" + ChatColor.GRAY + "∅" + ChatColor.DARK_GRAY + "] "
+                    + ChatColor.GRAY + "%s" + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
         } else {
-            factionTag = warTag + ChatColor.GRAY + "[" + faction.getName() + "]" + ChatColor.RESET;
+            // Construire le préfixe rang + faction
+            String rankPrefix;
+            if (rank == FactionRank.LEGENDAIRE) {
+                rankPrefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[⚜] " + ChatColor.RESET;
+            } else {
+                rankPrefix = rank.getChatPrefix();
+            }
+            String factionTag = rank.couleur + "[" + faction.getName() + "]";
+
+            format = warTag + rankPrefix + factionTag + " "
+                    + rank.couleur + "%s"
+                    + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
         }
 
-        String prefix = "";
-        if (rank == FactionRank.LEGENDAIRE) {
-            prefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[LEGENDAIRE] " + ChatColor.RESET;
-        }
-        event.setFormat(prefix + factionTag + " "
-                + ChatColor.WHITE + "%s" + ChatColor.RESET + ": %s");
+        event.setFormat(format);
     }
 
     // ── Join ─────────────────────────────────────────────────────────────────────
@@ -99,10 +113,19 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        var stats = statsManager.getOrCreateStats(player.getUniqueId(), player.getName());
-        stats.setLastJoin(System.currentTimeMillis());
+        statsManager.getOrCreateStats(player.getUniqueId(), player.getName())
+                    .setLastJoin(System.currentTimeMillis());
 
-        // Paiements shop en attente (délai pour que le joueur soit bien chargé)
+        // Appliquer le scoreboard de faction (tab + préfixe)
+        if (tabManager != null) {
+            // Légèrement différé pour que le joueur soit bien enregistré
+            Bukkit.getScheduler().runTaskLater(
+                    Bukkit.getPluginManager().getPlugin("FactionPlugin"),
+                    () -> { if (player.isOnline()) tabManager.refresh(player); },
+                    5L);
+        }
+
+        // Paiements shop en attente
         Bukkit.getScheduler().runTaskLater(
                 Bukkit.getPluginManager().getPlugin("FactionPlugin"),
                 () -> shopManager.deliverPendingPayments(player), 60L);
@@ -110,29 +133,27 @@ public class PlayerListener implements Listener {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) return;
 
-        // Notifier les membres de faction
+        // Notifier la faction
         for (UUID uuid : faction.getMembers()) {
             if (uuid.equals(player.getUniqueId())) continue;
-            Player member = Bukkit.getPlayer(uuid);
-            if (member != null && member.isOnline()) {
-                member.sendMessage(ChatColor.GREEN + "[Faction] " + ChatColor.YELLOW + player.getName()
-                        + ChatColor.GREEN + " est en ligne.");
-            }
+            Player m = Bukkit.getPlayer(uuid);
+            if (m != null) m.sendMessage(ChatColor.GREEN + "[Faction] "
+                    + ChatColor.YELLOW + player.getName() + ChatColor.GREEN + " est en ligne.");
         }
 
-        // Rappel si guerre active
+        // Rappel de guerre
         if (warManager != null) {
-            WarSession session = warManager.getActiveWarOf(faction.getName());
-            if (session != null) {
+            WarSession war = warManager.getActiveWarOf(faction.getName());
+            if (war != null) {
                 Bukkit.getScheduler().runTaskLater(
                         Bukkit.getPluginManager().getPlugin("FactionPlugin"), () -> {
                     if (!player.isOnline()) return;
-                    String opp = session.getOpponent(faction.getName());
-                    int myKills  = session.getKillsFor(faction.getName().toLowerCase());
-                    int oppKills = session.getKillsFor(opp.toLowerCase());
-                    player.sendMessage("§8[§c⚔ Guerre§8] §c⚔ Guerre en cours contre §f" + opp
-                            + " §c— Score : §f" + myKills + "§c/§f" + oppKills
-                            + "§c (objectif §f" + session.getKillsToWin() + "§c kills)");
+                    String opp    = war.getOpponent(faction.getName());
+                    int myKills   = war.getKillsFor(faction.getName().toLowerCase());
+                    int oppKills  = war.getKillsFor(opp.toLowerCase());
+                    player.sendMessage("§8[§c⚔ Guerre§8] §c⚔ Guerre contre §f" + opp
+                            + " — §f" + myKills + "§c/§f" + oppKills
+                            + "§c (objectif §f" + war.getKillsToWin() + "§c kills)");
                 }, 80L);
             }
         }
@@ -146,38 +167,55 @@ public class PlayerListener implements Listener {
         UUID uuid = player.getUniqueId();
         statsManager.getStats(uuid).setLastJoin(System.currentTimeMillis());
 
+        if (tabManager != null) tabManager.remove(player);
+
         Faction faction = factionManager.getPlayerFaction(uuid);
         if (faction == null) return;
         for (UUID memberUuid : faction.getMembers()) {
             if (memberUuid.equals(uuid)) continue;
-            Player member = Bukkit.getPlayer(memberUuid);
-            if (member != null && member.isOnline()) {
-                member.sendMessage(ChatColor.GRAY + "[Faction] " + ChatColor.YELLOW + player.getName()
-                        + ChatColor.GRAY + " s'est déconnecté.");
-            }
+            Player m = Bukkit.getPlayer(memberUuid);
+            if (m != null) m.sendMessage(ChatColor.GRAY + "[Faction] "
+                    + ChatColor.YELLOW + player.getName() + ChatColor.GRAY + " s'est déconnecté.");
         }
     }
 
-    // ── Respawn → spawn de faction si défini ─────────────────────────────────────
+    // ── Respawn → spawn de faction ────────────────────────────────────────────────
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) return;
-        if (!faction.hasSpawn()) return;
 
-        Location spawn = faction.getFactionSpawn();
-        // Vérifier que le monde existe encore
+        // Choisir le spawn à utiliser
+        boolean has1 = faction.hasSpawn();
+        boolean has2 = faction.hasSpawn2();
+        if (!has1 && !has2) return;
+
+        // Si les deux spawns sont définis, choisir aléatoirement
+        Location spawn;
+        int slot;
+        if (has1 && has2) {
+            slot = (Math.random() < 0.5) ? 1 : 2;
+            spawn = faction.getSpawnBySlot(slot);
+        } else if (has2) {
+            slot = 2; spawn = faction.getFactionSpawn2();
+        } else {
+            slot = 1; spawn = faction.getFactionSpawn();
+        }
+
         if (spawn.getWorld() == null) return;
-
         event.setRespawnLocation(spawn);
-        // Message différé car le joueur n'est pas encore téléporté
+
+        final int finalSlot = slot;
+        final boolean twoSpawns = has1 && has2;
         Bukkit.getScheduler().runTaskLater(
                 Bukkit.getPluginManager().getPlugin("FactionPlugin"), () -> {
-            if (player.isOnline())
-                player.sendMessage(ChatColor.GREEN + "[Faction] Réapparition au spawn de "
-                        + ChatColor.YELLOW + faction.getName() + ChatColor.GREEN + ".");
+            if (!player.isOnline()) return;
+            String msg = ChatColor.GREEN + "[Faction] Réapparition au spawn de "
+                    + ChatColor.YELLOW + faction.getName()
+                    + ChatColor.GRAY + (twoSpawns ? " §7(spawn §f#" + finalSlot + "§7)" : "");
+            player.sendMessage(msg);
         }, 5L);
     }
 }
