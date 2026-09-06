@@ -51,3 +51,36 @@ webmap:
     - faction
   # Afficher les requêtes HTTP dans la console
   debug: false
+
+# ── Villageois recrutés (v5.9) ─────────────────────────────────────────────────
+villager:
+  # Intervalle de la boucle d'IA principale (en ticks Minecraft, 20 = 1 s)
+  tick-interval: 20
+  # Nombre maximum de villageois recrutés par faction
+  max-per-faction: 5
+  # Quantité de vie rendue à chaque item de nourriture consommé
+  heal-per-food: 4.0
+  # Points de patrouille max par villageois
+  max-patrol-points: 10
+  # Seuil de blocs en réserve avant que le Constructeur aille lui-même en zone de récolte
+  gather-batch-size: 8
+  # Distance à partir de laquelle un Constructeur peut se téléporter pour avancer plus vite
+  task-teleport-distance: 64.0
+
+  # ── Soin par le sommeil (nouveau en v5.9.4) ──────────────────────────────────
+  # Vie rendue à chaque tick de soin pendant le sommeil
+  heal-per-sleep-tick: 2.0
+  # Nombre de soins appliqués tant que le villageois reste au lit
+  sleep-heal-ticks: 8
+  # Période entre deux soins pendant le sommeil (en ticks, 60 = 3 s)
+  sleep-heal-period: 60
+
+  # ── Mode archerie du Guerrier (nouveau en v5.9.4) ───────────────────────────
+  # Distance d'engagement idéale (le guerrier recule si l'ennemi est plus proche)
+  archer-min-distance: 6.0
+  # Distance maximale de tir (au-delà, il s'avance pour rester efficace)
+  archer-max-distance: 18.0
+  # Cooldown minimum entre deux tirs (en ms)
+  archer-cooldown-ms: 1500
+  # Dégâts infligés par chaque flèche tirée
+  archer-damage: 3.0
