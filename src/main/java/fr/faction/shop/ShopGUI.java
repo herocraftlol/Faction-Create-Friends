@@ -44,10 +44,14 @@ public class ShopGUI implements Listener {
 
     public enum SortMode { NONE, PRICE_ASC, PRICE_DESC }
 
+    private ShopCreateGUI createGUI;
+
     public ShopGUI(JavaPlugin plugin, ShopManager shopManager) {
         this.plugin = plugin;
         this.shopManager = shopManager;
     }
+
+    public void setCreateGUI(ShopCreateGUI gui) { this.createGUI = gui; }
 
     // ─── OUVERTURE ──────────────────────────────────────────────────────────────
 
@@ -66,8 +70,8 @@ public class ShopGUI implements Listener {
                 : shopManager.searchListings(search);
 
         // Tri
-        if (sort == SortMode.PRICE_ASC)  listings.sort(Comparator.comparingInt(ShopListing::getTotalPrice));
-        if (sort == SortMode.PRICE_DESC) listings.sort(Comparator.comparingInt(ShopListing::getTotalPrice).reversed());
+        if (sort == SortMode.PRICE_ASC)  listings.sort(Comparator.comparingInt(l -> l.getPriceMode() == ShopListing.PriceMode.CURRENCY ? l.getCurrencyAmount() : l.getPriceItem().getAmount()));
+        if (sort == SortMode.PRICE_DESC) listings.sort(Comparator.<ShopListing>comparingInt(l -> l.getPriceMode() == ShopListing.PriceMode.CURRENCY ? l.getCurrencyAmount() : l.getPriceItem().getAmount()).reversed());
 
         int maxPages = Math.max(1, (int) Math.ceil((double) listings.size() / PAGE_SIZE));
         page = Math.min(page, maxPages - 1);
@@ -88,7 +92,7 @@ public class ShopGUI implements Listener {
         inv.setItem(45, page > 0 ? makeControl(Material.ARROW, "§a◀ Page précédente", "") : makeGlass(Material.GRAY_STAINED_GLASS_PANE));
         inv.setItem(46, makeControl(Material.OAK_SIGN, "§e🔍 Recherche",
                 search.isEmpty() ? "§7Clic : saisir un mot-clé" : "§7Actuelle : §f" + search + "\n§7Clic : changer"));
-        inv.setItem(47, makeGlass(Material.BLACK_STAINED_GLASS_PANE));
+        inv.setItem(47, makeControl(Material.WRITABLE_BOOK, "§a§l+ Créer une annonce", "§7Mets n'importe quel item en vente.\n§7Mode monnaie ou troc libre.\n§eClic pour ouvrir"));
         inv.setItem(48, makeControl(Material.GOLD_NUGGET, "§6Trier : prix §a↑",
                 sort == SortMode.PRICE_ASC ? "§a✔ Actif" : "§7Clic pour activer"));
         inv.setItem(49, makeControl(Material.PAPER, "§fPage " + (page + 1) + " / " + maxPages,
@@ -118,28 +122,42 @@ public class ShopGUI implements Listener {
     // ─── CONSTRUCTION D'ITEMS ───────────────────────────────────────────────────
 
     private ItemStack buildListingItem(ShopListing listing, Player viewer) {
-        ItemStack display = listing.getItem().clone();
+        ItemStack display = listing.getItemForSale().clone();
         ItemMeta meta = display.getItemMeta();
         if (meta == null) return display;
 
-        String originalName = meta.hasDisplayName() ? meta.getDisplayName()
-                : formatMat(listing.getItem().getType());
+        String originalName = meta.hasDisplayName()
+                ? meta.getDisplayName()
+                : ShopListing.displayName(listing.getItemForSale());
 
-        meta.setDisplayName("§e" + listing.getItem().getAmount() + "× §f" + originalName);
+        meta.setDisplayName("§e" + listing.getItemForSale().getAmount() + "× §f" + originalName);
         List<String> lore = new ArrayList<>();
         lore.add("§8ID: §7" + listing.getId());
         lore.add("§7Vendeur: §f" + listing.getSellerName());
         lore.add("");
-        lore.add("§7Prix unitaire: §e" + listing.getPrice() + " §f" + listing.getCurrency().getDisplayName());
-        if (listing.getItem().getAmount() > 1) {
-            lore.add("§7Prix total:    §6" + listing.getTotalPrice() + " §f" + listing.getCurrency().getDisplayName() + "(s)");
+
+        if (listing.getPriceMode() == ShopListing.PriceMode.CURRENCY) {
+            lore.add("§7Prix : " + listing.getPriceLine());
+            lore.add("§8Mode : §7Monnaie");
+        } else {
+            lore.add("§7Contre : " + listing.getPriceLine());
+            lore.add("§8Mode : §7Troc 🔄");
+            // Petite icône visuelle du prix
+            if (listing.getPriceItem() != null) {
+                lore.add("§8(" + ShopListing.displayName(listing.getPriceItem()) + " ×" + listing.getPriceItem().getAmount() + ")");
+            }
         }
+
         lore.add("");
         if (listing.getSellerUUID().equals(viewer.getUniqueId())) {
             lore.add("§c[Clic gauche] Récupérer l'annonce");
         } else {
-            lore.add("§a[Clic gauche] Acheter  §7(" + listing.getTotalPrice() + " "
-                    + listing.getCurrency().getDisplayName() + "(s))");
+            lore.add("§a[Clic gauche] Acheter / Échanger");
+            if (listing.getPriceMode() == ShopListing.PriceMode.CURRENCY) {
+                lore.add("§7(tu as besoin de : " + listing.getPriceLine() + "§7)");
+            } else {
+                lore.add("§7(tu dois donner : " + listing.getPriceLine() + "§7)");
+            }
         }
         meta.setLore(lore);
         display.setItemMeta(meta);
@@ -147,17 +165,19 @@ public class ShopGUI implements Listener {
     }
 
     private ItemStack buildMyListingItem(ShopListing listing) {
-        ItemStack display = listing.getItem().clone();
+        ItemStack display = listing.getItemForSale().clone();
         ItemMeta meta = display.getItemMeta();
         if (meta == null) return display;
 
-        String originalName = meta.hasDisplayName() ? meta.getDisplayName()
-                : formatMat(listing.getItem().getType());
+        String originalName = meta.hasDisplayName()
+                ? meta.getDisplayName()
+                : ShopListing.displayName(listing.getItemForSale());
 
-        meta.setDisplayName("§b" + listing.getItem().getAmount() + "× §f" + originalName);
+        meta.setDisplayName("§b" + listing.getItemForSale().getAmount() + "× §f" + originalName);
         List<String> lore = new ArrayList<>();
         lore.add("§8ID: §7" + listing.getId());
-        lore.add("§7Prix: §e" + listing.getTotalPrice() + " §f" + listing.getCurrency().getDisplayName() + "(s)");
+        lore.add("§7" + (listing.getPriceMode() == ShopListing.PriceMode.BARTER ? "Troc 🔄 : " : "Prix : ")
+                + listing.getPriceLine());
         lore.add("");
         lore.add("§c[Clic gauche] Récupérer l'item");
         meta.setLore(lore);
@@ -208,8 +228,8 @@ public class ShopGUI implements Listener {
                 List<ShopListing> listings = search.isEmpty()
                         ? shopManager.getActiveListings()
                         : shopManager.searchListings(search);
-                if (sort == SortMode.PRICE_ASC)  listings.sort(Comparator.comparingInt(ShopListing::getTotalPrice));
-                if (sort == SortMode.PRICE_DESC) listings.sort(Comparator.comparingInt(ShopListing::getTotalPrice).reversed());
+                if (sort == SortMode.PRICE_ASC)  listings.sort(Comparator.comparingInt(l -> l.getPriceMode() == ShopListing.PriceMode.CURRENCY ? l.getCurrencyAmount() : l.getPriceItem().getAmount()));
+                if (sort == SortMode.PRICE_DESC) listings.sort(Comparator.<ShopListing>comparingInt(l -> l.getPriceMode() == ShopListing.PriceMode.CURRENCY ? l.getCurrencyAmount() : l.getPriceItem().getAmount()).reversed());
 
                 int idx = page * PAGE_SIZE + slot;
                 if (idx >= listings.size()) return;
@@ -229,6 +249,12 @@ public class ShopGUI implements Listener {
                 player.closeInventory();
                 awaitingSearch.put(player.getUniqueId(), true);
                 player.sendMessage("§8[§6Shop§8] §eTape ton mot-clé dans le chat (ou §7annuler §epour fermer) :");
+            } else if (slot == 47) {
+                // Créer une annonce
+                player.closeInventory();
+                if (createGUI != null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> createGUI.open(player));
+                }
             } else if (slot == 48) {
                 openShop(player, 0, search, sort == SortMode.PRICE_ASC ? SortMode.NONE : SortMode.PRICE_ASC);
             } else if (slot == 50) {
@@ -277,7 +303,7 @@ public class ShopGUI implements Listener {
                 // refresh GUI
                 Bukkit.getScheduler().runTask(plugin, () -> openShop(buyer));
             }
-            case NOT_ENOUGH_MONEY -> buyer.sendMessage("§8[§6Shop§8] §cTu n'as pas assez d'argent !");
+            case NOT_ENOUGH_PAYMENT -> buyer.sendMessage("§8[§6Shop§8] §cTu n'as pas assez d'argent !");
             case ALREADY_SOLD     -> { buyer.sendMessage("§8[§6Shop§8] §cCet article a déjà été vendu !"); openShop(buyer); }
             case NOT_FOUND        -> { buyer.sendMessage("§8[§6Shop§8] §cAnnonce introuvable."); openShop(buyer); }
             case OWN_LISTING      -> buyer.sendMessage("§8[§6Shop§8] §cTu ne peux pas acheter ton propre article !");

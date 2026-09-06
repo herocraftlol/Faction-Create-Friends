@@ -222,7 +222,7 @@ public class SortMenuGUI implements Listener {
         player.sendMessage("§8[§6Tri§8] §7Items regroupés et triés proprement.");
         player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.8f, 1.3f);
         // Effet visuel
-        player.spawnParticle(Particle.SPELL_WITCH, player.getLocation().add(0, 1, 0), 15, 0.3, 0.3, 0.3, 0.05);
+        player.spawnParticle(Particle.WITCH, player.getLocation().add(0, 1, 0), 15, 0.3, 0.3, 0.3, 0.05);
     }
 
     // ════════════════════════════════════════════════════════════════════════════

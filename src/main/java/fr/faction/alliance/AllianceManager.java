@@ -60,7 +60,7 @@ public class AllianceManager implements Listener {
     public void handleAllianceInvite(Player player, String targetName) {
         Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
         if (myFaction == null) { send(player, "§cTu n'es pas dans une faction."); return; }
-        if (!myFaction.isChef(player.getUniqueId())) { send(player, "§cSeul le chef peut inviter des alliés."); return; }
+        if (!myFaction.canManage(player.getUniqueId())) { send(player, "§cSeul le chef ou un sous-chef peut inviter des alliés."); return; }
 
         Faction target = factionManager.getFaction(targetName);
         if (target == null) { send(player, "§cFaction §f" + targetName + " §cintrouvable."); return; }
@@ -84,7 +84,7 @@ public class AllianceManager implements Listener {
     public void handleAllianceAccept(Player player, String inviterName) {
         Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
         if (myFaction == null) { send(player, "§cTu n'es pas dans une faction."); return; }
-        if (!myFaction.isChef(player.getUniqueId())) { send(player, "§cSeul le chef peut accepter une alliance."); return; }
+        if (!myFaction.canManage(player.getUniqueId())) { send(player, "§cSeul le chef ou un sous-chef peut accepter une alliance."); return; }
 
         if (!myFaction.hasPendingAllianceFrom(inviterName)) {
             send(player, "§cAucune invitation d'alliance de §f" + inviterName + "§c."); return;
@@ -111,7 +111,7 @@ public class AllianceManager implements Listener {
     public void handleAllianceDecline(Player player, String inviterName) {
         Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
         if (myFaction == null) { send(player, "§cTu n'es pas dans une faction."); return; }
-        if (!myFaction.isChef(player.getUniqueId())) { send(player, "§cSeul le chef peut refuser une alliance."); return; }
+        if (!myFaction.canManage(player.getUniqueId())) { send(player, "§cSeul le chef ou un sous-chef peut refuser une alliance."); return; }
         if (!myFaction.hasPendingAllianceFrom(inviterName)) {
             send(player, "§cAucune invitation d'alliance de §f" + inviterName + "§c."); return;
         }
@@ -126,7 +126,7 @@ public class AllianceManager implements Listener {
     public void handleAllianceBreak(Player player, String targetName) {
         Faction myFaction = factionManager.getPlayerFaction(player.getUniqueId());
         if (myFaction == null) { send(player, "§cTu n'es pas dans une faction."); return; }
-        if (!myFaction.isChef(player.getUniqueId())) { send(player, "§cSeul le chef peut rompre une alliance."); return; }
+        if (!myFaction.canManage(player.getUniqueId())) { send(player, "§cSeul le chef ou un sous-chef peut rompre une alliance."); return; }
         if (!myFaction.isAlly(targetName)) { send(player, "§cVous n'êtes pas alliés avec §f" + targetName + "§c."); return; }
 
         Faction target = factionManager.getFaction(targetName);
@@ -189,7 +189,7 @@ public class AllianceManager implements Listener {
                 long on = ally.getMembers().stream().filter(u -> Bukkit.getPlayer(u) != null).count();
                 lore.add(ChatColor.GREEN + "En ligne : " + on);
                 lore.add("");
-                if (myFaction.isChef(player.getUniqueId()))
+                if (myFaction.canManage(player.getUniqueId()))
                     lore.add(ChatColor.RED + "[Clic droit] Rompre l'alliance");
                 meta.setLore(lore);
                 item.setItemMeta(meta);
@@ -250,7 +250,7 @@ public class AllianceManager implements Listener {
         if (clicked.getType() == Material.LIME_BANNER) {
             // Allié actuel
             String allyName = ChatColor.stripColor(displayName).replace("🤝 ", "").trim();
-            if (e.isRightClick() && myFaction.isChef(player.getUniqueId())) {
+            if (e.isRightClick() && myFaction.canManage(player.getUniqueId())) {
                 handleAllianceBreak(player, allyName);
                 player.closeInventory();
             }

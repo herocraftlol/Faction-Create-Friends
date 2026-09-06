@@ -442,13 +442,11 @@ public class TradeGUI implements Listener {
         if (playerB != null) playerB.closeInventory();
 
         if (playerA != null) {
-            for (ItemStack item : session.offerB)
-                if (item != null) playerA.getInventory().addItem(item.clone());
+            for (ItemStack item : session.offerB) giveOrDrop(playerA, item);
             playerA.sendMessage(ChatColor.GREEN + "✔ Échange réalisé avec succès !");
         }
         if (playerB != null) {
-            for (ItemStack item : session.offerA)
-                if (item != null) playerB.getInventory().addItem(item.clone());
+            for (ItemStack item : session.offerA) giveOrDrop(playerB, item);
             playerB.sendMessage(ChatColor.GREEN + "✔ Échange réalisé avec succès !");
         }
     }
@@ -460,13 +458,13 @@ public class TradeGUI implements Listener {
         Player playerB = Bukkit.getPlayer(session.playerB);
 
         if (playerA != null) {
-            for (ItemStack item : session.offerA) if (item != null) playerA.getInventory().addItem(item.clone());
+            for (ItemStack item : session.offerA) giveOrDrop(playerA, item);
             openInventories.remove(playerA.getUniqueId());
             if (!playerA.equals(initiator)) playerA.closeInventory();
             if (notify) playerA.sendMessage(ChatColor.RED + "✘ Troc annulé. Tes items t'ont été rendus.");
         }
         if (playerB != null) {
-            for (ItemStack item : session.offerB) if (item != null) playerB.getInventory().addItem(item.clone());
+            for (ItemStack item : session.offerB) giveOrDrop(playerB, item);
             openInventories.remove(playerB.getUniqueId());
             if (!playerB.equals(initiator)) playerB.closeInventory();
             if (notify) playerB.sendMessage(ChatColor.RED + "✘ Troc annulé. Tes items t'ont été rendus.");
@@ -504,4 +502,15 @@ public class TradeGUI implements Listener {
         if (meta != null) { meta.setDisplayName(name); item.setItemMeta(meta); }
         return item;
     }
+
+    // ── Drop helper ──────────────────────────────────────────────────────────────
+    private void giveOrDrop(Player player, ItemStack item) {
+        if (item == null) return;
+        Map<Integer, ItemStack> leftover = player.getInventory().addItem(item.clone());
+        if (!leftover.isEmpty()) {
+            leftover.values().forEach(is -> player.getWorld().dropItemNaturally(player.getLocation(), is));
+            player.sendMessage(ChatColor.YELLOW + "⚠ Inventaire plein — item(s) dropé(s) à tes pieds !");
+        }
+    }
+
 }

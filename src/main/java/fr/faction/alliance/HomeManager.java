@@ -2,6 +2,8 @@ package fr.faction.alliance;
 
 import fr.faction.managers.FactionManager;
 import fr.faction.models.Faction;
+import fr.faction.power.FactionPowerManager;
+import fr.faction.ranking.FactionRank;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -21,9 +23,11 @@ import java.util.*;
  * Système de homes personnels.
  *
  * Limites de homes (par joueur) :
- *   Sans faction     → 1 home
- *   Avec faction     → 2 homes
- *   Avec 1+ allié    → 3 homes
+ *   Sans faction  → 1 home
+ *   Bronze/Argent  → 2 homes
+ *   Or/Diamant     → 3 homes
+ *   Émeraude       → 4 homes
+ *   Légendaire     → 5 homes
  *
  * Contrainte de distance :
  *   Impossible de poser un home à moins de 10 chunks d'un home d'un autre joueur,
@@ -39,6 +43,9 @@ public class HomeManager {
 
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
+    private FactionPowerManager powerManager; // injecté après construction
+
+    public void setPowerManager(FactionPowerManager pm) { this.powerManager = pm; }
 
     // UUID joueur → List<NamedLocation>
     private final Map<UUID, List<NamedHome>> homes = new HashMap<>();
@@ -65,7 +72,12 @@ public class HomeManager {
 
     public int getMaxHomes(UUID playerUUID) {
         Faction faction = factionManager.getPlayerFaction(playerUUID);
-        if (faction == null) return 1;
+        if (faction == null) return 1; // sans faction → 1 home
+        if (powerManager != null) {
+            FactionRank rank = powerManager.getFactionRank(faction.getName());
+            return rank.getMaxHomes();
+        }
+        // Fallback sans powerManager : ancienne logique alliances
         if (!faction.getAllies().isEmpty()) return 3;
         return 2;
     }

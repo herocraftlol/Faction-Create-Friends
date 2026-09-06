@@ -26,6 +26,7 @@ import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FactionPlugin extends JavaPlugin {
@@ -37,12 +38,15 @@ public class FactionPlugin extends JavaPlugin {
     private FactionTeleportManager teleportManager;
     private FactionGUI factionGUI;
     private FactionPowerManager powerManager;
+    private fr.faction.power.FactionTabManager tabManager;
     private FactionRankingGUI rankingGUI;
     private PlaytimeTracker playtimeTracker;
 
     // v3.2
     private ClaimManager claimManager;
     private ClaimPermissionGUI claimPermissionGUI;
+    private fr.faction.claim.ClaimVisualizer claimVisualizer;
+    private fr.faction.map.FactionMapManager mapManager;
     private EmeraldBankManager bankManager;
     private BankGUI bankGUI;
     private TradeManager tradeManager;
@@ -51,6 +55,7 @@ public class FactionPlugin extends JavaPlugin {
     // v4.0 — shop & admin
     private ShopManager shopManager;
     private ShopGUI shopGUI;
+    private fr.faction.shop.ShopCreateGUI shopCreateGUI;
     private InvSeeGUI invSeeGUI;
 
     // v5.0 — alliances, homes, coffres privés, tpa
@@ -65,6 +70,12 @@ public class FactionPlugin extends JavaPlugin {
 
     // v5.2 — tri de coffre
     private fr.faction.sort.SortMenuGUI sortMenuGUI;
+    private fr.faction.web.WebLinkManager webLinkManager;
+    private fr.faction.web.WebMapSync webMapSync;
+
+    // v5.9 — villageois recrutés
+    private fr.faction.villager.VillagerManager villagerManager;
+    private fr.faction.villager.VillagerGUI villagerGUI;
 
     @Override
     public void onEnable() {
@@ -75,26 +86,37 @@ public class FactionPlugin extends JavaPlugin {
         sharedInventoryManager = new SharedInventoryManager(this, factionManager);
         teleportManager        = new FactionTeleportManager(this, factionManager);
         powerManager           = new FactionPowerManager(this, factionManager, statsManager);
+        // tabManager doit être créé avant powerManager.start() pour le rankUp
+        tabManager             = new fr.faction.power.FactionTabManager(this, factionManager, powerManager);
+        powerManager.setTabManager(tabManager);
         powerManager.start();
 
         claimManager       = new ClaimManager(this);
         claimPermissionGUI = new ClaimPermissionGUI(this, claimManager, factionManager);
+        claimVisualizer    = new fr.faction.claim.ClaimVisualizer(this, claimManager, factionManager);
+        mapManager         = new fr.faction.map.FactionMapManager(this, factionManager);
         bankManager        = new EmeraldBankManager(this);
         bankGUI            = new BankGUI(this, bankManager, factionManager);
         tradeManager       = new TradeManager();
         tradeGUI           = new TradeGUI(this, tradeManager);
 
-        shopManager = new ShopManager(this);
-        shopGUI     = new ShopGUI(this, shopManager);
+        shopManager    = new ShopManager(this);
+        shopGUI        = new ShopGUI(this, shopManager);
+        shopCreateGUI  = new fr.faction.shop.ShopCreateGUI(this, shopManager);
+        shopGUI.setCreateGUI(shopCreateGUI);
         invSeeGUI   = new InvSeeGUI(this);
 
         allianceManager       = new AllianceManager(this, factionManager);
         homeManager           = new HomeManager(this, factionManager);
+        mapManager.setHomeManager(homeManager);
+        // Injecter powerManager dans HomeManager (créé après)
         privateChestManager   = new PrivateChestManager(this, factionManager);
         playerTeleportManager = new PlayerTeleportManager(this);
 
         // Injection du bonus d'alliance dans le calcul de puissance
         powerManager.setAllianceManager(allianceManager);
+        // Maintenant qu'on a powerManager, l'injecter dans homeManager
+        homeManager.setPowerManager(powerManager);
 
         // GUIs (doivent être créés avant mainMenuGUI qui en dépend)
         factionGUI       = new FactionGUI(this, factionManager, sharedInventoryManager, teleportManager);
@@ -111,6 +133,22 @@ public class FactionPlugin extends JavaPlugin {
         sortMenuGUI = new fr.faction.sort.SortMenuGUI(this, factionManager, sharedInventoryManager);
         sharedInventoryManager.setSortMenuGUI(sortMenuGUI);
 
+        // ── v5.9 — Villageois recrutés ───────────────────────────────────────
+        villagerManager = new fr.faction.villager.VillagerManager(this, factionManager);
+        villagerManager.setClaimManager(claimManager);
+        villagerGUI = new fr.faction.villager.VillagerGUI(this, factionManager, villagerManager);
+        villagerManager.start();
+
+        // ── Liaison compte web (/lier) ────────────────────────────────────────────
+        webLinkManager = new fr.faction.web.WebLinkManager(this);
+        String siteUrl = getConfig().getString("site-url", "http://localhost:3000");
+        getCommand("lier").setExecutor(new fr.faction.web.LierCommand(webLinkManager, siteUrl));
+
+        // ── WebMap sync (remplace le plugin FactionWebMap séparé) ────────────────
+        webMapSync = new fr.faction.web.WebMapSync(this, factionManager, powerManager);
+        webMapSync.setClaimManager(claimManager);
+        getServer().getPluginManager().registerEvents(webMapSync, this);
+
         FactionCommand cmd = new FactionCommand(
                 this, factionManager, statsManager, sharedInventoryManager, teleportManager,
                 factionGUI, rankingGUI, powerManager,
@@ -123,6 +161,12 @@ public class FactionPlugin extends JavaPlugin {
         cmd.setWarManager(warManager);
         cmd.setMainMenuGUI(mainMenuGUI);
         cmd.setSortMenuGUI(sortMenuGUI);
+        cmd.setShopCreateGUI(shopCreateGUI);
+        cmd.setClaimVisualizer(claimVisualizer);
+        cmd.setTabManager(tabManager);
+        cmd.setMapManager(mapManager);
+        cmd.setVillagerManager(villagerManager);
+        cmd.setVillagerGUI(villagerGUI);
         actionBarManager.setWarManager(warManager);
 
         getCommand("faction").setExecutor(cmd);
@@ -156,6 +200,26 @@ public class FactionPlugin extends JavaPlugin {
             }
             return true;
         });
+        getCommand("home").setTabCompleter((sender, c, l, a) -> {
+            if (!(sender instanceof org.bukkit.entity.Player p)) return java.util.Collections.emptyList();
+            if (a.length == 1) {
+                String prefix = a[0].toLowerCase();
+                return homeManager.getHomeNames(p.getUniqueId()).stream()
+                        .filter(n -> n.toLowerCase().startsWith(prefix))
+                        .collect(java.util.stream.Collectors.toList());
+            }
+            return java.util.Collections.emptyList();
+        });
+        getCommand("delhome").setTabCompleter((sender, c, l, a) -> {
+            if (!(sender instanceof org.bukkit.entity.Player p)) return java.util.Collections.emptyList();
+            if (a.length == 1) {
+                String prefix = a[0].toLowerCase();
+                return homeManager.getHomeNames(p.getUniqueId()).stream()
+                        .filter(n -> n.toLowerCase().startsWith(prefix))
+                        .collect(java.util.stream.Collectors.toList());
+            }
+            return java.util.Collections.emptyList();
+        });
         getCommand("delhome").setExecutor((sender, c, l, a) -> {
             if (sender instanceof org.bukkit.entity.Player p && a.length >= 1) {
                 boolean ok = homeManager.deleteHome(p.getUniqueId(), a[0]);
@@ -171,23 +235,49 @@ public class FactionPlugin extends JavaPlugin {
         PlayerListener playerListener = new PlayerListener(factionManager, statsManager, powerManager, shopManager, shopGUI);
         playerListener.setWarManager(warManager);
         playerListener.setHomeManager(homeManager);
+        playerListener.setTabManager(tabManager);
         getServer().getPluginManager().registerEvents(playerListener, this);
         getServer().getPluginManager().registerEvents(
                 new PowerBridgeListener(factionManager, powerManager, statsManager), this);
         getServer().getPluginManager().registerEvents(new ClaimListener(claimManager, factionManager), this);
         getServer().getPluginManager().registerEvents(shopGUI, this);
+        getServer().getPluginManager().registerEvents(new fr.faction.listeners.FirstJoinListener(this), this);
+        getServer().getPluginManager().registerEvents(shopCreateGUI, this);
         getServer().getPluginManager().registerEvents(invSeeGUI, this);
         getServer().getPluginManager().registerEvents(allianceManager, this);
         getServer().getPluginManager().registerEvents(privateChestManager, this);
         getServer().getPluginManager().registerEvents(warManager, this);
         getServer().getPluginManager().registerEvents(mainMenuGUI, this);
         getServer().getPluginManager().registerEvents(sortMenuGUI, this);
+        getServer().getPluginManager().registerEvents(villagerManager, this);
+        getServer().getPluginManager().registerEvents(villagerGUI, this);
 
         actionBarManager.start();
         playtimeTracker = new PlaytimeTracker(this, statsManager);
         playtimeTracker.start();
 
-        getLogger().info("FactionPlugin v5.1.1 actif — Guerre inter-alliances + GUI principal !");
+        // Rafraîchir le tab de tous les joueurs toutes les 5 minutes
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            tabManager.refreshAll();
+            tabManager.pruneEmptyTeams();
+        }, 20L * 10, 20L * 300);
+
+        // ── Purge unique des effets bannis des anciennes versions ────────────────
+        // Lance 2 secondes après le démarrage pour couvrir les joueurs déjà
+        // connectés (si rechargement du plugin avec /reload).
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            java.util.List<org.bukkit.potion.PotionEffectType> legacy = java.util.List.of(
+                    org.bukkit.potion.PotionEffectType.SPEED,
+                    org.bukkit.potion.PotionEffectType.JUMP_BOOST,
+                    org.bukkit.potion.PotionEffectType.SLOW_FALLING
+            );
+            for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
+                for (org.bukkit.potion.PotionEffectType t : legacy) p.removePotionEffect(t);
+            }
+            getLogger().info("Purge des effets legacy effectuée.");
+        }, 40L);
+
+        getLogger().info("FactionPlugin v5.5.1 — purge effets legacy, fixes bank/troc/shop/home");
     }
 
     private void handleSetHome(org.bukkit.entity.Player player, String name) {
@@ -233,9 +323,12 @@ public class FactionPlugin extends JavaPlugin {
         if (claimManager != null)           claimManager.save();
         if (bankManager != null)            bankManager.save();
         if (shopManager != null)            shopManager.save();
+        if (mapManager != null)             mapManager.save();
         if (homeManager != null)            homeManager.save();
         if (privateChestManager != null)    privateChestManager.save();
         if (warManager != null)             { warManager.save(); warManager.stop(); }
+        if (villagerManager != null)        villagerManager.save();
+        if (webLinkManager != null)         webLinkManager.close();
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 
@@ -249,6 +342,7 @@ public class FactionPlugin extends JavaPlugin {
     public FactionPowerManager getPowerManager()           { return powerManager; }
     public FactionRankingGUI getRankingGUI()               { return rankingGUI; }
     public ClaimManager getClaimManager()                  { return claimManager; }
+    public fr.faction.claim.ClaimVisualizer getClaimVisualizer() { return claimVisualizer; }
     public EmeraldBankManager getBankManager()             { return bankManager; }
     public TradeManager getTradeManager()                  { return tradeManager; }
     public TradeGUI getTradeGUI()                          { return tradeGUI; }
@@ -259,7 +353,11 @@ public class FactionPlugin extends JavaPlugin {
     public HomeManager getHomeManager()                    { return homeManager; }
     public PrivateChestManager getPrivateChestManager()    { return privateChestManager; }
     public PlayerTeleportManager getPlayerTeleportManager(){ return playerTeleportManager; }
-    public fr.faction.war.WarManager getWarManager()       { return warManager; }
-    public fr.faction.gui.MainMenuGUI getMainMenuGUI()     { return mainMenuGUI; }
+    public fr.faction.war.WarManager getWarManager()              { return warManager; }
+    public fr.faction.gui.MainMenuGUI getMainMenuGUI()            { return mainMenuGUI; }
+    public fr.faction.power.FactionTabManager getTabManager()     { return tabManager; }
     public fr.faction.sort.SortMenuGUI getSortMenuGUI()    { return sortMenuGUI; }
+    public fr.faction.map.FactionMapManager getMapManager() { return mapManager; }
+    public fr.faction.villager.VillagerManager getVillagerManager() { return villagerManager; }
+    public fr.faction.villager.VillagerGUI getVillagerGUI() { return villagerGUI; }
 }
