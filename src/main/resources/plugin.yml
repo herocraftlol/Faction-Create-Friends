@@ -4,8 +4,10 @@ main: fr.faction.FactionPlugin
 api-version: "1.21"
 author: FactionDev
 description: >
-  Plugin de factions complet — Paper 1.21. Claims, alliances, guerre,
-  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, liaison site web.
+  Plugin de factions complet pour Paper 1.21 — Factions, alliances, guerres
+  inter-factions, claims, banque d'émeraudes, shop global, troc sécurisé,
+  homes, coffres privés, TPA, InvSee, stats, mini-map, et désormais
+  villageois recrutés (Constructeur / Guerrier) et sous-chefs.
 
 commands:
   faction:
