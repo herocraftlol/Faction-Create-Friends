@@ -3,7 +3,9 @@ package fr.faction.villager;
 import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,10 +24,13 @@ public class RecruitedVillager {
     private VillagerRole role = VillagerRole.AUCUN;
 
     // ── Constructeur ─────────────────────────────────────────────────────────
-    /** Réserve de blocs de construction (9 emplacements). */
+    /** Réserve de blocs de construction (9 emplacements), partagée entre toutes ses tâches. */
     private ItemStack[] resources = new ItemStack[9];
-    private Location zoneA;
-    private Location zoneB;
+    /** File de chantiers à réaliser dans l'ordre ; celui en tête est le chantier actif. */
+    private final Deque<BuildTask> taskQueue = new ArrayDeque<>();
+    /** Zone où il va miner lui-même le type de bloc qui lui manque pour sa tâche en cours. */
+    private Location gatherZoneA;
+    private Location gatherZoneB;
 
     // ── Guerrier ─────────────────────────────────────────────────────────────
     private ItemStack weapon;
@@ -33,6 +38,12 @@ public class RecruitedVillager {
     private ItemStack chestplate;
     private ItemStack leggings;
     private ItemStack boots;
+
+    /** Arc (ou arbalète) et réserve de flèches pour le mode archerie. */
+    private ItemStack bow;
+    private ItemStack arrows;
+    /** Si true, privilégie le tir à distance en gardant ses distances ; retombe en mêlée si à court de flèches ou au contact. */
+    private boolean archeryMode = false;
 
     /** Poste central du guerrier : sert de centre au périmètre de défense et à la patrouille. */
     private Location postLocation;
@@ -72,13 +83,16 @@ public class RecruitedVillager {
     public ItemStack[] getResources()         { return resources; }
     public void setResources(ItemStack[] r)   { this.resources = r; }
 
-    public Location getZoneA()                { return zoneA; }
-    public void setZoneA(Location l)          { this.zoneA = l; }
-    public Location getZoneB()                { return zoneB; }
-    public void setZoneB(Location l)          { this.zoneB = l; }
-    public boolean hasZone() {
-        return zoneA != null && zoneB != null
-                && zoneA.getWorld() != null && zoneA.getWorld().equals(zoneB.getWorld());
+    public Deque<BuildTask> getTaskQueue()    { return taskQueue; }
+    public BuildTask getCurrentTask()         { return taskQueue.peek(); }
+
+    public Location getGatherZoneA()          { return gatherZoneA; }
+    public void setGatherZoneA(Location l)    { this.gatherZoneA = l; }
+    public Location getGatherZoneB()          { return gatherZoneB; }
+    public void setGatherZoneB(Location l)    { this.gatherZoneB = l; }
+    public boolean hasGatherZone() {
+        return gatherZoneA != null && gatherZoneB != null
+                && gatherZoneA.getWorld() != null && gatherZoneA.getWorld().equals(gatherZoneB.getWorld());
     }
 
     public ItemStack getWeapon()              { return weapon; }
@@ -91,6 +105,13 @@ public class RecruitedVillager {
     public void setLeggings(ItemStack i)      { this.leggings = i; }
     public ItemStack getBoots()               { return boots; }
     public void setBoots(ItemStack i)         { this.boots = i; }
+
+    public ItemStack getBow()                 { return bow; }
+    public void setBow(ItemStack i)           { this.bow = i; }
+    public ItemStack getArrows()              { return arrows; }
+    public void setArrows(ItemStack i)        { this.arrows = i; }
+    public boolean isArcheryMode()            { return archeryMode; }
+    public void setArcheryMode(boolean b)     { this.archeryMode = b; }
 
     public Location getPostLocation()         { return postLocation; }
     public void setPostLocation(Location l)   { this.postLocation = l; }

@@ -17,6 +17,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -41,9 +42,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -63,6 +66,7 @@ public class VillagerManager implements Listener {
 
     private final Map<UUID, RecruitedVillager> villagers = new HashMap<>();
     private final Map<UUID, PendingSelection> pendingSelections = new HashMap<>();
+    private final Set<UUID> sleepingVillagers = new HashSet<>();
     private final File dataFile;
 
     public VillagerManager(JavaPlugin plugin, FactionManager factionManager) {
@@ -167,10 +171,17 @@ public class VillagerManager implements Listener {
             });
         } catch (Exception ignored) {}
 
+        // Élargit la portée de suivi vanilla pour ne pas gêner le rattrapage sur de longues distances.
+        try {
+            var followAttr = v.getAttribute(Attribute.FOLLOW_RANGE);
+            if (followAttr != null) followAttr.setBaseValue(64.0);
+        } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
+
         EntityEquipment eq = v.getEquipment();
         if (eq != null) {
             if (rv.getRole() == VillagerRole.GUERRIER) {
-                eq.setItemInMainHand(rv.getWeapon());
+                boolean preferBow = rv.isArcheryMode() && rv.getBow() != null && countArrows(rv) > 0;
+                eq.setItemInMainHand(preferBow ? rv.getBow() : rv.getWeapon());
                 eq.setHelmet(rv.getHelmet());
                 eq.setChestplate(rv.getChestplate());
                 eq.setLeggings(rv.getLeggings());
@@ -228,6 +239,13 @@ public class VillagerManager implements Listener {
         save();
     }
 
+    public void setArcheryMode(RecruitedVillager rv, boolean enabled) {
+        rv.setArcheryMode(enabled);
+        Entity e = Bukkit.getEntity(rv.getEntityId());
+        if (e instanceof Villager v) applyVisuals(rv, v);
+        save();
+    }
+
     /** Aligne en formation, devant le joueur, tous ses villageois recrutés à moins de 40 blocs. */
     public void formation(Player player) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
@@ -259,26 +277,80 @@ public class VillagerManager implements Listener {
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // GESTION DES CHANTIERS (constructeur)
+    // ════════════════════════════════════════════════════════════════════════
+
+    public void cancelCurrentTask(RecruitedVillager rv) {
+        rv.getTaskQueue().poll();
+        save();
+    }
+
+    public void clearTaskQueue(RecruitedVillager rv) {
+        rv.getTaskQueue().clear();
+        save();
+    }
+
+    public void clearGatherZone(RecruitedVillager rv) {
+        rv.setGatherZoneA(null);
+        rv.setGatherZoneB(null);
+        save();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // SÉLECTION DE ZONE / PATROUILLE (clics dans le monde)
     // ════════════════════════════════════════════════════════════════════════
 
-    private enum SelectionType { ZONE, PATROL }
+    private enum SelectionType { TASK_ZONE, GATHER_ZONE, PATROL, GROUP_POST, GROUP_TASK_ZONE }
 
     private static class PendingSelection {
-        final UUID villagerId;
+        UUID villagerId;          // null pour les sélections de groupe
         final SelectionType type;
         final List<Location> points = new ArrayList<>();
+        Material blockType;       // pour TASK_ZONE / GROUP_TASK_ZONE
+        UUID assignedBy;          // pour TASK_ZONE / GROUP_TASK_ZONE
+        String assignedByName;    // pour TASK_ZONE / GROUP_TASK_ZONE
+        List<UUID> groupIds;      // pour GROUP_POST / GROUP_TASK_ZONE
         PendingSelection(UUID villagerId, SelectionType type) { this.villagerId = villagerId; this.type = type; }
     }
 
-    public void startZoneSelection(Player player, RecruitedVillager rv) {
-        pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.ZONE));
-        player.sendMessage(prefix() + "§eClique-droit sur le §b1er coin§e du chantier (bloc au sol par ex.).");
+    public void startTaskZoneSelection(Player player, RecruitedVillager rv, Material blockType) {
+        PendingSelection sel = new PendingSelection(rv.getEntityId(), SelectionType.TASK_ZONE);
+        sel.blockType = blockType;
+        sel.assignedBy = player.getUniqueId();
+        sel.assignedByName = player.getName();
+        pendingSelections.put(player.getUniqueId(), sel);
+        player.sendMessage(prefix() + "§eClique-droit sur le §b1er coin§e du nouveau chantier §7(bloc : "
+                + prettyMaterial(blockType) + ")§e.");
+    }
+
+    public void startGatherZoneSelection(Player player, RecruitedVillager rv) {
+        pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.GATHER_ZONE));
+        player.sendMessage(prefix() + "§eClique-droit sur le §b1er coin§e de la zone de récolte.");
     }
 
     public void startPatrolSelection(Player player, RecruitedVillager rv) {
         pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.PATROL));
         player.sendMessage(prefix() + "§eClique-droit pour ajouter un point de ronde. §bShift+clic-droit§e pour terminer.");
+    }
+
+    /** Assigne le même poste (position de défense) à plusieurs guerriers en un seul clic. */
+    public void startGroupPostSelection(Player player, List<UUID> guerrierIds) {
+        PendingSelection sel = new PendingSelection(null, SelectionType.GROUP_POST);
+        sel.groupIds = guerrierIds;
+        pendingSelections.put(player.getUniqueId(), sel);
+        player.sendMessage(prefix() + "§eClique-droit à l'endroit du poste commun §7(" + guerrierIds.size() + " guerrier(s))§e.");
+    }
+
+    /** Assigne le même chantier (zone + type de bloc) à plusieurs constructeurs à la fois. */
+    public void startGroupTaskZoneSelection(Player player, List<UUID> builderIds, Material blockType) {
+        PendingSelection sel = new PendingSelection(null, SelectionType.GROUP_TASK_ZONE);
+        sel.groupIds = builderIds;
+        sel.blockType = blockType;
+        sel.assignedBy = player.getUniqueId();
+        sel.assignedByName = player.getName();
+        pendingSelections.put(player.getUniqueId(), sel);
+        player.sendMessage(prefix() + "§eClique-droit sur le §b1er coin§e du chantier commun §7("
+                + builderIds.size() + " constructeur(s), bloc : " + prettyMaterial(blockType) + ")§e.");
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -291,14 +363,23 @@ public class VillagerManager implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
         event.setCancelled(true);
 
-        RecruitedVillager rv = villagers.get(sel.villagerId);
-        if (rv == null) { pendingSelections.remove(player.getUniqueId()); return; }
-
         Location loc = event.getClickedBlock().getLocation();
-        if (sel.type == SelectionType.ZONE) {
-            handleZoneClick(player, rv, sel, loc);
-        } else {
+
+        if (sel.type == SelectionType.GROUP_POST) {
+            handleGroupPostClick(player, sel, loc);
+            return;
+        }
+
+        RecruitedVillager rv = sel.villagerId != null ? villagers.get(sel.villagerId) : null;
+        if (sel.type != SelectionType.GROUP_TASK_ZONE && rv == null) {
+            pendingSelections.remove(player.getUniqueId());
+            return;
+        }
+
+        if (sel.type == SelectionType.PATROL) {
             handlePatrolClick(player, rv, sel, loc, player.isSneaking());
+        } else {
+            handleZoneClick(player, rv, sel, loc);
         }
     }
 
@@ -324,29 +405,51 @@ public class VillagerManager implements Listener {
             return;
         }
 
-        if (claimManager != null) {
-            boolean okA = claimBelongsToFaction(corner1, rv.getFactionName());
-            boolean okB = claimBelongsToFaction(loc, rv.getFactionName());
-            if (!okA || !okB) {
-                player.sendMessage(prefix() + "§cLes deux coins doivent être dans un chunk claimé par ta faction.");
-                pendingSelections.remove(player.getUniqueId());
-                return;
+        pendingSelections.remove(player.getUniqueId());
+
+        if (sel.type == SelectionType.TASK_ZONE) {
+            BuildTask task = new BuildTask(corner1, loc, sel.blockType, sel.assignedBy, sel.assignedByName);
+            rv.getTaskQueue().add(task);
+            save();
+            player.sendMessage(prefix() + "§a✔ Chantier ajouté à la file de §e" + rv.getDisplayName()
+                    + " §a(" + volume + " blocs, " + prettyMaterial(sel.blockType) + "). File : §e"
+                    + rv.getTaskQueue().size() + " chantier(s)§a.");
+        } else if (sel.type == SelectionType.GROUP_TASK_ZONE) {
+            int count = 0;
+            for (UUID id : sel.groupIds) {
+                RecruitedVillager builder = villagers.get(id);
+                if (builder != null && builder.getRole() == VillagerRole.CONSTRUCTEUR) {
+                    builder.getTaskQueue().add(new BuildTask(corner1.clone(), loc.clone(), sel.blockType, sel.assignedBy, sel.assignedByName));
+                    count++;
+                }
+            }
+            save();
+            player.sendMessage(prefix() + "§a✔ Chantier commun ajouté à §e" + count + " constructeur(s) §a("
+                    + volume + " blocs, " + prettyMaterial(sel.blockType) + "). Ils vont s'y mettre en même temps.");
+        } else {
+            rv.setGatherZoneA(corner1);
+            rv.setGatherZoneB(loc);
+            save();
+            player.sendMessage(prefix() + "§a✔ Zone de récolte définie pour §e" + rv.getDisplayName()
+                    + " §a(" + volume + " blocs). S'il n'a plus le bloc voulu, il ira le miner ici.");
+        }
+    }
+
+    private void handleGroupPostClick(Player player, PendingSelection sel, Location loc) {
+        pendingSelections.remove(player.getUniqueId());
+        int count = 0;
+        for (UUID id : sel.groupIds) {
+            RecruitedVillager guard = villagers.get(id);
+            if (guard != null && guard.getRole() == VillagerRole.GUERRIER) {
+                guard.setPostLocation(loc.clone());
+                count++;
             }
         }
-
-        rv.setZoneA(corner1);
-        rv.setZoneB(loc);
-        pendingSelections.remove(player.getUniqueId());
         save();
-        player.sendMessage(prefix() + "§a✔ Chantier défini pour §e" + rv.getDisplayName() + " §a(" + volume + " blocs). "
-                + "Donne-lui des blocs et il comblera les vides de la zone (construction ET réparation).");
+        player.sendMessage(prefix() + "§a✔ Poste commun défini pour §e" + count + " guerrier(s)§a.");
     }
 
     private void handlePatrolClick(Player player, RecruitedVillager rv, PendingSelection sel, Location loc, boolean finish) {
-        if (claimManager != null && !claimBelongsToFaction(loc, rv.getFactionName())) {
-            player.sendMessage(prefix() + "§cCe point doit être dans un chunk claimé par ta faction.");
-            return;
-        }
         sel.points.add(loc);
         int max = plugin.getConfig().getInt("villager.max-patrol-points", 10);
         if (finish || sel.points.size() >= max) {
@@ -362,19 +465,15 @@ public class VillagerManager implements Listener {
         }
     }
 
-    private boolean claimBelongsToFaction(Location loc, String factionName) {
-        if (claimManager == null) return true;
-        var chunk = loc.getChunk();
-        if (!claimManager.isClaimed(chunk)) return false;
-        var data = claimManager.getClaim(chunk);
-        return data != null && data.getFactionName().equalsIgnoreCase(factionName);
-    }
-
     private int computeVolume(Location a, Location b) {
         int dx = Math.abs(a.getBlockX() - b.getBlockX()) + 1;
         int dy = Math.abs(a.getBlockY() - b.getBlockY()) + 1;
         int dz = Math.abs(a.getBlockZ() - b.getBlockZ()) + 1;
         return dx * dy * dz;
+    }
+
+    private String prettyMaterial(Material m) {
+        return m.name().toLowerCase().replace('_', ' ');
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -386,6 +485,7 @@ public class VillagerManager implements Listener {
             Entity e = Bukkit.getEntity(rv.getEntityId());
             if (!(e instanceof Villager v) || v.isDead()) continue;
             feedTick(rv, v);
+            handleSleepTransition(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
@@ -394,16 +494,23 @@ public class VillagerManager implements Listener {
         }
     }
 
+    /** Démarre le soin au lit quand le villageois s'endort, l'arrête s'il se réveille. */
+    private void handleSleepTransition(RecruitedVillager rv, Villager v) {
+        UUID id = rv.getEntityId();
+        if (v.isSleeping()) {
+            if (sleepingVillagers.add(id)) {
+                onSleep(rv);
+            }
+        } else {
+            sleepingVillagers.remove(id);
+        }
+    }
+
     private void feedTick(RecruitedVillager rv, Villager v) {
         ItemStack food = rv.getFood();
         if (food == null || food.getAmount() <= 0) return;
 
-        double max = 20.0;
-        try {
-            var attr = v.getAttribute(Attribute.MAX_HEALTH);
-            if (attr != null) max = attr.getValue();
-        } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
-
+        double max = getMaxHealth(v);
         if (v.getHealth() >= max) return;
 
         double healAmount = plugin.getConfig().getDouble("villager.heal-per-food", 4.0);
@@ -415,36 +522,98 @@ public class VillagerManager implements Listener {
         else food.setAmount(newAmount);
     }
 
-    // ── Constructeur : comble les vides de sa zone avec ses ressources ────────
+    private double getMaxHealth(Villager v) {
+        double max = 20.0;
+        try {
+            var attr = v.getAttribute(Attribute.MAX_HEALTH);
+            if (attr != null) max = attr.getValue();
+        } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
+        return max;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SOIN EN DORMANT DANS UN LIT
+    // ════════════════════════════════════════════════════════════════════════
+
+    /** Starts the scheduled sleep-healing effect when the villager enters a bed. */
+    private void onSleep(RecruitedVillager rv) {
+        startSleepHealing(rv);
+    }
+
+    /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
+    private void startSleepHealing(RecruitedVillager rv) {
+        double healAmount = plugin.getConfig().getDouble("villager.heal-per-sleep-tick", 2.0);
+        int maxTicks = plugin.getConfig().getInt("villager.sleep-heal-ticks", 8);
+        long period = plugin.getConfig().getLong("villager.sleep-heal-period", 60L);
+
+        new BukkitRunnable() {
+            int done = 0;
+            @Override public void run() {
+                Entity e = Bukkit.getEntity(rv.getEntityId());
+                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
+                double max = getMaxHealth(v);
+                if (v.getHealth() < max) {
+                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
+                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
+                }
+                if (++done >= maxTicks) cancel();
+            }
+        }.runTaskTimer(plugin, period, period);
+    }
+
+    // ── Constructeur : traite le chantier en tête de file, récolte si besoin ──
     private void builderTick(RecruitedVillager rv, Villager v) {
-        if (!rv.hasZone()) return;
+        BuildTask task = rv.getCurrentTask();
+        if (task == null) return; // aucun chantier en file
 
-        Block target = findNextGap(rv);
-        if (target == null) return; // zone entièrement construite
+        Material needed = task.getBlockType();
+        int have = countResource(rv, needed);
+        int gatherThreshold = plugin.getConfig().getInt("villager.gather-batch-size", 8);
 
-        int slot = firstUsableResourceSlot(rv);
-        if (slot < 0) return; // plus de ressources
+        if (rv.hasGatherZone() && have < gatherThreshold) {
+            Block ore = findGatherableBlock(rv, v, needed);
+            if (ore != null) {
+                Location oreLoc = ore.getLocation().add(0.5, 0, 0.5);
+                if (!approachForAction(v, oreLoc, 3.2, 0.5, "villager.task-teleport-distance", 64.0)) return;
+                ore.setType(Material.AIR);
+                addResource(rv, needed, 1);
+                v.getWorld().playSound(ore.getLocation(), Sound.ENTITY_VILLAGER_WORK_MASON, 1f, 1f);
+                return;
+            }
+            // La zone de récolte n'a plus ce type de bloc : on continue avec le stock actuel.
+        }
 
-        Location targetLoc = target.getLocation().add(0.5, 0, 0.5);
-        double dist = v.getLocation().distance(targetLoc);
-        if (dist > 3.2) {
-            v.getPathfinder().moveTo(targetLoc, 0.5);
+        if (have <= 0) return; // plus de ressources et rien à récolter
+
+        Block gap = findNextGap(task);
+        if (gap == null) {
+            completeTask(rv, v, task);
             return;
         }
 
-        ItemStack stack = rv.getResources()[slot];
-        Material mat = stack.getType();
-        target.setType(mat);
-        v.getWorld().playSound(target.getLocation(), Sound.ENTITY_VILLAGER_WORK_MASON, 1f, 1f);
+        Location targetLoc = gap.getLocation().add(0.5, 0, 0.5);
+        if (!approachForAction(v, targetLoc, 3.2, 0.5, "villager.task-teleport-distance", 64.0)) return;
 
-        int amount = stack.getAmount() - 1;
-        if (amount <= 0) rv.getResources()[slot] = null;
-        else stack.setAmount(amount);
+        gap.setType(needed);
+        v.getWorld().playSound(gap.getLocation(), Sound.ENTITY_VILLAGER_WORK_MASON, 1f, 1f);
+        removeResource(rv, needed, 1);
     }
 
-    private Block findNextGap(RecruitedVillager rv) {
-        Location a = rv.getZoneA();
-        Location b = rv.getZoneB();
+    private void completeTask(RecruitedVillager rv, Villager v, BuildTask task) {
+        rv.getTaskQueue().poll(); // retire le chantier terminé, le suivant devient actif
+        save();
+
+        String line = "§7[§e" + rv.getDisplayName() + "§7] §fChantier terminé ! (" + prettyMaterial(task.getBlockType()) + ")";
+        Player assigner = task.getAssignedBy() != null ? Bukkit.getPlayer(task.getAssignedBy()) : null;
+        if (assigner != null && assigner.isOnline()) {
+            assigner.sendMessage(line);
+            assigner.playSound(assigner.getLocation(), Sound.ENTITY_VILLAGER_YES, 1f, 1f);
+        }
+    }
+
+    private Block findNextGap(BuildTask task) {
+        Location a = task.getZoneA();
+        Location b = task.getZoneB();
         World world = a.getWorld();
         int minX = Math.min(a.getBlockX(), b.getBlockX()), maxX = Math.max(a.getBlockX(), b.getBlockX());
         int minY = Math.min(a.getBlockY(), b.getBlockY()), maxY = Math.max(a.getBlockY(), b.getBlockY());
@@ -464,33 +633,124 @@ public class VillagerManager implements Listener {
         return null;
     }
 
-    private int firstUsableResourceSlot(RecruitedVillager rv) {
-        ItemStack[] res = rv.getResources();
-        for (int i = 0; i < res.length; i++) {
-            ItemStack it = res[i];
-            if (it != null && it.getAmount() > 0 && it.getType().isBlock()) return i;
+    /** Cherche le bloc du type voulu le plus proche du villageois, dans sa zone de récolte. */
+    private Block findGatherableBlock(RecruitedVillager rv, Villager v, Material type) {
+        Location a = rv.getGatherZoneA();
+        Location b = rv.getGatherZoneB();
+        if (a == null || b == null) return null;
+        World world = a.getWorld();
+        int minX = Math.min(a.getBlockX(), b.getBlockX()), maxX = Math.max(a.getBlockX(), b.getBlockX());
+        int minY = Math.min(a.getBlockY(), b.getBlockY()), maxY = Math.max(a.getBlockY(), b.getBlockY());
+        int minZ = Math.min(a.getBlockZ(), b.getBlockZ()), maxZ = Math.max(a.getBlockZ(), b.getBlockZ());
+
+        Location vLoc = v.getLocation();
+        Block nearest = null;
+        double best = Double.MAX_VALUE;
+        int maxScan = plugin.getConfig().getInt("villager.max-gather-scan", 4096);
+        int scanned = 0;
+
+        for (int y = maxY; y >= minY; y--) {
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (++scanned > maxScan) return nearest;
+                    Block block = world.getBlockAt(x, y, z);
+                    if (block.getType() != type) continue;
+                    double d = block.getLocation().distanceSquared(vLoc);
+                    if (d < best) { best = d; nearest = block; }
+                }
+            }
         }
-        return -1;
+        return nearest;
+    }
+
+    private int countResource(RecruitedVillager rv, Material type) {
+        int total = 0;
+        for (ItemStack it : rv.getResources()) if (it != null && it.getType() == type) total += it.getAmount();
+        return total;
+    }
+
+    private void addResource(RecruitedVillager rv, Material type, int amount) {
+        ItemStack[] res = rv.getResources();
+        for (ItemStack it : res) {
+            if (amount <= 0) return;
+            if (it != null && it.getType() == type && it.getAmount() < it.getMaxStackSize()) {
+                int add = Math.min(it.getMaxStackSize() - it.getAmount(), amount);
+                it.setAmount(it.getAmount() + add);
+                amount -= add;
+            }
+        }
+        for (int i = 0; i < res.length && amount > 0; i++) {
+            if (res[i] == null) {
+                int stack = Math.min(amount, type.getMaxStackSize());
+                res[i] = new ItemStack(type, stack);
+                amount -= stack;
+            }
+        }
+        // Si amount > 0 ici, la réserve (9 emplacements) est pleine : le surplus est perdu.
+    }
+
+    private void removeResource(RecruitedVillager rv, Material type, int amount) {
+        ItemStack[] res = rv.getResources();
+        for (int i = 0; i < res.length && amount > 0; i++) {
+            ItemStack it = res[i];
+            if (it != null && it.getType() == type) {
+                int take = Math.min(it.getAmount(), amount);
+                it.setAmount(it.getAmount() - take);
+                amount -= take;
+                if (it.getAmount() <= 0) res[i] = null;
+            }
+        }
     }
 
     // ── Guerrier : combat, périmètre, patrouille, suivi ───────────────────────
     private void warriorTick(RecruitedVillager rv, Villager v) {
-        if (rv.getWeapon() == null) return; // pas d'arme = pas de combat
+        boolean canMelee = rv.getWeapon() != null;
+        boolean canArcher = rv.isArcheryMode() && rv.getBow() != null && countArrows(rv) > 0;
+        boolean canFight = canMelee || canArcher;
 
-        LivingEntity target = rv.isCombatEnabled() ? resolveCurrentTarget(rv, v) : null;
-        if (target == null && rv.isCombatEnabled()) {
-            target = findThreat(rv, v);
-            rv.setCurrentTarget(target != null ? target.getUniqueId() : null);
+        LivingEntity target = null;
+        if (canFight && rv.isCombatEnabled()) {
+            target = resolveCurrentTarget(rv, v);
+            if (target == null) {
+                target = findThreat(rv, v);
+                rv.setCurrentTarget(target != null ? target.getUniqueId() : null);
+            }
         }
 
         if (target != null) {
             Location anchor = engagementAnchor(rv);
             double leash = effectiveRadius(rv) * 1.6;
-            if (anchor != null && target.getLocation().distance(anchor) > leash) {
+            if (anchor != null && sameWorld(target.getLocation(), anchor) && target.getLocation().distance(anchor) > leash) {
                 rv.setCurrentTarget(null); // la cible fuit trop loin du périmètre : abandon
                 return;
             }
+            if (!v.getWorld().equals(target.getWorld())) { rv.setCurrentTarget(null); return; }
+
             double dist = v.getLocation().distance(target.getLocation());
+            boolean useArcher = canArcher && countArrows(rv) > 0 && dist > 2.2;
+
+            if (useArcher) {
+                ensureMainHand(v, rv.getBow());
+                double minDist = plugin.getConfig().getDouble("villager.archer-min-distance", 6.0);
+                double maxDist = plugin.getConfig().getDouble("villager.archer-max-distance", 18.0);
+                v.lookAt(target);
+                if (dist < minDist) {
+                    // Trop près : recule pour garder ses distances, en tirant quand même si le cooldown le permet.
+                    Vector away = v.getLocation().toVector().subtract(target.getLocation().toVector());
+                    if (away.lengthSquared() < 1.0E-4) away = new Vector(1, 0, 0);
+                    away.normalize().multiply(4);
+                    v.getPathfinder().moveTo(v.getLocation().add(away), 0.5);
+                    tryShoot(rv, v, target);
+                } else if (dist <= maxDist) {
+                    tryShoot(rv, v, target);
+                } else {
+                    v.getPathfinder().moveTo(target, 0.6);
+                }
+                return;
+            }
+
+            // Mode corps-à-corps : épée si équipée, sinon mains nues.
+            ensureMainHand(v, rv.getWeapon());
             if (dist > 2.2) {
                 v.getPathfinder().moveTo(target, 0.6);
                 v.lookAt(target);
@@ -506,12 +766,11 @@ public class VillagerManager implements Listener {
             return;
         }
 
-        // Pas de cible : suivre le joueur assigné, sinon patrouiller, sinon tenir le poste
+        // Pas de cible : suivre le joueur assigné, sinon patrouiller, sinon rejoindre/tenir le poste
         if (rv.getFollowTarget() != null) {
             Player followed = Bukkit.getPlayer(rv.getFollowTarget());
-            if (followed != null && followed.isOnline() && followed.getWorld().equals(v.getWorld())) {
-                double d = v.getLocation().distance(followed.getLocation());
-                if (d > 3.5) v.getPathfinder().moveTo(followed.getLocation(), 0.6);
+            if (followed != null && followed.isOnline()) {
+                approach(v, followed.getLocation(), 3.5, 0.6, "villager.follow-teleport-distance", 50.0);
                 return;
             }
         }
@@ -520,17 +779,103 @@ public class VillagerManager implements Listener {
             List<Location> points = rv.getPatrolPoints();
             int idx = rv.getPatrolIndex() % points.size();
             Location wp = points.get(idx);
-            if (v.getLocation().distance(wp) <= 2.0) {
+            if (sameWorld(v.getLocation(), wp) && v.getLocation().distance(wp) <= 2.0) {
                 rv.setPatrolIndex((idx + 1) % points.size());
             } else {
-                v.getPathfinder().moveTo(wp, 0.4);
+                approach(v, wp, 2.0, 0.4, "villager.task-teleport-distance", 64.0);
             }
             return;
         }
 
-        if (rv.getPostLocation() != null && v.getLocation().distance(rv.getPostLocation()) > 4.0) {
-            v.getPathfinder().moveTo(rv.getPostLocation(), 0.4);
+        if (rv.getPostLocation() != null) {
+            approach(v, rv.getPostLocation(), 4.0, 0.4, "villager.post-teleport-distance", 64.0);
         }
+    }
+
+    private void ensureMainHand(Villager v, ItemStack item) {
+        EntityEquipment eq = v.getEquipment();
+        if (eq != null) eq.setItemInMainHand(item);
+    }
+
+    private void tryShoot(RecruitedVillager rv, Villager v, LivingEntity target) {
+        long now = System.currentTimeMillis();
+        long cooldown = plugin.getConfig().getLong("villager.archer-cooldown-ms", 1500L);
+        if (now - rv.getLastActionTick() < cooldown) return;
+
+        Location eye = v.getEyeLocation();
+        Vector dir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
+        Arrow arrow = v.getWorld().spawnArrow(eye, dir, 2.2f, 8.0f);
+        arrow.setShooter(v);
+        arrow.setDamage(plugin.getConfig().getDouble("villager.archer-damage", 3.0));
+        v.swingMainHand();
+        v.getWorld().playSound(v.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1f, 1f);
+        rv.setLastActionTick(now);
+        consumeArrow(rv);
+    }
+
+    private int countArrows(RecruitedVillager rv) {
+        ItemStack a = rv.getArrows();
+        return a != null ? a.getAmount() : 0;
+    }
+
+    private void consumeArrow(RecruitedVillager rv) {
+        ItemStack a = rv.getArrows();
+        if (a == null) return;
+        int amount = a.getAmount() - 1;
+        if (amount <= 0) rv.setArrows(null);
+        else a.setAmount(amount);
+    }
+
+    /**
+     * Déplace un villageois vers une destination, où qu'elle soit sur la carte :
+     * pathfinding normal si elle est raisonnablement proche, téléportation de
+     * rattrapage sinon (ou si elle est dans un autre monde) pour ne jamais le
+     * laisser bloqué loin de sa tâche.
+     */
+    private void approach(Villager v, Location dest, double arriveDistance, double speed,
+                           String teleportConfigKey, double teleportDefault) {
+        if (!v.getWorld().equals(dest.getWorld())) {
+            safeTeleportNear(v, dest);
+            return;
+        }
+        double dist = v.getLocation().distance(dest);
+        double teleportDist = plugin.getConfig().getDouble(teleportConfigKey, teleportDefault);
+        if (dist > teleportDist) {
+            safeTeleportNear(v, dest);
+        } else if (dist > arriveDistance) {
+            v.getPathfinder().moveTo(dest, speed);
+        }
+    }
+
+    /**
+     * Variante de {@link #approach} pour une action qui nécessite d'être arrivé :
+     * renvoie true si le villageois est déjà à portée (l'appelant peut agir),
+     * false s'il vient de se mettre en mouvement / de se téléporter (réessayer au tick suivant).
+     */
+    private boolean approachForAction(Villager v, Location dest, double arriveDistance, double speed,
+                                       String teleportConfigKey, double teleportDefault) {
+        if (!v.getWorld().equals(dest.getWorld())) {
+            safeTeleportNear(v, dest);
+            return false;
+        }
+        double dist = v.getLocation().distance(dest);
+        if (dist <= arriveDistance) return true;
+        double teleportDist = plugin.getConfig().getDouble(teleportConfigKey, teleportDefault);
+        if (dist > teleportDist) safeTeleportNear(v, dest);
+        else v.getPathfinder().moveTo(dest, speed);
+        return false;
+    }
+
+    /** Téléportation de secours proche d'une destination lointaine, en évitant de l'encastrer sous terre. */
+    private void safeTeleportNear(Villager v, Location dest) {
+        Location target = dest.clone();
+        target.setYaw(v.getLocation().getYaw());
+        target.setPitch(0f);
+        v.teleport(target);
+    }
+
+    private boolean sameWorld(Location a, Location b) {
+        return a.getWorld() != null && a.getWorld().equals(b.getWorld());
     }
 
     /** Centre utilisé pour le calcul du périmètre : le joueur suivi si présent, sinon le poste. */
@@ -721,11 +1066,26 @@ public class VillagerManager implements Listener {
             if (rv.getChestplate() != null) cfg.set(key + ".equip.chestplate", rv.getChestplate());
             if (rv.getLeggings() != null)   cfg.set(key + ".equip.leggings", rv.getLeggings());
             if (rv.getBoots() != null)      cfg.set(key + ".equip.boots", rv.getBoots());
+            if (rv.getBow() != null)        cfg.set(key + ".equip.bow", rv.getBow());
+            if (rv.getArrows() != null)     cfg.set(key + ".equip.arrows", rv.getArrows());
+            cfg.set(key + ".archeryMode", rv.isArcheryMode());
             if (rv.getFood() != null)       cfg.set(key + ".food", rv.getFood());
 
-            if (rv.hasZone()) {
-                cfg.set(key + ".zoneA", locToString(rv.getZoneA()));
-                cfg.set(key + ".zoneB", locToString(rv.getZoneB()));
+            if (!rv.getTaskQueue().isEmpty()) {
+                int idx = 0;
+                for (BuildTask task : rv.getTaskQueue()) {
+                    String tKey = key + ".tasks." + idx;
+                    cfg.set(tKey + ".zoneA", locToString(task.getZoneA()));
+                    cfg.set(tKey + ".zoneB", locToString(task.getZoneB()));
+                    cfg.set(tKey + ".blockType", task.getBlockType().name());
+                    if (task.getAssignedBy() != null) cfg.set(tKey + ".assignedBy", task.getAssignedBy().toString());
+                    if (task.getAssignedByName() != null) cfg.set(tKey + ".assignedByName", task.getAssignedByName());
+                    idx++;
+                }
+            }
+            if (rv.hasGatherZone()) {
+                cfg.set(key + ".gatherA", locToString(rv.getGatherZoneA()));
+                cfg.set(key + ".gatherB", locToString(rv.getGatherZoneB()));
             }
 
             if (rv.getPostLocation() != null) cfg.set(key + ".post", locToString(rv.getPostLocation()));
@@ -765,12 +1125,39 @@ public class VillagerManager implements Listener {
             if (cfg.contains(path + ".equip.chestplate")) rv.setChestplate(cfg.getItemStack(path + ".equip.chestplate"));
             if (cfg.contains(path + ".equip.leggings"))   rv.setLeggings(cfg.getItemStack(path + ".equip.leggings"));
             if (cfg.contains(path + ".equip.boots"))      rv.setBoots(cfg.getItemStack(path + ".equip.boots"));
+            if (cfg.contains(path + ".equip.bow"))        rv.setBow(cfg.getItemStack(path + ".equip.bow"));
+            if (cfg.contains(path + ".equip.arrows"))     rv.setArrows(cfg.getItemStack(path + ".equip.arrows"));
+            rv.setArcheryMode(cfg.getBoolean(path + ".archeryMode", false));
             if (cfg.contains(path + ".food"))             rv.setFood(cfg.getItemStack(path + ".food"));
 
-            if (cfg.contains(path + ".zoneA") && cfg.contains(path + ".zoneB")) {
-                Location a = stringToLoc(cfg.getString(path + ".zoneA"));
-                Location b = stringToLoc(cfg.getString(path + ".zoneB"));
-                if (a != null && b != null) { rv.setZoneA(a); rv.setZoneB(b); }
+            if (cfg.contains(path + ".tasks")) {
+                var tasksSection = cfg.getConfigurationSection(path + ".tasks");
+                if (tasksSection != null) {
+                    List<String> indices = new ArrayList<>(tasksSection.getKeys(false));
+                    indices.sort((s1, s2) -> {
+                        try { return Integer.compare(Integer.parseInt(s1), Integer.parseInt(s2)); }
+                        catch (NumberFormatException e) { return s1.compareTo(s2); }
+                    });
+                    for (String idxKey : indices) {
+                        String tKey = path + ".tasks." + idxKey;
+                        Location ta = stringToLoc(cfg.getString(tKey + ".zoneA"));
+                        Location tb = stringToLoc(cfg.getString(tKey + ".zoneB"));
+                        String matName = cfg.getString(tKey + ".blockType");
+                        if (ta == null || tb == null || matName == null) continue;
+                        Material mat;
+                        try { mat = Material.valueOf(matName); } catch (IllegalArgumentException e) { continue; }
+                        UUID assignedBy = null;
+                        String assignedByStr = cfg.getString(tKey + ".assignedBy");
+                        if (assignedByStr != null) { try { assignedBy = UUID.fromString(assignedByStr); } catch (Exception ignored) {} }
+                        String assignedByName = cfg.getString(tKey + ".assignedByName");
+                        rv.getTaskQueue().add(new BuildTask(ta, tb, mat, assignedBy, assignedByName));
+                    }
+                }
+            }
+            if (cfg.contains(path + ".gatherA") && cfg.contains(path + ".gatherB")) {
+                Location ga = stringToLoc(cfg.getString(path + ".gatherA"));
+                Location gb = stringToLoc(cfg.getString(path + ".gatherB"));
+                if (ga != null && gb != null) { rv.setGatherZoneA(ga); rv.setGatherZoneB(gb); }
             }
 
             if (cfg.contains(path + ".post")) rv.setPostLocation(stringToLoc(cfg.getString(path + ".post")));
