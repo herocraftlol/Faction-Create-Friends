@@ -50,21 +50,21 @@ public class FactionMapRenderer extends MapRenderer {
 
     // ── Couleurs MapPalette ───────────────────────────────────────────────────────
     // MapPalette.getColor() retourne l'index de la couleur la plus proche
-    private static final byte C_SELF_A   = mapColor(java.awt.Color.WHITE);
-    private static final byte C_SELF_B   = mapColor(new java.awt.Color(180, 180, 180));
-    private static final byte C_MEMBER   = mapColor(new java.awt.Color(0x00, 0xFF, 0x55));
-    private static final byte C_ALLY     = mapColor(new java.awt.Color(0xFF, 0xD7, 0x00));
-    private static final byte C_SPAWN    = mapColor(new java.awt.Color(0xFF, 0x44, 0x44));
-    private static final byte C_HOME     = mapColor(new java.awt.Color(0x88, 0xFF, 0xFF));
-    private static final byte C_WATER    = mapColor(new java.awt.Color(0x3D, 0x6B, 0xB5));
-    private static final byte C_GRASS    = mapColor(new java.awt.Color(0x55, 0x9A, 0x25));
-    private static final byte C_FOREST   = mapColor(new java.awt.Color(0x2D, 0x62, 0x10));
-    private static final byte C_MOUNTAIN = mapColor(new java.awt.Color(0x88, 0x88, 0x88));
-    private static final byte C_SAND     = mapColor(new java.awt.Color(0xDB, 0xD2, 0x8A));
-    private static final byte C_SNOW     = mapColor(new java.awt.Color(0xEE, 0xEE, 0xEE));
-    private static final byte C_NETHER   = mapColor(new java.awt.Color(0x6E, 0x1A, 0x10));
-    private static final byte C_VOID     = mapColor(new java.awt.Color(0x10, 0x0A, 0x1A));
-    private static final byte C_BORDER   = mapColor(new java.awt.Color(0x33, 0x33, 0x33));
+    private static final byte C_SELF_A   = mapColor(Color.WHITE);
+    private static final byte C_SELF_B   = mapColor(Color.fromRGB(180, 180, 180));
+    private static final byte C_MEMBER   = mapColor(Color.fromRGB(0x00, 0xFF, 0x55));
+    private static final byte C_ALLY     = mapColor(Color.fromRGB(0xFF, 0xD7, 0x00));
+    private static final byte C_SPAWN    = mapColor(Color.fromRGB(0xFF, 0x44, 0x44));
+    private static final byte C_HOME     = mapColor(Color.fromRGB(0x88, 0xFF, 0xFF));
+    private static final byte C_WATER    = mapColor(Color.fromRGB(0x3D, 0x6B, 0xB5));
+    private static final byte C_GRASS    = mapColor(Color.fromRGB(0x55, 0x9A, 0x25));
+    private static final byte C_FOREST   = mapColor(Color.fromRGB(0x2D, 0x62, 0x10));
+    private static final byte C_MOUNTAIN = mapColor(Color.fromRGB(0x88, 0x88, 0x88));
+    private static final byte C_SAND     = mapColor(Color.fromRGB(0xDB, 0xD2, 0x8A));
+    private static final byte C_SNOW     = mapColor(Color.fromRGB(0xEE, 0xEE, 0xEE));
+    private static final byte C_NETHER   = mapColor(Color.fromRGB(0x6E, 0x1A, 0x10));
+    private static final byte C_VOID     = mapColor(Color.fromRGB(0x10, 0x0A, 0x1A));
+    private static final byte C_BORDER   = mapColor(Color.fromRGB(0x33, 0x33, 0x33));
 
     // ── État ─────────────────────────────────────────────────────────────────────
     private final FactionManager factionManager;
@@ -277,7 +277,7 @@ public class FactionMapRenderer extends MapRenderer {
 
     /** Convertit une couleur Bukkit Color en index de palette MapPalette */
     @SuppressWarnings("deprecation")
-    private static byte mapColor(java.awt.Color color) {
-        return MapPalette.matchColor(color);
+    private static byte mapColor(Color color) {
+        return MapPalette.matchColor(color.getRed(), color.getGreen(), color.getBlue());
     }
 }

@@ -239,7 +239,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
             // ── Villageois recrutés v5.9 ─────────────────────────────────────
             case "recruter"                  -> handleRecruter(player);
-            case "villageois", "villagers"    -> handleVillageois(player);
+            case "villageois", "villagers"    -> handleVillageois(player, args);
 
             default                          -> sendHelp(player);
         }
@@ -1690,7 +1690,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void handleVillageois(Player player) {
+    private void handleVillageois(Player player, String[] args) {
+        if (villagerManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
+        if (args.length >= 2 && (args[1].equalsIgnoreCase("ranger") || args[1].equalsIgnoreCase("formation"))) {
+            villagerManager.formation(player);
+            return;
+        }
         if (villagerGUI == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
         villagerGUI.openList(player);
     }
@@ -1760,6 +1765,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "— Villageois recrutés —");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction recruter            " + ChatColor.GRAY + "Recruter le villageois visé (chef/sous-chef)");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction villageois          " + ChatColor.GRAY + "Gérer tes villageois recrutés (GUI)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction villageois ranger   " + ChatColor.GRAY + "Aligner tes villageois proches devant toi");
         player.sendMessage(ChatColor.GRAY + "— TP joueur —");
         player.sendMessage(ChatColor.AQUA + "/faction tpa <joueur>        " + ChatColor.GRAY + "Demande de TP vers un joueur");
         player.sendMessage(ChatColor.AQUA + "/faction tpaccept            " + ChatColor.GRAY + "Accepter une demande de TP");
@@ -1844,6 +1850,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                                 .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                                 .collect(Collectors.toList());
                 case "souschef", "subchief" -> Arrays.asList("promouvoir","retirer","liste","limite").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "villageois", "villagers" -> Arrays.asList("ranger","formation").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "classementjoueurs", "cj" -> STATS_CATEGORIES.stream()

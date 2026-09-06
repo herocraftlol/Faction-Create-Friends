@@ -3,6 +3,8 @@ package fr.faction.villager;
 import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -32,6 +34,17 @@ public class RecruitedVillager {
     private ItemStack leggings;
     private ItemStack boots;
 
+    /** Poste central du guerrier : sert de centre au périmètre de défense et à la patrouille. */
+    private Location postLocation;
+    /** Rayon (en blocs) autour du poste dans lequel il engage le combat. */
+    private double defenseRadius = 16.0;
+    /** Points de ronde, parcourus en boucle quand il n'a ni cible ni joueur à suivre. */
+    private final List<Location> patrolPoints = new ArrayList<>();
+    /** Si false, il n'engage plus le combat (ni attaque, ni auto-défense) jusqu'à réactivation. */
+    private boolean combatEnabled = true;
+    /** Joueur qu'il doit suivre et défendre en priorité (null = ne suit personne). */
+    private UUID followTarget;
+
     // ── Commun ───────────────────────────────────────────────────────────────
     /** Nourriture donnée par les joueurs, consommée automatiquement pour soigner. */
     private ItemStack food;
@@ -40,6 +53,7 @@ public class RecruitedVillager {
     private transient UUID currentTarget;
     private transient long lastActionTick;
     private transient int buildScanCursor;
+    private transient int patrolIndex;
 
     public RecruitedVillager(UUID entityId, String factionName) {
         this.entityId = entityId;
@@ -78,6 +92,17 @@ public class RecruitedVillager {
     public ItemStack getBoots()               { return boots; }
     public void setBoots(ItemStack i)         { this.boots = i; }
 
+    public Location getPostLocation()         { return postLocation; }
+    public void setPostLocation(Location l)   { this.postLocation = l; }
+    public double getDefenseRadius()          { return defenseRadius; }
+    public void setDefenseRadius(double r)    { this.defenseRadius = r; }
+    public List<Location> getPatrolPoints()   { return patrolPoints; }
+    public void setPatrolPoints(List<Location> pts) { this.patrolPoints.clear(); if (pts != null) this.patrolPoints.addAll(pts); }
+    public boolean isCombatEnabled()          { return combatEnabled; }
+    public void setCombatEnabled(boolean b)   { this.combatEnabled = b; }
+    public UUID getFollowTarget()             { return followTarget; }
+    public void setFollowTarget(UUID u)       { this.followTarget = u; }
+
     public ItemStack getFood()                { return food; }
     public void setFood(ItemStack i)          { this.food = i; }
 
@@ -87,4 +112,6 @@ public class RecruitedVillager {
     public void setLastActionTick(long t)     { this.lastActionTick = t; }
     public int getBuildScanCursor()           { return buildScanCursor; }
     public void setBuildScanCursor(int c)     { this.buildScanCursor = c; }
+    public int getPatrolIndex()               { return patrolIndex; }
+    public void setPatrolIndex(int i)         { this.patrolIndex = i; }
 }
