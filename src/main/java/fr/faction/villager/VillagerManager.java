@@ -3,6 +3,8 @@ package fr.faction.villager;
 import fr.faction.claim.ClaimManager;
 import fr.faction.managers.FactionManager;
 import fr.faction.models.Faction;
+import fr.faction.power.FactionPowerManager;
+import fr.faction.ranking.FactionRank;
 import fr.faction.util.MobUtils;
 import fr.faction.war.WarManager;
 import fr.faction.war.WarSession;
@@ -42,11 +44,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -63,10 +63,11 @@ public class VillagerManager implements Listener {
     private final FactionManager factionManager;
     private ClaimManager claimManager;
     private WarManager warManager;
+    private FactionPowerManager powerManager;
 
     private final Map<UUID, RecruitedVillager> villagers = new HashMap<>();
     private final Map<UUID, PendingSelection> pendingSelections = new HashMap<>();
-    private final Set<UUID> sleepingVillagers = new HashSet<>();
+    private final Map<UUID, UUID> lastDamagedBy = new HashMap<>(); // victime -> villageois recruté qui l'a frappée en dernier
     private final File dataFile;
 
     public VillagerManager(JavaPlugin plugin, FactionManager factionManager) {
@@ -78,6 +79,7 @@ public class VillagerManager implements Listener {
 
     public void setClaimManager(ClaimManager claimManager) { this.claimManager = claimManager; }
     public void setWarManager(WarManager warManager)       { this.warManager = warManager; }
+    public void setPowerManager(FactionPowerManager pm)    { this.powerManager = pm; }
 
     public void start() {
         long interval = plugin.getConfig().getLong("villager.tick-interval", 20L);
@@ -153,13 +155,77 @@ public class VillagerManager implements Listener {
         if (e instanceof Villager v) applyVisuals(rv, v);
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // NIVEAUX & EXPÉRIENCE (5 niveaux, de plus en plus durs à atteindre)
+    // ════════════════════════════════════════════════════════════════════════
+
+    private static final int MAX_LEVEL = 5;
+    /** XP total cumulé requis pour être au niveau (index + 1). */
+    private static final int[] XP_THRESHOLDS = {0, 50, 150, 350, 700};
+    /** Blocs posés/récoltés par passage d'IA selon le niveau (index = niveau - 1). */
+    private static final int[] BLOCKS_PER_ACTION = {1, 1, 2, 2, 3};
+
+    private void addXp(RecruitedVillager rv, int amount) {
+        if (amount <= 0 || rv.getLevel() >= MAX_LEVEL) return;
+        rv.setXp(rv.getXp() + amount);
+        int newLevel = computeLevelForXp(rv.getXp());
+        if (newLevel > rv.getLevel()) {
+            rv.setLevel(newLevel);
+            onLevelUp(rv);
+        } else {
+            save();
+        }
+    }
+
+    private int computeLevelForXp(int xp) {
+        int lvl = 1;
+        for (int i = 1; i < XP_THRESHOLDS.length; i++) if (xp >= XP_THRESHOLDS[i]) lvl = i + 1;
+        return Math.min(lvl, MAX_LEVEL);
+    }
+
+    private void onLevelUp(RecruitedVillager rv) {
+        Entity e = Bukkit.getEntity(rv.getEntityId());
+        if (e instanceof Villager v) {
+            applyMaxHealthForLevel(rv, v);
+            v.setHealth(getMaxHealth(v)); // la montée de niveau soigne entièrement
+            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+            applyVisuals(rv, v); // rafraîchit le "Nv.X" dans le nom
+        }
+        save();
+        notifyFaction(rv.getFactionName(), "§7[§e" + rv.getDisplayName() + "§7] §fJe suis maintenant §a"
+                + (rv.getLevel() >= MAX_LEVEL ? "niveau max (" + MAX_LEVEL + ")" : "niveau " + rv.getLevel()) + " §f!");
+    }
+
+    private void applyMaxHealthForLevel(RecruitedVillager rv, Villager v) {
+        try {
+            var attr = v.getAttribute(Attribute.MAX_HEALTH);
+            if (attr != null) {
+                double bonus = (rv.getLevel() - 1) * plugin.getConfig().getDouble("villager.health-per-level", 4.0);
+                attr.setBaseValue(20.0 + bonus);
+            }
+        } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
+    }
+
+    private int blocksPerAction(RecruitedVillager rv) {
+        int idx = Math.max(1, Math.min(rv.getLevel(), MAX_LEVEL)) - 1;
+        return BLOCKS_PER_ACTION[idx];
+    }
+
+    private double buildSpeed(RecruitedVillager rv) { return 0.5 + (rv.getLevel() - 1) * 0.05; }
+    private double gatherSpeed(RecruitedVillager rv) { return 0.5 + (rv.getLevel() - 1) * 0.05; }
+
     private void applyVisuals(RecruitedVillager rv, Villager v) {
         String roleTag = switch (rv.getRole()) {
             case CONSTRUCTEUR -> "§b[Constructeur]";
             case GUERRIER -> "§c[Guerrier]";
             default -> "§7[Recrue]";
         };
-        v.setCustomName(ChatColor.YELLOW + rv.getDisplayName() + " " + roleTag);
+        String factionTag = "";
+        if (powerManager != null) {
+            FactionRank rank = powerManager.getFactionRank(rv.getFactionName());
+            factionTag = " " + rank.couleur + rank.icone + " " + rv.getFactionName();
+        }
+        v.setCustomName(ChatColor.YELLOW + rv.getDisplayName() + " §7Nv." + rv.getLevel() + " " + roleTag + factionTag);
         v.setCustomNameVisible(true);
         v.setPersistent(true);
         v.setRemoveWhenFarAway(false);
@@ -177,6 +243,8 @@ public class VillagerManager implements Listener {
             if (followAttr != null) followAttr.setBaseValue(64.0);
         } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
 
+        applyMaxHealthForLevel(rv, v);
+
         EntityEquipment eq = v.getEquipment();
         if (eq != null) {
             if (rv.getRole() == VillagerRole.GUERRIER) {
@@ -193,6 +261,13 @@ public class VillagerManager implements Listener {
                 eq.setLeggings(null);
                 eq.setBoots(null);
             }
+            // On gère nous-mêmes le drop complet à la mort (voir onDeath) : la mécanique
+            // vanille de "chance de drop d'équipement" est désactivée pour éviter les doublons.
+            eq.setItemInMainHandDropChance(0f);
+            eq.setHelmetDropChance(0f);
+            eq.setChestplateDropChance(0f);
+            eq.setLeggingsDropChance(0f);
+            eq.setBootsDropChance(0f);
         }
     }
 
@@ -296,11 +371,16 @@ public class VillagerManager implements Listener {
         save();
     }
 
+    public void clearRallyPoint(RecruitedVillager rv) {
+        rv.setRallyPoint(null);
+        save();
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // SÉLECTION DE ZONE / PATROUILLE (clics dans le monde)
     // ════════════════════════════════════════════════════════════════════════
 
-    private enum SelectionType { TASK_ZONE, GATHER_ZONE, PATROL, GROUP_POST, GROUP_TASK_ZONE }
+    private enum SelectionType { TASK_ZONE, GATHER_ZONE, PATROL, GROUP_POST, GROUP_TASK_ZONE, RALLY, GROUP_RALLY }
 
     private static class PendingSelection {
         UUID villagerId;          // null pour les sélections de groupe
@@ -341,6 +421,21 @@ public class VillagerManager implements Listener {
         player.sendMessage(prefix() + "§eClique-droit à l'endroit du poste commun §7(" + guerrierIds.size() + " guerrier(s))§e.");
     }
 
+    /** Point de rassemblement individuel : là où ce villageois retourne une fois "libre". */
+    public void startRallyPointSelection(Player player, RecruitedVillager rv) {
+        pendingSelections.put(player.getUniqueId(), new PendingSelection(rv.getEntityId(), SelectionType.RALLY));
+        player.sendMessage(prefix() + "§eClique-droit à l'endroit du point de rassemblement.");
+    }
+
+    /** Assigne le même point de rassemblement à plusieurs villageois (guerriers ET/OU constructeurs) à la fois. */
+    public void startGroupRallyPointSelection(Player player, List<UUID> villagerIds) {
+        PendingSelection sel = new PendingSelection(null, SelectionType.GROUP_RALLY);
+        sel.groupIds = villagerIds;
+        pendingSelections.put(player.getUniqueId(), sel);
+        player.sendMessage(prefix() + "§eClique-droit à l'endroit du rassemblement commun §7("
+                + villagerIds.size() + " villageois)§e.");
+    }
+
     /** Assigne le même chantier (zone + type de bloc) à plusieurs constructeurs à la fois. */
     public void startGroupTaskZoneSelection(Player player, List<UUID> builderIds, Material blockType) {
         PendingSelection sel = new PendingSelection(null, SelectionType.GROUP_TASK_ZONE);
@@ -367,6 +462,19 @@ public class VillagerManager implements Listener {
 
         if (sel.type == SelectionType.GROUP_POST) {
             handleGroupPostClick(player, sel, loc);
+            return;
+        }
+        if (sel.type == SelectionType.GROUP_RALLY) {
+            handleGroupRallyClick(player, sel, loc);
+            return;
+        }
+        if (sel.type == SelectionType.RALLY) {
+            pendingSelections.remove(player.getUniqueId());
+            RecruitedVillager rv = villagers.get(sel.villagerId);
+            if (rv == null) return;
+            rv.setRallyPoint(loc.clone());
+            save();
+            player.sendMessage(prefix() + "§a✔ Point de rassemblement défini pour §e" + rv.getDisplayName() + "§a.");
             return;
         }
 
@@ -449,6 +557,17 @@ public class VillagerManager implements Listener {
         player.sendMessage(prefix() + "§a✔ Poste commun défini pour §e" + count + " guerrier(s)§a.");
     }
 
+    private void handleGroupRallyClick(Player player, PendingSelection sel, Location loc) {
+        pendingSelections.remove(player.getUniqueId());
+        int count = 0;
+        for (UUID id : sel.groupIds) {
+            RecruitedVillager rv = villagers.get(id);
+            if (rv != null) { rv.setRallyPoint(loc.clone()); count++; }
+        }
+        save();
+        player.sendMessage(prefix() + "§a✔ Point de rassemblement commun défini pour §e" + count + " villageois§a.");
+    }
+
     private void handlePatrolClick(Player player, RecruitedVillager rv, PendingSelection sel, Location loc, boolean finish) {
         sel.points.add(loc);
         int max = plugin.getConfig().getInt("villager.max-patrol-points", 10);
@@ -485,7 +604,7 @@ public class VillagerManager implements Listener {
             Entity e = Bukkit.getEntity(rv.getEntityId());
             if (!(e instanceof Villager v) || v.isDead()) continue;
             feedTick(rv, v);
-            handleSleepTransition(rv, v);
+            sleepTick(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
@@ -494,32 +613,28 @@ public class VillagerManager implements Listener {
         }
     }
 
-    /** Démarre le soin au lit quand le villageois s'endort, l'arrête s'il se réveille. */
-    private void handleSleepTransition(RecruitedVillager rv, Villager v) {
-        UUID id = rv.getEntityId();
-        if (v.isSleeping()) {
-            if (sleepingVillagers.add(id)) {
-                onSleep(rv);
-            }
-        } else {
-            sleepingVillagers.remove(id);
-        }
-    }
-
     private void feedTick(RecruitedVillager rv, Villager v) {
         ItemStack food = rv.getFood();
-        if (food == null || food.getAmount() <= 0) return;
-
         double max = getMaxHealth(v);
         if (v.getHealth() >= max) return;
 
-        double healAmount = plugin.getConfig().getDouble("villager.heal-per-food", 4.0);
-        v.setHealth(Math.min(max, v.getHealth() + healAmount));
-        v.getWorld().playSound(v.getLocation(), Sound.ENTITY_GENERIC_EAT, 1f, 1f);
+        if (food != null && food.getAmount() > 0) {
+            double healAmount = plugin.getConfig().getDouble("villager.heal-per-food", 4.0);
+            v.setHealth(Math.min(max, v.getHealth() + healAmount));
+            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_GENERIC_EAT, 1f, 1f);
 
-        int newAmount = food.getAmount() - 1;
-        if (newAmount <= 0) rv.setFood(null);
-        else food.setAmount(newAmount);
+            int newAmount = food.getAmount() - 1;
+            if (newAmount <= 0) rv.setFood(null);
+            else food.setAmount(newAmount);
+            return;
+        }
+
+        // Pas de nourriture donnée : à haut niveau, le constructeur se débrouille seul.
+        int selfFeedLevel = plugin.getConfig().getInt("villager.self-feed-level", 5);
+        if (rv.getRole() == VillagerRole.CONSTRUCTEUR && rv.getLevel() >= selfFeedLevel) {
+            double selfHeal = plugin.getConfig().getDouble("villager.self-feed-heal", 1.0);
+            v.setHealth(Math.min(max, v.getHealth() + selfHeal));
+        }
     }
 
     private double getMaxHealth(Villager v) {
@@ -535,37 +650,47 @@ public class VillagerManager implements Listener {
     // SOIN EN DORMANT DANS UN LIT
     // ════════════════════════════════════════════════════════════════════════
 
-    /** Starts the scheduled sleep-healing effect when the villager enters a bed. */
-    private void onSleep(RecruitedVillager rv) {
-        startSleepHealing(rv);
-    }
+    /** Compteur de ticks de soin par villageois — pour ne pas soigner en boucle s'il dort toute la nuit. */
+    private final Map<UUID, Integer> sleepHealCount = new java.util.HashMap<>();
 
-    /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
-    private void startSleepHealing(RecruitedVillager rv) {
-        double healAmount = plugin.getConfig().getDouble("villager.heal-per-sleep-tick", 2.0);
-        int maxTicks = plugin.getConfig().getInt("villager.sleep-heal-ticks", 8);
-        long period = plugin.getConfig().getLong("villager.sleep-heal-period", 60L);
+    /** Détection par polling (EntitySleepEvent n'existe pas en Paper 1.21) : à chaque tick d'IA,
+     *  on vérifie si le villageois dort, et on lance / continue le soin le cas échéant. */
+    private void sleepTick(RecruitedVillager rv, Villager v) {
+        UUID id = rv.getEntityId();
+        if (v.isSleeping()) {
+            int maxTicks = plugin.getConfig().getInt("villager.sleep-heal-ticks", 8);
+            int done = sleepHealCount.getOrDefault(id, 0);
+            if (done >= maxTicks) return;
 
-        new BukkitRunnable() {
-            int done = 0;
-            @Override public void run() {
-                Entity e = Bukkit.getEntity(rv.getEntityId());
-                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
-                double max = getMaxHealth(v);
-                if (v.getHealth() < max) {
-                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
-                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
-                }
-                if (++done >= maxTicks) cancel();
+            double healAmount = plugin.getConfig().getDouble("villager.heal-per-sleep-tick", 2.0);
+            double max = getMaxHealth(v);
+            if (v.getHealth() < max) {
+                v.setHealth(Math.min(max, v.getHealth() + healAmount));
+                v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
             }
-        }.runTaskTimer(plugin, period, period);
+            sleepHealCount.put(id, done + 1);
+        } else {
+            // réveillé : on réinitialise pour le prochain cycle de sommeil
+            if (sleepHealCount.containsKey(id)) sleepHealCount.remove(id);
+        }
     }
 
     // ── Constructeur : traite le chantier en tête de file, récolte si besoin ──
     private void builderTick(RecruitedVillager rv, Villager v) {
-        BuildTask task = rv.getCurrentTask();
-        if (task == null) return; // aucun chantier en file
+        int actions = blocksPerAction(rv);
+        for (int i = 0; i < actions; i++) {
+            BuildTask task = rv.getCurrentTask();
+            if (task == null) {
+                // Plus de chantier en file : direction le point de rassemblement s'il est défini.
+                if (rv.getRallyPoint() != null) approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+                return;
+            }
+            if (!builderAction(rv, v, task)) return; // en attente de trajet / plus de ressources : on retente au tick suivant
+        }
+    }
 
+    /** Une "action" = un aller-miner OU une pose de bloc. Renvoie false si rien n'a pu être fait ce passage. */
+    private boolean builderAction(RecruitedVillager rv, Villager v, BuildTask task) {
         Material needed = task.getBlockType();
         int have = countResource(rv, needed);
         int gatherThreshold = plugin.getConfig().getInt("villager.gather-batch-size", 8);
@@ -574,33 +699,37 @@ public class VillagerManager implements Listener {
             Block ore = findGatherableBlock(rv, v, needed);
             if (ore != null) {
                 Location oreLoc = ore.getLocation().add(0.5, 0, 0.5);
-                if (!approachForAction(v, oreLoc, 3.2, 0.5, "villager.task-teleport-distance", 64.0)) return;
+                if (!approachForAction(v, oreLoc, 3.2, gatherSpeed(rv), "villager.task-teleport-distance", 64.0)) return false;
                 ore.setType(Material.AIR);
                 addResource(rv, needed, 1);
                 v.getWorld().playSound(ore.getLocation(), Sound.ENTITY_VILLAGER_WORK_MASON, 1f, 1f);
-                return;
+                addXp(rv, plugin.getConfig().getInt("villager.xp-per-gather", 1));
+                return true;
             }
             // La zone de récolte n'a plus ce type de bloc : on continue avec le stock actuel.
         }
 
-        if (have <= 0) return; // plus de ressources et rien à récolter
+        if (have <= 0) return false; // plus de ressources et rien à récolter
 
         Block gap = findNextGap(task);
         if (gap == null) {
             completeTask(rv, v, task);
-            return;
+            return false;
         }
 
         Location targetLoc = gap.getLocation().add(0.5, 0, 0.5);
-        if (!approachForAction(v, targetLoc, 3.2, 0.5, "villager.task-teleport-distance", 64.0)) return;
+        if (!approachForAction(v, targetLoc, 3.2, buildSpeed(rv), "villager.task-teleport-distance", 64.0)) return false;
 
         gap.setType(needed);
         v.getWorld().playSound(gap.getLocation(), Sound.ENTITY_VILLAGER_WORK_MASON, 1f, 1f);
         removeResource(rv, needed, 1);
+        addXp(rv, plugin.getConfig().getInt("villager.xp-per-block", 2));
+        return true;
     }
 
     private void completeTask(RecruitedVillager rv, Villager v, BuildTask task) {
         rv.getTaskQueue().poll(); // retire le chantier terminé, le suivant devient actif
+        addXp(rv, plugin.getConfig().getInt("villager.xp-per-task", 20));
         save();
 
         String line = "§7[§e" + rv.getDisplayName() + "§7] §fChantier terminé ! (" + prettyMaterial(task.getBlockType()) + ")";
@@ -761,12 +890,14 @@ public class VillagerManager implements Listener {
                     v.swingMainHand();
                     v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1f, 1f);
                     rv.setLastActionTick(now);
+                    wearAndMaybeReplace(rv, false);
                 }
             }
             return;
         }
 
-        // Pas de cible : suivre le joueur assigné, sinon patrouiller, sinon rejoindre/tenir le poste
+        // Pas de cible : suivre le joueur assigné, sinon patrouiller, sinon rejoindre le point de
+        // rassemblement s'il est "libre", sinon rejoindre/tenir le poste
         if (rv.getFollowTarget() != null) {
             Player followed = Bukkit.getPlayer(rv.getFollowTarget());
             if (followed != null && followed.isOnline()) {
@@ -784,6 +915,11 @@ public class VillagerManager implements Listener {
             } else {
                 approach(v, wp, 2.0, 0.4, "villager.task-teleport-distance", 64.0);
             }
+            return;
+        }
+
+        if (rv.getRallyPoint() != null) {
+            approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
             return;
         }
 
@@ -806,11 +942,46 @@ public class VillagerManager implements Listener {
         Vector dir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
         Arrow arrow = v.getWorld().spawnArrow(eye, dir, 2.2f, 8.0f);
         arrow.setShooter(v);
-        arrow.setDamage(plugin.getConfig().getDouble("villager.archer-damage", 3.0));
+        arrow.setDamage(plugin.getConfig().getDouble("villager.archer-damage", 3.0)
+                + (rv.getLevel() - 1) * plugin.getConfig().getDouble("villager.damage-per-level", 0.75));
         v.swingMainHand();
         v.getWorld().playSound(v.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1f, 1f);
         rv.setLastActionTick(now);
         consumeArrow(rv);
+        wearAndMaybeReplace(rv, true);
+    }
+
+    /**
+     * Use une arme (ou un arc) d'un point de durabilité. Si elle casse : au niveau de
+     * "réparation auto" (config), le guerrier s'en fabrique une nouvelle sur-le-champ ;
+     * sinon elle est perdue et il faudra lui en redonner une.
+     */
+    private void wearAndMaybeReplace(RecruitedVillager rv, boolean isBow) {
+        ItemStack item = isBow ? rv.getBow() : rv.getWeapon();
+        if (item == null) return;
+        short maxDurability = item.getType().getMaxDurability();
+        if (maxDurability <= 0) return; // pas d'usure pour ce type d'objet
+        if (!(item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable dmg)) return;
+
+        int newDamage = dmg.getDamage() + 1;
+        if (newDamage >= maxDurability) {
+            int repairLevel = plugin.getConfig().getInt("villager.self-repair-level", 4);
+            if (rv.getLevel() >= repairLevel) {
+                dmg.setDamage(0);
+                item.setItemMeta((org.bukkit.inventory.meta.ItemMeta) dmg);
+                notifyFaction(rv.getFactionName(), "§7[§e" + rv.getDisplayName() + "§7] §fJe me suis fabriqué "
+                        + (isBow ? "un nouvel arc" : "une nouvelle arme") + " pour remplacer celle qui s'est usée.");
+            } else {
+                if (isBow) rv.setBow(null); else rv.setWeapon(null);
+                notifyFaction(rv.getFactionName(), "§7[§e" + rv.getDisplayName() + "§7] §f"
+                        + (isBow ? "Mon arc s'est cassé" : "Mon arme s'est cassée") + ", il m'en faut un(e) nouveau/nouvelle !");
+            }
+            syncLiveEntity(rv);
+            save();
+        } else {
+            dmg.setDamage(newDamage);
+            item.setItemMeta((org.bukkit.inventory.meta.ItemMeta) dmg);
+        }
     }
 
     private int countArrows(RecruitedVillager rv) {
@@ -943,17 +1114,22 @@ public class VillagerManager implements Listener {
     }
 
     private double computeDamage(RecruitedVillager rv) {
+        double base;
         ItemStack weapon = rv.getWeapon();
-        if (weapon == null) return 1.0;
-        String name = weapon.getType().name();
-        double base = 2.0;
-        if (name.contains("NETHERITE")) base = 8.0;
-        else if (name.contains("DIAMOND")) base = 7.0;
-        else if (name.contains("IRON")) base = 5.0;
-        else if (name.contains("STONE")) base = 4.0;
-        else if (name.contains("GOLD")) base = 4.0;
-        else if (name.contains("WOOD")) base = 3.0;
-        if (name.contains("AXE") && !name.contains("PICKAXE")) base += 1.0;
+        if (weapon == null) {
+            base = 1.0; // à mains nues
+        } else {
+            String name = weapon.getType().name();
+            base = 2.0;
+            if (name.contains("NETHERITE")) base = 8.0;
+            else if (name.contains("DIAMOND")) base = 7.0;
+            else if (name.contains("IRON")) base = 5.0;
+            else if (name.contains("STONE")) base = 4.0;
+            else if (name.contains("GOLD")) base = 4.0;
+            else if (name.contains("WOOD")) base = 3.0;
+            if (name.contains("AXE") && !name.contains("PICKAXE")) base += 1.0;
+        }
+        base += (rv.getLevel() - 1) * plugin.getConfig().getDouble("villager.damage-per-level", 0.75);
         return base;
     }
 
@@ -967,6 +1143,13 @@ public class VillagerManager implements Listener {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         LivingEntity attacker = resolveAttackerEntity(event.getDamager());
         if (attacker == null || attacker.equals(victim)) return;
+
+        // XP de combat pour le guerrier qui vient de porter un coup (mêlée ou flèche)
+        RecruitedVillager attackerRv = villagers.get(attacker.getUniqueId());
+        if (attackerRv != null && attackerRv.getRole() == VillagerRole.GUERRIER) {
+            addXp(attackerRv, plugin.getConfig().getInt("villager.xp-per-hit", 3));
+            lastDamagedBy.put(victim.getUniqueId(), attacker.getUniqueId());
+        }
 
         String victimFaction = resolveFactionOf(victim);
 
@@ -1023,12 +1206,85 @@ public class VillagerManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(EntityDeathEvent event) {
-        RecruitedVillager rv = villagers.remove(event.getEntity().getUniqueId());
+        UUID deadId = event.getEntity().getUniqueId();
+
+        // XP + kill-count pour le guerrier qui a porté le coup fatal, et récupération du butin
+        UUID killerId = lastDamagedBy.remove(deadId);
+        if (killerId != null) {
+            RecruitedVillager killerRv = villagers.get(killerId);
+            if (killerRv != null && killerRv.getRole() == VillagerRole.GUERRIER) {
+                addXp(killerRv, plugin.getConfig().getInt("villager.xp-per-kill", 15));
+                killerRv.setKillCount(killerRv.getKillCount() + 1);
+                collectLoot(killerRv, event.getDrops());
+            }
+        }
+
+        RecruitedVillager rv = villagers.remove(deadId);
         if (rv != null) {
+            dropAllItems(rv, event.getEntity().getLocation());
             save();
             notifyFaction(rv.getFactionName(), "§c☠ Le villageois §e" + rv.getDisplayName()
                     + " §c(" + rv.getRole().displayName() + ") a été tué !");
         }
+    }
+
+    /** Fait tomber au sol tout ce que le villageois avait sur lui (équipement + réserve) à sa mort. */
+    private void dropAllItems(RecruitedVillager rv, Location loc) {
+        World world = loc.getWorld();
+        if (world == null) return;
+        dropIfPresent(world, loc, rv.getWeapon());
+        dropIfPresent(world, loc, rv.getHelmet());
+        dropIfPresent(world, loc, rv.getChestplate());
+        dropIfPresent(world, loc, rv.getLeggings());
+        dropIfPresent(world, loc, rv.getBoots());
+        dropIfPresent(world, loc, rv.getBow());
+        dropIfPresent(world, loc, rv.getArrows());
+        dropIfPresent(world, loc, rv.getFood());
+        for (ItemStack it : rv.getResources()) dropIfPresent(world, loc, it);
+    }
+
+    private void dropIfPresent(World world, Location loc, ItemStack item) {
+        if (item != null && item.getType() != Material.AIR && item.getAmount() > 0) {
+            world.dropItemNaturally(loc, item);
+        }
+    }
+
+    /** Le guerrier ramasse le butin de sa victime dans sa réserve (9 emplacements) ; le surplus reste au sol. */
+    private void collectLoot(RecruitedVillager rv, List<ItemStack> drops) {
+        boolean changed = false;
+        var it = drops.iterator();
+        while (it.hasNext()) {
+            ItemStack item = it.next();
+            if (item == null || item.getType() == Material.AIR || item.getAmount() <= 0) continue;
+            int remaining = addLootItem(rv, item);
+            if (remaining <= 0) { it.remove(); changed = true; }
+            else if (remaining < item.getAmount()) { item.setAmount(remaining); changed = true; }
+        }
+        if (changed) save();
+    }
+
+    /** Ajoute un item dans la réserve du villageois. Renvoie la quantité qui n'a pas pu être absorbée (0 = tout pris). */
+    private int addLootItem(RecruitedVillager rv, ItemStack item) {
+        ItemStack[] res = rv.getResources();
+        int amount = item.getAmount();
+        for (ItemStack slot : res) {
+            if (amount <= 0) break;
+            if (slot != null && slot.isSimilar(item)) {
+                int space = slot.getMaxStackSize() - slot.getAmount();
+                int add = Math.min(space, amount);
+                if (add > 0) { slot.setAmount(slot.getAmount() + add); amount -= add; }
+            }
+        }
+        for (int i = 0; i < res.length && amount > 0; i++) {
+            if (res[i] == null) {
+                int stack = Math.min(amount, item.getMaxStackSize());
+                ItemStack clone = item.clone();
+                clone.setAmount(stack);
+                res[i] = clone;
+                amount -= stack;
+            }
+        }
+        return amount;
     }
 
     private void notifyFaction(String factionName, String message) {
@@ -1057,6 +1313,9 @@ public class VillagerManager implements Listener {
             cfg.set(key + ".faction", rv.getFactionName());
             if (rv.getCustomName() != null) cfg.set(key + ".name", rv.getCustomName());
             cfg.set(key + ".role", rv.getRole().name());
+            cfg.set(key + ".level", rv.getLevel());
+            cfg.set(key + ".xp", rv.getXp());
+            cfg.set(key + ".kills", rv.getKillCount());
 
             ItemStack[] res = rv.getResources();
             for (int i = 0; i < res.length; i++) if (res[i] != null) cfg.set(key + ".resources." + i, res[i]);
@@ -1089,6 +1348,7 @@ public class VillagerManager implements Listener {
             }
 
             if (rv.getPostLocation() != null) cfg.set(key + ".post", locToString(rv.getPostLocation()));
+            if (rv.getRallyPoint() != null)   cfg.set(key + ".rally", locToString(rv.getRallyPoint()));
             cfg.set(key + ".defenseRadius", rv.getDefenseRadius());
             cfg.set(key + ".combatEnabled", rv.isCombatEnabled());
             if (!rv.getPatrolPoints().isEmpty()) {
@@ -1115,6 +1375,9 @@ public class VillagerManager implements Listener {
             RecruitedVillager rv = new RecruitedVillager(id, factionName);
             rv.setCustomName(cfg.getString(path + ".name", null));
             rv.setRole(VillagerRole.fromString(cfg.getString(path + ".role", "AUCUN")));
+            rv.setLevel(Math.max(1, Math.min(MAX_LEVEL, cfg.getInt(path + ".level", 1))));
+            rv.setXp(cfg.getInt(path + ".xp", 0));
+            rv.setKillCount(cfg.getInt(path + ".kills", 0));
 
             ItemStack[] res = new ItemStack[9];
             for (int i = 0; i < 9; i++) if (cfg.contains(path + ".resources." + i)) res[i] = cfg.getItemStack(path + ".resources." + i);
@@ -1161,6 +1424,7 @@ public class VillagerManager implements Listener {
             }
 
             if (cfg.contains(path + ".post")) rv.setPostLocation(stringToLoc(cfg.getString(path + ".post")));
+            if (cfg.contains(path + ".rally")) rv.setRallyPoint(stringToLoc(cfg.getString(path + ".rally")));
             rv.setDefenseRadius(cfg.getDouble(path + ".defenseRadius", 16.0));
             rv.setCombatEnabled(cfg.getBoolean(path + ".combatEnabled", true));
             if (cfg.contains(path + ".patrol")) {

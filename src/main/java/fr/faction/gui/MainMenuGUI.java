@@ -217,12 +217,14 @@ public class MainMenuGUI implements Listener {
         inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",   "§7Aller au spawn de ta faction.",
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR, "§d§l/fac spawn [1|2]",
                 faction != null && faction.hasSpawn(),
+                "§7Aller au spawn de ta faction.",
                 "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
                 "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)")));
-        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]","§7Définir un spawn de faction.",
+        inv.setItem(20, cmdItem(Material.LODESTONE, "§d§l/fac setspawn [1|2]",
                 canMng,
+                "§7Définir un spawn de faction.",
                 "§7/fac setspawn   → spawn principal",
                 "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)"));
 
@@ -1125,17 +1127,18 @@ public class MainMenuGUI implements Listener {
         return is;
     }
 
-    /** Item grisé si disabled */
-    private ItemStack cmdItem(Material mat, String name, String desc, boolean enabled, String... extraLore) {
+    /** Item grisé si disabled — forme simple (1 ligne de description) */
+    private ItemStack cmdItem(Material mat, String name, String desc, boolean enabled) {
+        return cmdItem(mat, name, enabled, desc);
+    }
+
+    /** Item grisé si disabled — forme étendue (plusieurs lignes de lore, boolean avant le lore) */
+    private ItemStack cmdItem(Material mat, String name, boolean enabled, String... lore) {
         if (enabled) {
-            if (extraLore != null && extraLore.length > 0) {
-                String[] lore = new String[extraLore.length + 2];
-                lore[0] = desc;
-                System.arraycopy(extraLore, 0, lore, 1, extraLore.length);
-                lore[lore.length - 1] = "§7Clic pour info";
-                return make(mat, name, lore);
-            }
-            return make(mat, name, desc, "", "§7Clic pour info");
+            String[] all = new String[lore.length + 1];
+            System.arraycopy(lore, 0, all, 0, lore.length);
+            all[lore.length] = "§7Clic pour info";
+            return make(mat, name, all);
         }
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");

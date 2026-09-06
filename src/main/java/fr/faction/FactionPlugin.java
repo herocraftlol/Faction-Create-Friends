@@ -72,6 +72,7 @@ public class FactionPlugin extends JavaPlugin {
     private fr.faction.sort.SortMenuGUI sortMenuGUI;
     private fr.faction.web.WebLinkManager webLinkManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.web.FactionTabSync factionTabSync;
 
     // v5.9 — villageois recrutés
     private fr.faction.villager.VillagerManager villagerManager;
@@ -86,8 +87,11 @@ public class FactionPlugin extends JavaPlugin {
         sharedInventoryManager = new SharedInventoryManager(this, factionManager);
         teleportManager        = new FactionTeleportManager(this, factionManager);
         powerManager           = new FactionPowerManager(this, factionManager, statsManager);
+        // Sync MySQL faction/rang -> table faction_tab_sync, lue par HeroTab (proxy Velocity)
+        // pour afficher la faction de chacun dans le tab-list réseau.
+        factionTabSync          = new fr.faction.web.FactionTabSync(this);
         // tabManager doit être créé avant powerManager.start() pour le rankUp
-        tabManager             = new fr.faction.power.FactionTabManager(this, factionManager, powerManager);
+        tabManager             = new fr.faction.power.FactionTabManager(this, factionManager, powerManager, factionTabSync);
         powerManager.setTabManager(tabManager);
         powerManager.start();
 
@@ -137,6 +141,7 @@ public class FactionPlugin extends JavaPlugin {
         villagerManager = new fr.faction.villager.VillagerManager(this, factionManager);
         villagerManager.setClaimManager(claimManager);
         villagerManager.setWarManager(warManager);
+        villagerManager.setPowerManager(powerManager);
         villagerGUI = new fr.faction.villager.VillagerGUI(this, factionManager, villagerManager);
         villagerManager.start();
 
@@ -257,11 +262,11 @@ public class FactionPlugin extends JavaPlugin {
         playtimeTracker = new PlaytimeTracker(this, statsManager);
         playtimeTracker.start();
 
-        // Rafraîchir le tab de tous les joueurs toutes les 5 minutes
+        // Rafraîchir le tab de tous les joueurs (et re-sync MySQL pour HeroTab) toutes les 30 secondes
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             tabManager.refreshAll();
             tabManager.pruneEmptyTeams();
-        }, 20L * 10, 20L * 300);
+        }, 20L * 5, 20L * 30);
 
         // ── Purge unique des effets bannis des anciennes versions ────────────────
         // Lance 2 secondes après le démarrage pour couvrir les joueurs déjà
@@ -330,6 +335,7 @@ public class FactionPlugin extends JavaPlugin {
         if (warManager != null)             { warManager.save(); warManager.stop(); }
         if (villagerManager != null)        villagerManager.save();
         if (webLinkManager != null)         webLinkManager.close();
+        if (factionTabSync != null)         factionTabSync.close();
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 

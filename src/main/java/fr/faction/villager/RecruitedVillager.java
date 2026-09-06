@@ -22,6 +22,9 @@ public class RecruitedVillager {
     private String factionName;
     private String customName;
     private VillagerRole role = VillagerRole.AUCUN;
+    private int level = 1;
+    private int xp = 0;
+    private int killCount = 0;
 
     // ── Constructeur ─────────────────────────────────────────────────────────
     /** Réserve de blocs de construction (9 emplacements), partagée entre toutes ses tâches. */
@@ -57,6 +60,8 @@ public class RecruitedVillager {
     private UUID followTarget;
 
     // ── Commun ───────────────────────────────────────────────────────────────
+    /** Point de rassemblement : là où il retourne une fois "libre" (plus de chantier / plus de cible). */
+    private Location rallyPoint;
     /** Nourriture donnée par les joueurs, consommée automatiquement pour soigner. */
     private ItemStack food;
 
@@ -79,6 +84,12 @@ public class RecruitedVillager {
     public String getDisplayName()            { return customName != null && !customName.isBlank() ? customName : "Villageois"; }
     public VillagerRole getRole()             { return role; }
     public void setRole(VillagerRole r)       { this.role = r; }
+    public int getLevel()                     { return level; }
+    public void setLevel(int l)               { this.level = l; }
+    public int getXp()                        { return xp; }
+    public void setXp(int x)                  { this.xp = x; }
+    public int getKillCount()                 { return killCount; }
+    public void setKillCount(int k)           { this.killCount = k; }
 
     public ItemStack[] getResources()         { return resources; }
     public void setResources(ItemStack[] r)   { this.resources = r; }
@@ -124,6 +135,8 @@ public class RecruitedVillager {
     public UUID getFollowTarget()             { return followTarget; }
     public void setFollowTarget(UUID u)       { this.followTarget = u; }
 
+    public Location getRallyPoint()           { return rallyPoint; }
+    public void setRallyPoint(Location l)     { this.rallyPoint = l; }
     public ItemStack getFood()                { return food; }
     public void setFood(ItemStack i)          { this.food = i; }
 

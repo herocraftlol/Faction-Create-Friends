@@ -98,8 +98,8 @@ public class FactionMapManager {
         }
 
         // Retirer les renderers par défaut (fond vanilla gris)
-        final MapView finalView = view;
-        finalView.getRenderers().forEach(finalView::removeRenderer);
+        final MapView fview = view;
+        view.getRenderers().forEach(fview::removeRenderer);
 
         // Créer et attacher notre renderer
         FactionMapRenderer renderer = new FactionMapRenderer(

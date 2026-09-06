@@ -1,14 +1,11 @@
 name: FactionPlugin
-version: 5.9.4
+version: 5.9.8
 main: fr.faction.FactionPlugin
 api-version: "1.21"
 author: FactionDev
 description: >
-  Plugin de factions complet — Paper 1.21.4. Claims, alliances, guerre,
-  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats,
-  liaison site web, et villageois recrutés autonomes (Constructeur &
-  Guerrier). v5.9.4 introduit le mode archerie pour les Guerriers et le
-  soin par le sommeil des villageois.
+  Plugin de factions complet — Paper 1.21. Claims, alliances, guerre,
+  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, liaison site web.
 
 commands:
   faction:
