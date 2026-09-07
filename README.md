@@ -1,232 +1,242 @@
 # 🏰 FactionPlugin
 
-> **FactionPlugin** est le plugin Minecraft **tout-en-un** qui transforme votre serveur en une véritable **aventure de factions** sur **Paper 1.21.4**. Créez votre clan, déclarez des guerres, bâtissez des alliances, réclamez des territoires, gérez une **banque d'émeraudes**, commercez sur un **shop global**, et — depuis la v5.9.0 — **recrutez et commandez des villageois autonomes** qui travaillent, construisent et combattent à votre place.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, shop global, statistiques et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.10.0-blue)
-![Minecraft](https://img.shields.io/badge/minecraft-1.21.4-green)
-![Java](https://img.shields.io/badge/java-21%2B-orange)
-![Statut](https://img.shields.io/badge/status-stable-success)
-![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
-![Téléchargements](https://img.shields.io/github/downloads/herocraftlol/Faction-Create-Friends/total?color=brightgreen)
+![Version](https://img.shields.io/badge/version-5.10.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
-## 🌟 FactionPlugin en un coup d'œil
+## ✨ Qu'est-ce que FactionPlugin ?
 
-**Tout ce dont une faction Minecraft a besoin, dans une seule commande : `/faction` (alias `/f`).**
+**FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent et récoltent pour vous.
 
-- 🏰 **Factions complètes** — créez, invitez, gérez, transférez le leadership, nommez jusqu'à 2 sous-chefs
-- ⚡ **Système de puissance à 7 rangs** — Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire, avec buffs passifs croissants
-- 🗺️ **Territoire (claims)** — chunks protégés, permissions fines par joueur, accès alliés
-- ⚔️ **Guerres inter-factions** — déclarations négociées, score en direct, pillage, capitulation
-- 🤝 **Alliances** — bonus de puissance, homes étendus
-- 🏦 **Banque d'émeraudes** — coffre partagé, historique, classement des plus riches
-- 🛒 **Shop global** — GUI paginé, recherche, tri par prix, 4 monnaies (fer/or/diamant/émeraude)
-- 🧹 **Tri de coffre & inventaire** — 6 modes, aperçu avant validation
-- 💱 **Troc sécurisé** — échange entre joueurs avec double confirmation anti-scam
-- 👁️ **InvSee admin** — visualisation lecture-seule de l'inventaire d'un joueur
-- 📊 **Statistiques joueurs** — kills, K/D, mobs, blocs, temps de jeu, top 10 par catégorie
-
-Et depuis la **v5.10.0**, vos **villageois recrutés** deviennent encore plus autonomes et efficaces — voyez la section *Nouveautés* ci-dessous ! 🌾
-
----
-
-## 🌾 Nouveautés de la v5.10.0 — *Le Récolteur, la construction instantanée et la fuite des guerriers*
-
-> **En bref** : vos villageois recrutés gagnent en autonomie, en productivité et en intelligence de combat. Le nouveau **Récolteur** travaille tout seul, le **Constructeur** bâtit 10× plus vite, et le **Guerrier** sait enfin **quand il faut fuir**.
-
-Une mise à jour centrée sur la **boucle de vie de vos villageois recrutés** : plus d'autonomie, plus de productivité, et un comportement de combat enfin **intelligent**.
-
-### 🌾 Nouveau rôle : Récolteur
-
-Donnez-lui un outil, il fait le reste — **seul, en autonomie complète** :
-
-- ⛏️ **Pioche** → il mine les minerais de la zone (charbon, fer, or, diamant, redstone, lapis, émeraudes…)
-- 🪓 **Hache** → il coupe le bois (toutes les essences)
-- 🪣 **Pelle** → il creuse terre, sable, gravier, argile, neige…
-- 🌾 **Champ** → il sème, récolte à maturité, replante, et sème les cases vides tout seul (blé, carottes, pommes de terre, betteraves)
-
-Vous choisissez la **zone de récolte** en cliquant deux coins dans le monde, vous désignez un **coffre de dépôt** (clic-droit dessus) : tout ce qu'il récolte y est déposé automatiquement. Les graines restent sur lui pour qu'il puisse **replanter sans intervention**.
-
-À partir du **niveau 4**, son outil s'use mais il se **fabrique lui-même un nouvel outil** dès qu'il casse.
-
-### 🏗️ Constructeur — construction instantanée
-
-Fini les allers-retours à pied :
-
-- Il se **téléporte directement** sur chaque bloc à poser ou à miner, quelle que soit la distance : **chantier terminé 10× plus vite** sur les grandes zones.
-- S'il doit atteindre une hauteur difficile, il **pose un échafaudage en bambou** sous lui pour ne pas tomber, puis le **retire** (sans le faire tomber au sol) une fois le chantier terminé.
-- **Récolte en un seul passage** : il calcule combien il lui manque pour finir **tout** le chantier, et récolte ce lot d'un coup — au lieu de repartir à la mine bloc par bloc.
-
-### ⚔️ Guerrier — immobile par défaut, fuite & discrétion
-
-- Le **vagabondage aléatoire** vanille est désactivé (best-effort) : il ne bouge plus que sur ordre (poste, patrouille, suivi, rassemblement).
-- **Fuite intelligente** : sous **25 % de vie** ou face à **3+ ennemis**, il **fuit** (loin de la menace ou vers son poste) jusqu'à retrouver **60 % de vie** et **plus aucune menace proche**. Plus de morts stupides.
-
-### 🛡️ Formations en cercle
-
-- `/faction villageois ranger cercle` (ou le bouton dédié) dispose vos villageois en **cercle autour du joueur**, en plus de la formation en ligne.
-
----
-
-## 🌾🥇⚔️ Les trois rôles de villageois
-
-| Rôle | Comportement | Idéal pour… |
-|---|---|---|
-| 🌾 **Récolteur** | Donnez-lui un outil + une zone, il mine / coupe / creuse / cultive **seul**, indéfiniment, et dépose tout dans un coffre. | Remplir vos coffres de ressources sans effort. |
-| 🪓 **Constructeur** | Reçoit un chantier (2 coins cliqués) et **comble automatiquement tout vide** dans la zone, en se téléportant bloc-par-bloc. Monte de niveau en posant des blocs. | Bâtir des murs, remplir des trous, réparer des défenses. |
-| ⚔️ **Guerrier** | Équipé d'une arme + armure (+ arc / flèches optionnels), fait sa **ronde autour de son poste** dans son rayon, **détecte et combat** les mobs hostiles et les joueurs ennemis. **Fuit intelligemment** s'il est en danger. Monte de niveau au combat. | Protéger votre base, escorter, harceler l'ennemi, monter la garde. |
-
-### 🧑‍🌾 Commandes ajoutées (rappel)
-
-| Commande | Rôle requis | Effet |
-|---|---|---|
-| `/faction recruter` | Chef / sous-chef | Convertir un villageois ciblé en unité de faction. |
-| `/faction villageois` | Tout membre | Ouvre le **GUI** listant les villageois recrutés. |
-| `/faction villageois ranger` *ou* `formation` | Chef / sous-chef | Met tous les villageois à 40 blocs en **ligne** devant vous. |
-| `/faction villageois ranger cercle` | Chef / sous-chef | Met tous les villageois à 40 blocs en **cercle** autour de vous. |
-| `/faction annuler` | Tout joueur | Annule la sélection de patrouille / chantier en cours. |
-
----
-
-## 🎯 Fonctionnalités principales
-
-### 🏰 Factions
-
-Création, invitation, expulsion, dissolution, transfert de chef, **sous-chefs** (jusqu'à 2), **inventaire partagé** (`/faction coffre`), **menu GUI complet** (`/faction` ou `/faction menu`).
-
-### ⚡ Système de puissance
-
-- **Puissance Individuelle (PI)** : PvP + survie + progression + activité
-- **Puissance Globale (PG)** : somme des PI + bonus de taille
-- **7 rangs** : Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire
-- Effets passifs croissants : Strength, Resistance, Haste, Regeneration
-- Classements (`/faction classement`, `/faction power`)
-
-### 🗺️ Claims (territoire)
-
-Chunks protégés, permissions par joueur (`/faction perms`), alliés autorisés (`claimallies`), mini-map visuelle (`/faction claimmap`).
-
-### ⚔️ Guerres inter-factions (v5.1.1)
-
-- Déclaration **négociée** : `claims:0-5`, `pillage`, `kills:5-50`
-- Score en direct dans l'**action bar**
-- Les villageois guerriers traitent automatiquement les belligérants comme hostiles
-- Transfert automatique des claims du perdant, capitulation, match nul, anti-abus intégrés
-
-### 🤝 Alliances (v5.0.0)
-
-Bonus de puissance par allié (+500, +1 200, +2 500…), homes personnels étendus pour les membres de factions alliées.
-
-### 🏦 Banque d'émeraudes
-
-Coffre de faction partagé (GUI), historique des transactions, classement des plus riches (`/faction topbanque`).
-
-### 🛒 Shop global
-
-GUI paginé 45 items/page, recherche par mot-clé, tri par prix, monnaies : fer / or / diamant / émeraude.
-
-### 🧹 Tri de coffre & inventaire (v5.3.0)
-
-6 modes de tri avec aperçu avant confirmation, coffre partagé **et** inventaire personnel.
-
-### 💱 Troc sécurisé
-
-Échange d'items entre deux joueurs avec double confirmation anti-scam.
-
-### 👁️ InvSee (admin)
-
-Visualisation **en lecture seule** de l'inventaire complet d'un joueur.
-
-### 📊 Statistiques joueurs
-
-Kills, mobs tués, K/D, blocs posés/cassés, temps de jeu, top 10 par catégorie.
+Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière version : **[FactionPlugin-5.10.0.jar](../../releases/download/v5.10.0/FactionPlugin-5.10.0.jar)**
-2. Déposez le JAR dans le dossier `plugins/` de votre serveur **Paper 1.21.4**
-3. Redémarrez le serveur — la configuration est générée dans `plugins/FactionPlugin/`
+1. Téléchargez la dernière release : [**FactionPlugin-5.10.1.jar**](../../releases/latest)
+2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
+3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
+4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
+
+> 🛠️ Requis : serveur **Paper 1.21.4+**, **Java 21+**, aucun autre plugin de factions requis.
 
 ---
 
-## ⚙️ Commandes principales (résumé)
+## 🎮 Fonctionnalités principales
+
+### 🏛️ Système de factions complet
+- Création, dissolution, renommage de factions
+- Gestion fine des membres : invitation, expulsion, transfert de chef
+- Système de **sous-chefs** (jusqu'à 2) avec permissions granulaires
+- Chat de faction, ranks visuels, GUI intuitive
+- Classement des factions par puissance
+
+### ⚔️ Alliances & Guerres
+- Proposez, acceptez, refusez et rompez des **alliances** avec d'autres factions
+- Déclarez, acceptez et refusez des **guerres**
+- Pendant la guerre : défense automatique, riposte, **pillage du coffre du vaincu** (si négocié)
+- Bouton **"Capituler"** pour le chef uniquement (abandon propre)
+
+### 🗺️ Système de claims & territoire
+- Claim/unclaim de chunks avec permissions par joueur
+- GUI dédiée pour gérer qui peut construire/casser où
+- Alliances → permissions croisées configurables
+- **Mini-map de faction** : carte visuelle temps réel de vos claims (carte vanilla Minecraft augmentée)
+
+### 👥 Villages de faction (la grosse nouveauté)
+Recrutez des villageois vanilla et attribuez-leur un rôle : ils deviennent autonomes !
+
+| Rôle | Fait quoi ? |
+|------|-------------|
+| 🔨 **Constructeur** | Remplit des zones définies (châteaux, murs, repairs). Pose des blocs, se téléporte instantanément, monte un échafaudage pour les endroits difficiles. |
+| ⚔️ **Guerrier** | Patrouille, défend un périmètre, attaque les mobs hostiles et les joueurs ennemis en guerre. Riposte automatique. Mode mêlée/archerie au choix. |
+| 🌾 **Récolteur** | Mine, coupe du bois, creuse ou récolte des cultures selon l'outil qu'on lui donne. Dépose le butin dans un coffre, replante tout seul. |
+
+Bonus :
+- 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
+- **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
+- **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
+
+### 💰 Économie intégrée
+- **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
+- **Shop global** paginé avec recherche par mot-clé et tri par prix (4 monnaies : fer, or, diamant, émeraude)
+- Paiement automatique au vendeur, livraison à la reconnexion si hors-ligne
+- Système d'**annonces** avec `/faction vendre` et `/faction acheter`
+
+### 🤝 Troc sécurisé entre joueurs
+- Interface GUI dédiée : chacun pose ce qu'il propose et ce qu'il veut
+- **Confirmation des deux parties** requise pour finaliser
+- Annulation possible à tout moment, **anti-scam** garanti
+
+### 🏠 Homes & téléportation
+- `/sethome`, `/home`, `/delhome`, `/homes` — homes personnels
+- Nombre de homes selon le rang (1 sans faction → 5 au rang max)
+- **TPA** entre joueurs avec warmup et cooldown
+- **Spawn de faction** (1 ou 2 selon le rang, configurable)
+
+### ⚡ Système de puissance & rangs
+- 7 rangs de faction : **Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire**
+- La puissance globale est calculée à partir des stats individuelles
+- Chaque rang apporte des **effets passifs** : Speed, Strength, Resistance, Jump Boost, Haste, Regeneration
+- Bonus selon la taille de la faction
+
+### 📊 Statistiques & classements
+- `/faction stats [joueur]` : kills, mobs tués, dégâts, blocs, temps de jeu, K/D ratio, advancements
+- `/faction classementjoueurs <cat>` : top 10 par catégorie (`mobs`, `pvp`, `morts`, `blocs`, `temps`, `dommages`, `kd`, `advancements`)
+- `/faction classement` : top 10 des factions par puissance (GUI)
+- Persistance complète dans `stats.yml`
+
+### 🔌 Liaisons externes (web map / site)
+- `/lier [statut]` : lie ton compte Minecraft au compte du site web
+- Synchronisation web ↔ serveur (claims, factions, joueurs)
+- Drivers MySQL inclus
+
+### 🔒 Coffres privés & tri
+- **Coffres privés** : shift + clic droit sur un coffre avec un panneau pour le verrouiller
+- **Tri automatique** des coffres avec `/sort` : regroupe, range, classe les items proprement
+
+---
+
+## 📜 Commandes
 
 | Commande | Description |
-|---|---|
-| `/faction create <nom>` | Créer une faction |
-| `/faction info [faction]` | Voir les informations d'une faction |
-| `/faction invite` / `join` / `leave` / `kick` | Gestion des membres |
-| `/faction menu` | Interface graphique complète |
-| `/faction souschef <action>` | Gérer les sous-chefs |
-| `/faction recruter` | Recruter un villageois |
-| `/faction villageois` / `formation` / `ranger cercle` | GUI villageois / formations |
-| `/faction annuler` | Annuler une sélection en cours |
-| `/faction guerre <action>` | Gestion des guerres ⚔️ |
-| `/faction alliance <action>` | Gestion des alliances |
-| `/faction setspawn` / `/faction spawn` | Spawn de faction |
-| `/sethome` `/home` `/delhome` `/homes` | Homes personnels |
-| `/tpa <joueur>` `/tpaccept` `/tpdeny` | Téléportation entre joueurs |
-| `/faction claim` / `unclaim` / `claimmap` / `perms` | Territoire |
-| `/faction banque` | Banque d'émeraudes |
-| `/faction shop` / `vendre` / `acheter` / `mesannonces` | Shop global |
-| `/faction ranger` / `ranger perso` | Tri de coffre / inventaire |
-| `/faction troc <joueur>` | Troc sécurisé |
-| `/faction stats` / `classementjoueurs` | Statistiques |
-| `/faction classement` / `rangs` / `power` | Puissance |
+|----------|-------------|
+| `/faction create <nom>` | Crée une faction |
+| `/faction info [nom]` | Infos d'une faction |
+| `/faction list` | Liste des factions |
+| `/faction invite / kick / setchef` | Gestion des membres |
+| `/faction rename <nom>` | Renomme la faction (chef) |
+| `/faction leave / disband` | Quitter ou dissoudre |
+| `/faction claim / unclaim / claims` | Gestion des claims |
+| `/faction claimmap` | Mini-map des claims |
+| `/faction perms` | Permissions du chunk |
+| `/faction setspawn [1\|2]` | Définir spawn (1 ou 2) |
+| `/faction spawn [1\|2]` | TP au spawn |
+| `/faction alliance inviter/accepter/refuser/rompre` | Alliances |
+| `/faction guerre declarer/accepter/refuser/capituler/piller` | Guerres |
+| `/faction souschef promouvoir/retirer/liste/limite` | Sous-chefs |
+| `/faction stats [joueur]` | Stats joueur |
+| `/faction classementjoueurs <cat>` | Top 10 joueurs |
+| `/faction classement` | Top 10 factions |
+| `/faction shop / vendre / acheter / recuperer / mesannonces` | Shop |
+| `/faction recruter / villageois` | Recrutement villageois |
+| `/faction power [joueur]` | Puissance |
+| `/faction setchest` / `faction chest` | Coffres privés |
+| `/faction sort` | Tri d'inventaire/coffre |
+| `/faction lier [statut]` | Liaison web |
+| `/tpa <joueur> / tpaccept / tpdeny` | Téléportation |
+| `/sethome [nom] / home [nom] / delhome / homes` | Homes |
+| `/sort` | Tri inventaire/coffre |
 
-🌾 = nouveauté v5.10.0 • ⚡ = construction instantanée • 🏃 = fuite intelligente • ⚔️ = guerre
+> Alias : `/f`, `/fac`
 
 ---
 
 ## 🔐 Permissions
 
 | Permission | Description | Défaut |
-|---|---|---|
-| `faction.use` | Commandes de base | tout le monde |
-| `faction.admin` | InvSee, bypass des coffres privés, recrutement sans limite | op |
+|------------|-------------|--------|
+| `faction.use` | Utiliser les commandes de faction | ✅ |
+| `faction.create` | Créer une faction | ✅ |
+| `faction.join` | Rejoindre une faction | ✅ |
+| `faction.leave` | Quitter une faction | ✅ |
+| `faction.admin` | Commandes admin (InvSee, bypass coffres) | OP |
 
 ---
 
-## 🛠️ Compilation
+## 🛠️ Compilation & développement
+
+### Prérequis
+- **Java 21+** (JDK)
+- **Maven 3.9+**
+- Accès réseau aux dépôts PaperMC et Maven Central
+
+### Build
 
 ```bash
+git clone https://github.com/herocraftlol/Faction-Create-Friends.git
+cd Faction-Create-Friends/FactionPlugin-v4
 mvn clean package
 ```
-Le JAR est généré dans `target/FactionPlugin-5.10.0.jar` (Java 21+, Maven 3.9+, Paper 1.21.4).
+
+Le JAR est produit dans `target/FactionPlugin-5.10.1.jar` (≈ 430 KB).
+
+### Stack technique
+- **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
+- **Java 21** (compilé en target 21)
+- **Shaded JAR** : aucun driver MySQL embarqué (Paper le fournit)
+- **YAML** pour toute la persistance (`factions.yml`, `stats.yml`, `villagers.yml`, `shop.yml`, etc.)
 
 ---
 
-## 📜 Historique des versions
+## 📁 Structure des fichiers de données
 
-| Version | Nouveautés |
-|---|---|
-| **v5.10.0** | **🌾 Nouveau rôle Récolteur** (mine/coupe/creuse/cultive tout seul) • ⚡ **Construction instantanée** (TP bloc-par-bloc + échafaudage bambou) • 📦 **Récolte en un passage** pour le Constructeur • 📍 **Guerrier immobile par défaut** • 🏃 **Fuite intelligente** (sous 25 % HP ou 3+ ennemis) • ⭕ **Formation en cercle** |
-| v5.9.8 | Drop complet à la mort des villageois recrutés (équipement + réserve), désactivation du drop vanilla 💀 |
-| v5.9.7 | Clic-droit direct sur le villageois, butin de guerre ramassé par le Guerrier, compteur de kills individuel |
-| v5.9.6 | Point de rassemblement individuel + assignation de groupe pour Constructeurs & Guerriers |
-| v5.9.5 | 5 niveaux d'XP pour les villageois, tag de faction coloré au-dessus de chaque recrue |
-| v5.9.4 | Mode archerie pour les Guerriers (arc + flèches, recul auto, bascule en mêlée) + soin par le sommeil 🏹🛌 |
-| v5.9.3 | Suivi longue distance, chantiers n'importe où sur la carte, assignations de groupe |
-| v5.9.2 | File de chantiers Constructeur, récolte autonome, zones libres hors claims |
-| v5.9.1 | Guerriers autonomes : poste, rayon, patrouille tracée, formation militaire, détection d'ennemi |
-| v5.9.0 | Villageois recrutés : `/faction recruter`, GUI de gestion, rôles Constructeur & Guerrier |
-| v5.8.4 | Sous-chefs : promotion / destitution, jusqu'à 2 sous-chefs |
-| v5.3.0 | Tri de coffre & d'inventaire : 6 modes, GUI d'aperçu |
-| v5.2.0 | Comptoir d'échange (retiré ensuite) |
-| v5.1.1 | Guerre inter-factions avec enjeux négociables |
-| v5.0.0 | Alliances, homes personnels, spawn, /tpa, coffres privés |
-| v4.0.0 | Shop global paginé + InvSee admin |
-| v3.2.x | Banque d'émeraudes, optimisations diverses |
-| v3.1.0 | Fusion avec FactionStats : stats joueurs et classements intégrés |
-| v2.0.0 | Système de puissance, rangs, classement des factions |
-| v1.1.0 | GUI, téléportation intérieure, inventaire partagé |
-| v1.0.0 | Version initiale |
+Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lancement :
+
+| Fichier | Contenu |
+|---------|---------|
+| `config.yml` | Configuration globale (messages, limites, paramètres IA) |
+| `factions.yml` | Factions, claims, alliances, guerres, sous-chefs |
+| `stats.yml` | Statistiques de chaque joueur |
+| `villagers.yml` | Villageois recrutés, équipement, chantiers, niveaux |
+| `shop.yml` | Annonces du shop global |
+| `homes.yml` | Homes personnels et spawn de faction |
+| `privatechests.yml` | Coffres verrouillés |
+| `warps.yml` | Warps supplémentaires (si activés) |
+
+---
+
+## 🆕 Historique des versions
+
+### **v5.10.1** — *Indicateurs d'emplacement, correctifs anti-disparition, mains occupées*
+- **Indicateurs visuels** dans chaque emplacement vide des GUIs de villageois (arc, flèches, épée, casque, blocs, outil, nourriture, graines…) : une icône-repère grisée indique précisément quoi y déposer. Disparaît dès qu'un vrai objet est posé, et ne peut jamais être ramassée par erreur.
+- **Correctifs anti-disparition d'objets** : le glisser-déposer (drag) est désormais bloqué dans les GUI de villageois — il pouvait faire atterrir un objet dans un emplacement décoratif invisible, perdu au rafraîchissement suivant. L'emplacement transitoire "type de bloc du prochain chantier" rend désormais l'objet posé au joueur si inutilisé.
+- **Les villageois tiennent maintenant ce qu'ils utilisent** : le constructeur tient en main le bloc de son chantier actif (le guerrier et le récolteur le faisaient déjà).
+
+### **v5.10.0** — *Le Récolteur, la construction instantanée et la fuite des guerriers*
+- Nouveau rôle **Récolteur** : mine, coupe du bois, creuse ou cultive selon l'outil ; dépose dans un coffre, replante automatiquement.
+- **Constructeur — construction instantanée** : téléportation directe sur chaque bloc à poser ou à miner, échafaudage en bambou auto-installé pour les endroits difficiles.
+- **Guerrier — fuite et discrétion** : sous 25 % de vie ou face à 3+ ennemis, il fuit au lieu de se battre.
+- **Formations en cercle** : `/faction villageois ranger cercle`.
+
+### **v5.9.x** — *Tout tombe au sol à la mort, clic-droit direct, niveaux d'XP, somme réparatrice, longue distance, rassemblement*
+- 5 niveaux d'expérience pour les villageois, soins auto, équipements qui s'usent réellement
+- Clic-droit direct sur un villageois recruté pour ouvrir sa fiche
+- Butin de guerre (les guerriers ramassent automatiquement l'équipement de leurs victimes)
+- Sommeil réparateur (le villageois soigné pendant qu'il dort dans un lit)
+- Mode archerie pour les guerriers (tir à distance, garde ses distances, repasse en mêlée si besoin)
+- Suivi longue distance, retour au poste, chantiers n'importe où
+- Assignation en groupe (poste commun, chantier commun, rassemblement commun)
+
+### **v5.9.0** — *Villageois recrutés (Constructeur / Guerrier)*
+- `/faction recruter` : convertit un villageois en unité de faction
+- `/faction villageois` : GUI de gestion (nom, rôle, équipement, chantier, libération)
+
+### **v5.8.4** — *Sous-chefs*
+- 2 sous-chefs max, avec permissions granulaires (invitations, kick, alliances, guerres, claims)
+
+### **v4.0.0** — *Shop Global paginé + InvSee admin*
+- 45 items/page, recherche par mot-clé, tri prix ↑/↓
+- 4 monnaies : fer, or, diamant, émeraude
+- InvSee admin en lecture seule
+
+### **v3.x** — *Banque, claims, troc, stats, classements, puissance*
 
 ---
 
 ## 📄 Licence
 
-Ce projet est sous licence **MIT**.
+Ce projet est sous licence **MIT**. Voir `LICENSE` pour le texte complet.
+
+---
+
+## 🤝 Crédits & contributions
+
+Développé par [FactionDev](https://github.com/herocraftlol). Contributions bienvenues via Pull Requests sur [la page GitHub du projet](https://github.com/herocraftlol/Faction-Create-Friends).
+
+Pour toute question ou bug, ouvre une **Issue** sur le dépôt.
+
+⭐ Si ce plugin t'est utile, n'hésite pas à mettre une étoile au dépôt !
