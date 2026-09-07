@@ -11,9 +11,6 @@ faction:
 site-url: "http://localhost:3000"
 
 # Connexion MySQL — DOIT être la MÊME base que celle du site (variables GAME_DB_* dans .env)
-# Sert aussi à alimenter la table faction_tab_sync (faction + rang de chaque
-# joueur), lue par HeroTab (plugin Velocity) pour l'afficher dans le tab-list
-# réseau. Laisse "host" vide pour désactiver /lier ET cette synchronisation.
 mysql:
   host: "127.0.0.1"
   port: 3306
@@ -54,46 +51,3 @@ webmap:
     - faction
   # Afficher les requêtes HTTP dans la console
   debug: false
-
-# ── Villageois recrutés (v5.9) ─────────────────────────────────────────────────
-villager:
-  # Intervalle de la boucle d'IA principale (en ticks Minecraft, 20 = 1 s)
-  tick-interval: 20
-  # Nombre maximum de villageois recrutés par faction
-  max-per-faction: 5
-  # Quantité de vie rendue à chaque item de nourriture consommé
-  heal-per-food: 4.0
-  # Points de patrouille max par villageois
-  max-patrol-points: 10
-  # Seuil de blocs en réserve avant que le Constructeur aille lui-même en zone de récolte
-  gather-batch-size: 8
-  # Distance à partir de laquelle un Constructeur peut se téléporter pour avancer plus vite
-  task-teleport-distance: 64.0
-
-  # ── Soin par le sommeil (v5.9.4) ─────────────────────────────────────────────
-  heal-per-sleep-tick: 2.0
-  sleep-heal-ticks: 8
-  sleep-heal-period: 60
-
-  # ── Mode archerie du Guerrier (v5.9.4) ───────────────────────────────────────
-  archer-min-distance: 6.0
-  archer-max-distance: 18.0
-  archer-cooldown-ms: 1500
-  archer-damage: 3.0
-
-  # ── Niveaux d'expérience (v5.9.5) ────────────────────────────────────────────
-  # Niveau à partir duquel le Constructeur se régénère seul (sans nourriture donnée)
-  self-feed-level: 5
-  self-feed-heal: 1.0
-  # XP gagnée par bloc posé / cassé
-  xp-per-block: 1
-  # XP gagnée par coup porté (mêlée ou tir à l'arc)
-  xp-per-hit: 2
-  # Bonus d'XP par ennemi tué
-  xp-per-kill: 25
-
-  # ── Drop à la mort (v5.9.8) ──────────────────────────────────────────────────
-  # Désactive la mécanique vanilla de drop d'équipement aléatoire sur les villageois
-  # recrutés : c'est désormais 100 % du drop qui est géré par le plugin, pour ne rien
-  # perdre dans le vide quand ils meurent.
-  disable-vanilla-equipment-drop: true

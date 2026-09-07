@@ -1,6 +1,8 @@
 package fr.faction.villager;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayDeque;
@@ -59,6 +61,18 @@ public class RecruitedVillager {
     /** Joueur qu'il doit suivre et défendre en priorité (null = ne suit personne). */
     private UUID followTarget;
 
+    // ── Récolteur ────────────────────────────────────────────────────────────
+    /** Outil en main : détermine ce qu'il récolte (pioche → minerais, hache → bois, pelle → terre/sable/…). */
+    private ItemStack tool;
+    /** Zone où il mine/coupe/creuse selon son outil. */
+    private Location harvestZoneA;
+    private Location harvestZoneB;
+    /** Champ où il plante, fait pousser et récolte automatiquement (blé, carottes, pommes de terre, betteraves). */
+    private Location farmZoneA;
+    private Location farmZoneB;
+    /** Coffre où il dépose tout ce qu'il récolte (les graines sont gardées sur lui pour replanter). */
+    private Location outputChest;
+
     // ── Commun ───────────────────────────────────────────────────────────────
     /** Point de rassemblement : là où il retourne une fois "libre" (plus de chantier / plus de cible). */
     private Location rallyPoint;
@@ -70,6 +84,7 @@ public class RecruitedVillager {
     private transient long lastActionTick;
     private transient int buildScanCursor;
     private transient int patrolIndex;
+    private transient boolean fleeing;
 
     public RecruitedVillager(UUID entityId, String factionName) {
         this.entityId = entityId;
@@ -77,6 +92,18 @@ public class RecruitedVillager {
     }
 
     public UUID getEntityId()                 { return entityId; }
+
+    /** Résout l'entité Bukkit correspondante (null si non chargée / expirée). */
+    public org.bukkit.entity.Entity getEntity() {
+        return Bukkit.getEntity(entityId);
+    }
+
+    /** Variante typée : renvoie le Villager uniquement si c'en est bien un. */
+    public Villager getVillager() {
+        org.bukkit.entity.Entity e = getEntity();
+        return (e instanceof Villager) ? (Villager) e : null;
+    }
+
     public String getFactionName()            { return factionName; }
     public void setFactionName(String f)      { this.factionName = f; }
     public String getCustomName()             { return customName; }
@@ -135,6 +162,27 @@ public class RecruitedVillager {
     public UUID getFollowTarget()             { return followTarget; }
     public void setFollowTarget(UUID u)       { this.followTarget = u; }
 
+    public ItemStack getTool()                { return tool; }
+    public void setTool(ItemStack i)          { this.tool = i; }
+    public Location getHarvestZoneA()         { return harvestZoneA; }
+    public void setHarvestZoneA(Location l)   { this.harvestZoneA = l; }
+    public Location getHarvestZoneB()         { return harvestZoneB; }
+    public void setHarvestZoneB(Location l)   { this.harvestZoneB = l; }
+    public boolean hasHarvestZone() {
+        return harvestZoneA != null && harvestZoneB != null
+                && harvestZoneA.getWorld() != null && harvestZoneA.getWorld().equals(harvestZoneB.getWorld());
+    }
+    public Location getFarmZoneA()            { return farmZoneA; }
+    public void setFarmZoneA(Location l)      { this.farmZoneA = l; }
+    public Location getFarmZoneB()            { return farmZoneB; }
+    public void setFarmZoneB(Location l)      { this.farmZoneB = l; }
+    public boolean hasFarmZone() {
+        return farmZoneA != null && farmZoneB != null
+                && farmZoneA.getWorld() != null && farmZoneA.getWorld().equals(farmZoneB.getWorld());
+    }
+    public Location getOutputChest()          { return outputChest; }
+    public void setOutputChest(Location l)    { this.outputChest = l; }
+
     public Location getRallyPoint()           { return rallyPoint; }
     public void setRallyPoint(Location l)     { this.rallyPoint = l; }
     public ItemStack getFood()                { return food; }
@@ -148,4 +196,6 @@ public class RecruitedVillager {
     public void setBuildScanCursor(int c)     { this.buildScanCursor = c; }
     public int getPatrolIndex()               { return patrolIndex; }
     public void setPatrolIndex(int i)         { this.patrolIndex = i; }
+    public boolean isFleeing()                { return fleeing; }
+    public void setFleeing(boolean f)         { this.fleeing = f; }
 }

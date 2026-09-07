@@ -1693,7 +1693,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private void handleVillageois(Player player, String[] args) {
         if (villagerManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
         if (args.length >= 2 && (args[1].equalsIgnoreCase("ranger") || args[1].equalsIgnoreCase("formation"))) {
-            villagerManager.formation(player);
+            fr.faction.villager.VillagerManager.FormationType type = fr.faction.villager.VillagerManager.FormationType.LIGNE;
+            if (args.length >= 3 && (args[2].equalsIgnoreCase("cercle") || args[2].equalsIgnoreCase("circle"))) {
+                type = fr.faction.villager.VillagerManager.FormationType.CERCLE;
+            }
+            villagerManager.formation(player, type);
             return;
         }
         if (villagerGUI == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
@@ -1936,6 +1940,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     }
                     case "limite","limit" -> Arrays.asList("0","1","2").stream()
                             .filter(s -> s.startsWith(args[2]))
+                            .collect(Collectors.toList());
+                    default -> Collections.emptyList();
+                };
+                case "villageois", "villagers" -> switch (args[1].toLowerCase()) {
+                    case "ranger","formation" -> Arrays.asList("ligne","cercle").stream()
+                            .filter(s -> s.startsWith(args[2].toLowerCase()))
                             .collect(Collectors.toList());
                     default -> Collections.emptyList();
                 };

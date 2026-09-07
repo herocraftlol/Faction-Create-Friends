@@ -18,14 +18,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import io.papermc.paper.chat.ChatRenderer;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.UUID;
 
@@ -56,27 +52,22 @@ public class PlayerListener implements Listener {
 
     // ── Chat ─────────────────────────────────────────────────────────────────────
     /**
-     * Paper 1.21 : on utilise l'event moderne AsyncChatEvent (Adventure).
-     * L'ancien AsyncPlayerChatEvent + setFormat() est toujours présent pour
-     * compatibilité, mais Paper ignore souvent silencieusement setFormat()
-     * depuis la gestion du chat signé/sécurisé — d'où le rang qui ne
-     * s'affichait plus. On construit le rendu via un ChatRenderer à la place.
-     * Le préfixe dans le tab-list reste géré via FactionTabManager (Scoreboard Teams).
+     * Paper 1.21 utilise AsyncPlayerChatEvent (encore supporté en mode legacy).
+     * Le vrai texte affiché dans le chat est contrôlé par setFormat().
+     * Le préfixe dans le tab-list est géré via FactionTabManager (Scoreboard Teams).
      *
      * Format :
      *   [icone_rang][Faction] NomJoueur: message
      *   ex: §e§l[★] §e[TitanS] §fSteve§r: bonjour
      */
-    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
-
     @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerChat(AsyncChatEvent event) {
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
 
         // Intercepter la saisie recherche shop
         if (shopGUI.isAwaitingSearch(player.getUniqueId())) {
             event.setCancelled(true);
-            final String msg = PlainTextComponentSerializer.plainText().serialize(event.message());
+            final String msg = event.getMessage();
             Bukkit.getScheduler().runTask(
                     Bukkit.getPluginManager().getPlugin("FactionPlugin"),
                     () -> shopGUI.handleSearchInput(player, msg));
@@ -94,12 +85,11 @@ public class PlayerListener implements Listener {
             warTag = ChatColor.RED + "⚔ ";
         }
 
-        String prefixLegacy;
-        String nameColorLegacy;
+        String format;
         if (faction == null) {
             // Sans faction : nom gris
-            prefixLegacy = ChatColor.DARK_GRAY + "[" + ChatColor.GRAY + "∅" + ChatColor.DARK_GRAY + "] ";
-            nameColorLegacy = ChatColor.GRAY.toString();
+            format = ChatColor.DARK_GRAY + "[" + ChatColor.GRAY + "∅" + ChatColor.DARK_GRAY + "] "
+                    + ChatColor.GRAY + "%s" + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
         } else {
             // Construire le préfixe rang + faction
             String rankPrefix;
@@ -110,18 +100,12 @@ public class PlayerListener implements Listener {
             }
             String factionTag = rank.couleur + "[" + faction.getName() + "]";
 
-            prefixLegacy = warTag + rankPrefix + factionTag + " ";
-            nameColorLegacy = rank.couleur.toString();
+            format = warTag + rankPrefix + factionTag + " "
+                    + rank.couleur + "%s"
+                    + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
         }
 
-        Component prefix = LEGACY.deserialize(prefixLegacy);
-        Component styledName = LEGACY.deserialize(nameColorLegacy + player.getName());
-        Component separator = LEGACY.deserialize(ChatColor.DARK_GRAY + ": " + ChatColor.WHITE);
-
-        Component fullPrefix = prefix.append(styledName).append(separator);
-
-        event.renderer(ChatRenderer.viewerUnaware((source, sourceDisplayName, message) ->
-                fullPrefix.append(message)));
+        event.setFormat(format);
     }
 
     // ── Join ─────────────────────────────────────────────────────────────────────
