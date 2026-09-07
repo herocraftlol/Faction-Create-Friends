@@ -1,26 +1,39 @@
 # 🏰 FactionPlugin
 
-> Le plugin Minecraft **tout-en-un** pour gérer des factions, déclarer des guerres, bâtir des alliances, **recruter et commander des villageois autonomes**, et bâtir des empires sur **Paper 1.21.4**.
+> **FactionPlugin** est le plugin Minecraft **tout-en-un** qui transforme votre serveur en une véritable **aventure de factions** sur **Paper 1.21.4**. Créez votre clan, déclarez des guerres, bâtissez des alliances, réclamez des territoires, gérez une **banque d'émeraudes**, commercez sur un **shop global**, et — depuis la v5.9.0 — **recrutez et commandez des villageois autonomes** qui travaillent, construisent et combattent à votre place.
 
 ![Version](https://img.shields.io/badge/version-5.10.0-blue)
 ![Minecraft](https://img.shields.io/badge/minecraft-1.21.4-green)
 ![Java](https://img.shields.io/badge/java-21%2B-orange)
 ![Statut](https://img.shields.io/badge/status-stable-success)
 ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
+![Téléchargements](https://img.shields.io/github/downloads/herocraftlol/Faction-Create-Friends/total?color=brightgreen)
 
 ---
 
-## ✨ Qu'est-ce que FactionPlugin ?
+## 🌟 FactionPlugin en un coup d'œil
 
-**FactionPlugin** transforme votre serveur Minecraft en une véritable **épopée de factions**. Créez votre clan, recrutez vos membres, scellez des **alliances** ou partez en **guerre**, réclamez et défendez vos **territoires**, amassez une fortune dans la **banque d'émeraudes**, vendez vos trouvailles sur le **shop global**, troquez en toute sécurité avec les autres joueurs, organisez votre coffre et votre inventaire, et mesurez-vous aux autres factions grâce au **système de puissance** à **7 rangs**.
+**Tout ce dont une faction Minecraft a besoin, dans une seule commande : `/faction` (alias `/f`).**
 
-Et depuis la **v5.9.0**, vos **villageois** peuvent rejoindre votre faction : en **v5.10.0**, un tout nouveau rôle — le **Récolteur** — s'ajoute au Constructeur et au Guerrier pour **miner, couper le bois, creuser et cultiver à votre place**. Pendant ce temps, le Constructeur bâtit désormais **instantanément** (téléportations bloc-par-bloc), et le Guerrier **fuit** intelligemment lorsqu'il est en danger plutôt que de mourir stupidement.
+- 🏰 **Factions complètes** — créez, invitez, gérez, transférez le leadership, nommez jusqu'à 2 sous-chefs
+- ⚡ **Système de puissance à 7 rangs** — Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire, avec buffs passifs croissants
+- 🗺️ **Territoire (claims)** — chunks protégés, permissions fines par joueur, accès alliés
+- ⚔️ **Guerres inter-factions** — déclarations négociées, score en direct, pillage, capitulation
+- 🤝 **Alliances** — bonus de puissance, homes étendus
+- 🏦 **Banque d'émeraudes** — coffre partagé, historique, classement des plus riches
+- 🛒 **Shop global** — GUI paginé, recherche, tri par prix, 4 monnaies (fer/or/diamant/émeraude)
+- 🧹 **Tri de coffre & inventaire** — 6 modes, aperçu avant validation
+- 💱 **Troc sécurisé** — échange entre joueurs avec double confirmation anti-scam
+- 👁️ **InvSee admin** — visualisation lecture-seule de l'inventaire d'un joueur
+- 📊 **Statistiques joueurs** — kills, K/D, mobs, blocs, temps de jeu, top 10 par catégorie
 
-Une seule commande pour tout faire : **`/faction`** (alias `/f`).
+Et depuis la **v5.10.0**, vos **villageois recrutés** deviennent encore plus autonomes et efficaces — voyez la section *Nouveautés* ci-dessous ! 🌾
 
 ---
 
 ## 🌾 Nouveautés de la v5.10.0 — *Le Récolteur, la construction instantanée et la fuite des guerriers*
+
+> **En bref** : vos villageois recrutés gagnent en autonomie, en productivité et en intelligence de combat. Le nouveau **Récolteur** travaille tout seul, le **Constructeur** bâtit 10× plus vite, et le **Guerrier** sait enfin **quand il faut fuir**.
 
 Une mise à jour centrée sur la **boucle de vie de vos villageois recrutés** : plus d'autonomie, plus de productivité, et un comportement de combat enfin **intelligent**.
 
