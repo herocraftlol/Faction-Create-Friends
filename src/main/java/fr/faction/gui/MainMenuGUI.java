@@ -217,13 +217,11 @@ public class MainMenuGUI implements Listener {
         inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR, "§d§l/fac spawn [1|2]",
-                faction != null && faction.hasSpawn(),
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR, "§d§l/fac spawn [1|2]", faction != null && faction.hasSpawn(),
                 "§7Aller au spawn de ta faction.",
                 "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
                 "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)")));
-        inv.setItem(20, cmdItem(Material.LODESTONE, "§d§l/fac setspawn [1|2]",
-                canMng,
+        inv.setItem(20, cmdItem(Material.LODESTONE, "§d§l/fac setspawn [1|2]", canMng,
                 "§7Définir un spawn de faction.",
                 "§7/fac setspawn   → spawn principal",
                 "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)"));
@@ -1127,18 +1125,20 @@ public class MainMenuGUI implements Listener {
         return is;
     }
 
-    /** Item grisé si disabled — forme simple (1 ligne de description) */
+    /** Item grisé si disabled */
     private ItemStack cmdItem(Material mat, String name, String desc, boolean enabled) {
-        return cmdItem(mat, name, enabled, desc);
+        if (enabled) return make(mat, name, desc, "", "§7Clic pour info");
+        return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
+                "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Item grisé si disabled — forme étendue (plusieurs lignes de lore, boolean avant le lore) */
-    private ItemStack cmdItem(Material mat, String name, boolean enabled, String... lore) {
+    /** Surcharge varargs pour les descriptions multi-lignes (Paper 1.21+). */
+    private ItemStack cmdItem(Material mat, String name, boolean enabled, String... descLines) {
         if (enabled) {
-            String[] all = new String[lore.length + 1];
-            System.arraycopy(lore, 0, all, 0, lore.length);
-            all[lore.length] = "§7Clic pour info";
-            return make(mat, name, all);
+            String[] lines = new String[descLines.length + 1];
+            System.arraycopy(descLines, 0, lines, 0, descLines.length);
+            lines[descLines.length] = "§7Clic pour info";
+            return make(mat, name, lines);
         }
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");

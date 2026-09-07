@@ -3,7 +3,6 @@ package fr.faction.power;
 import fr.faction.managers.FactionManager;
 import fr.faction.models.Faction;
 import fr.faction.ranking.FactionRank;
-import fr.faction.web.FactionTabSync;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -37,10 +36,6 @@ public class FactionTabManager {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private final FactionPowerManager powerManager;
-    // Optionnel : si renseigne (config mysql: valide), chaque refresh() est aussi
-    // propage vers MySQL pour que le tab-list du proxy Velocity (HeroTab) affiche
-    // la faction et le rang du joueur sur tout le reseau, pas seulement ici.
-    private final FactionTabSync tabSync;
 
     private static final String TEAM_NO_FACTION = "F_none";
     private static final String BOARD_NAME      = "FactionPlugin";
@@ -48,17 +43,9 @@ public class FactionTabManager {
     public FactionTabManager(JavaPlugin plugin,
                               FactionManager factionManager,
                               FactionPowerManager powerManager) {
-        this(plugin, factionManager, powerManager, null);
-    }
-
-    public FactionTabManager(JavaPlugin plugin,
-                              FactionManager factionManager,
-                              FactionPowerManager powerManager,
-                              FactionTabSync tabSync) {
         this.plugin          = plugin;
         this.factionManager  = factionManager;
         this.powerManager    = powerManager;
-        this.tabSync         = tabSync;
 
         // Créer ou récupérer un scoreboard dédié
         ScoreboardManager sbm = Bukkit.getScoreboardManager();
@@ -113,10 +100,6 @@ public class FactionTabManager {
 
         // Partager le scoreboard au joueur
         player.setScoreboard(board);
-
-        if (tabSync != null) {
-            tabSync.syncPlayer(player.getUniqueId(), faction != null ? faction.getName() : null, rank);
-        }
     }
 
     /**

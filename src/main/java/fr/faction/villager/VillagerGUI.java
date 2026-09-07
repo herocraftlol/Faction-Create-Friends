@@ -36,7 +36,7 @@ import java.util.UUID;
  */
 public class VillagerGUI implements Listener {
 
-    private enum SlotKind { RESOURCE, TASK_TYPE, WEAPON, HELMET, CHESTPLATE, LEGGINGS, BOOTS, BOW, ARROWS, LOOT, FOOD }
+    private enum SlotKind { RESOURCE, TASK_TYPE, WEAPON, HELMET, CHESTPLATE, LEGGINGS, BOOTS, BOW, ARROWS, LOOT, TOOL, FOOD }
 
     private static class ListHolder implements InventoryHolder {
         Inventory inv;
@@ -114,13 +114,15 @@ public class VillagerGUI implements Listener {
         inv.setItem(47, makeItem(Material.WRITABLE_BOOK, "§dChantier commun (constructeurs sélectionnés)",
                 "§7Tiens le bloc voulu en main, puis clique ici.",
                 "§7Assigne le même chantier à tous les constructeurs", "§7actuellement sélectionnés."));
-        inv.setItem(48, makeItem(Material.OAK_SIGN, "§eRanger en formation",
+        inv.setItem(48, makeItem(Material.OAK_SIGN, "§eRanger en ligne",
                 "§7Aligne devant toi tous tes villageois", "§7à moins de 40 blocs."));
         inv.setItem(49, makeItem(Material.BARRIER, "§cFermer"));
         inv.setItem(50, makeItem(Material.LAVA_BUCKET, "§cVider la sélection",
                 "§7" + selected.size() + " villageois actuellement sélectionné(s)."));
         inv.setItem(51, makeItem(Material.CAMPFIRE, "§dRassemblement commun (sélection)",
                 "§7Assigne le même point de rassemblement à tous", "§7les villageois actuellement sélectionnés."));
+        inv.setItem(52, makeItem(Material.SHIELD, "§eRanger en cercle",
+                "§7Dispose autour de toi tous tes villageois", "§7à moins de 40 blocs."));
 
         player.openInventory(inv);
     }
@@ -203,6 +205,8 @@ public class VillagerGUI implements Listener {
                 rv.getRole() == VillagerRole.CONSTRUCTEUR ? "§a✔ Actuellement sélectionné" : "§eClic → devenir constructeur" + (canManage ? "" : " §8(chef/sous-chef)")));
         inv.setItem(2, makeItem(Material.IRON_SWORD, "§cGuerrier",
                 rv.getRole() == VillagerRole.GUERRIER ? "§a✔ Actuellement sélectionné" : "§eClic → devenir guerrier" + (canManage ? "" : " §8(chef/sous-chef)")));
+        inv.setItem(3, makeItem(Material.IRON_PICKAXE, "§aRécolteur",
+                rv.getRole() == VillagerRole.RECOLTEUR ? "§a✔ Actuellement sélectionné" : "§eClic → devenir récolteur" + (canManage ? "" : " §8(chef/sous-chef)")));
 
         // Info
         Entity e = Bukkit.getEntity(rv.getEntityId());
@@ -329,9 +333,58 @@ public class VillagerGUI implements Listener {
             if (rv.getRallyPoint() != null) {
                 inv.setItem(44, makeItem(Material.BARRIER, "§cAnnuler le rassemblement", "§7Clic pour retirer." + manageTag));
             }
+        } else if (rv.getRole() == VillagerRole.RECOLTEUR) {
+            inv.setItem(18, rv.getTool());
+            holder.slotKinds.put(18, SlotKind.TOOL);
+
+            ItemStack[] stock = rv.getResources();
+            int[] stockSlots = {19, 20, 21, 22, 23, 24, 25, 26};
+            for (int i = 0; i < stockSlots.length; i++) {
+                inv.setItem(stockSlots[i], stock[i]);
+                holder.slotKinds.put(stockSlots[i], SlotKind.LOOT);
+                holder.resourceIndex.put(stockSlots[i], i);
+            }
+
+            String manageTag = canManage ? "" : " §8(chef/sous-chef)";
+
+            List<String> harvestLore = new ArrayList<>();
+            if (rv.hasHarvestZone()) harvestLore.add("§aZone définie. §7Pioche → minerais, hache → bois, pelle → terre/sable/…");
+            else harvestLore.add("§cAucune zone définie.");
+            harvestLore.add("§eClic → clique-droit 2 coins dans le monde" + manageTag);
+            inv.setItem(33, makeItem(Material.IRON_PICKAXE, "§dZone de récolte", harvestLore.toArray(new String[0])));
+            if (rv.hasHarvestZone()) {
+                inv.setItem(34, makeItem(Material.BARRIER, "§cAnnuler la zone de récolte", "§7Clic pour retirer." + manageTag));
+            }
+
+            List<String> farmLore = new ArrayList<>();
+            if (rv.hasFarmZone()) farmLore.add("§aChamp défini. §7Donne-lui des graines : il plante, récolte, replante.");
+            else farmLore.add("§cAucun champ défini.");
+            farmLore.add("§eClic → clique-droit 2 coins dans le monde" + manageTag);
+            inv.setItem(36, makeItem(Material.WHEAT, "§dChamp", farmLore.toArray(new String[0])));
+            if (rv.hasFarmZone()) {
+                inv.setItem(37, makeItem(Material.BARRIER, "§cAnnuler le champ", "§7Clic pour retirer." + manageTag));
+            }
+
+            List<String> chestLore = new ArrayList<>();
+            if (rv.getOutputChest() != null) chestLore.add("§aCoffre défini : tout ce qu'il récolte y est déposé.");
+            else chestLore.add("§cAucun coffre défini : il garde tout sur lui.");
+            chestLore.add("§eClic → clique-droit sur un coffre dans le monde" + manageTag);
+            inv.setItem(39, makeItem(Material.CHEST, "§dCoffre de dépôt", chestLore.toArray(new String[0])));
+            if (rv.getOutputChest() != null) {
+                inv.setItem(40, makeItem(Material.BARRIER, "§cAnnuler le coffre", "§7Clic pour retirer." + manageTag));
+            }
+
+            List<String> rallyLoreR = new ArrayList<>();
+            if (rv.getRallyPoint() != null) rallyLoreR.add("§aDéfini. §7Il y retourne une fois sa réserve gérée.");
+            else rallyLoreR.add("§7Non défini : il reste sur place.");
+            rallyLoreR.add("§eClic → clique-droit dans le monde" + manageTag);
+            inv.setItem(43, makeItem(Material.OAK_SIGN, "§dPoint de rassemblement", rallyLoreR.toArray(new String[0])));
+            if (rv.getRallyPoint() != null) {
+                inv.setItem(44, makeItem(Material.BARRIER, "§cAnnuler le rassemblement", "§7Clic pour retirer." + manageTag));
+            }
         } else {
             inv.setItem(22, makeItem(Material.BARRIER, "§7Aucun rôle assigné",
-                    "§7Choisis Constructeur ou Guerrier", "§7en haut pour débloquer l'équipement."));
+                    "§7Choisis Constructeur, Guerrier ou Récolteur", "§7en haut pour débloquer l'équipement."));
         }
 
         // Nourriture (commun à tous les rôles)
@@ -391,7 +444,8 @@ public class VillagerGUI implements Listener {
         }
 
         if (clicked.getType() == Material.BARRIER) { player.closeInventory(); return; }
-        if (clicked.getType() == Material.OAK_SIGN) { player.closeInventory(); villagerManager.formation(player); return; }
+        if (clicked.getType() == Material.OAK_SIGN) { player.closeInventory(); villagerManager.formation(player, VillagerManager.FormationType.LIGNE); return; }
+        if (clicked.getType() == Material.SHIELD) { player.closeInventory(); villagerManager.formation(player, VillagerManager.FormationType.CERCLE); return; }
 
         if (clicked.getType() == Material.LIME_DYE || clicked.getType() == Material.GRAY_DYE) {
             selectionMode.put(uuid, !selecting);
@@ -477,11 +531,13 @@ public class VillagerGUI implements Listener {
         boolean canManage = faction != null && faction.canManage(player.getUniqueId());
         boolean isBuilder = rv.getRole() == VillagerRole.CONSTRUCTEUR;
         boolean isWarrior = rv.getRole() == VillagerRole.GUERRIER;
+        boolean isHarvester = rv.getRole() == VillagerRole.RECOLTEUR;
 
         switch (slot) {
             case 0 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.AUCUN); openDetail(player, rv); } else denyManage(player); }
             case 1 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.CONSTRUCTEUR); openDetail(player, rv); } else denyManage(player); }
             case 2 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.GUERRIER); openDetail(player, rv); } else denyManage(player); }
+            case 3 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.RECOLTEUR); openDetail(player, rv); } else denyManage(player); }
             case 8 -> {
                 if (canManage) {
                     pendingChat.put(player.getUniqueId(), new PendingChatInput(rv.getEntityId(), PendingType.RENAME));
@@ -490,18 +546,31 @@ public class VillagerGUI implements Listener {
                 } else denyManage(player);
             }
 
-            // ── Constructeur ──────────────────────────────────────────────
+            // ── Constructeur / Récolteur ──────────────────────────────────
             case 33 -> {
-                if (!isBuilder) return;
-                if (!canManage) { denyManage(player); return; }
-                ItemStack typeItem = holder.inv.getItem(27);
-                if (typeItem == null || typeItem.getType() == Material.AIR || !typeItem.getType().isBlock()) {
-                    player.sendMessage(prefix() + "§cPlace d'abord un bloc dans l'emplacement au-dessus (type de bloc voulu).");
-                    return;
+                if (isBuilder) {
+                    if (!canManage) { denyManage(player); return; }
+                    ItemStack typeItem = holder.inv.getItem(27);
+                    if (typeItem == null || typeItem.getType() == Material.AIR || !typeItem.getType().isBlock()) {
+                        player.sendMessage(prefix() + "§cPlace d'abord un bloc dans l'emplacement au-dessus (type de bloc voulu).");
+                        return;
+                    }
+                    Material type = typeItem.getType();
+                    player.closeInventory();
+                    villagerManager.startTaskZoneSelection(player, rv, type);
+                } else if (isHarvester) {
+                    if (!canManage) { denyManage(player); return; }
+                    player.closeInventory();
+                    villagerManager.startHarvestZoneSelection(player, rv);
                 }
-                Material type = typeItem.getType();
-                player.closeInventory();
-                villagerManager.startTaskZoneSelection(player, rv, type);
+            }
+            case 34 -> {
+                if (isHarvester && rv.hasHarvestZone()) {
+                    if (!canManage) { denyManage(player); return; }
+                    villagerManager.clearHarvestZone(rv);
+                    player.sendMessage(prefix() + "§aZone de récolte retirée.");
+                    openDetail(player, rv);
+                }
             }
             case 36 -> {
                 if (isWarrior) {
@@ -511,6 +580,10 @@ public class VillagerGUI implements Listener {
                     villagerManager.setPost(rv, e.getLocation());
                     player.sendMessage(prefix() + "§a✔ Poste défini à sa position actuelle.");
                     openDetail(player, rv);
+                } else if (isHarvester) {
+                    if (!canManage) { denyManage(player); return; }
+                    player.closeInventory();
+                    villagerManager.startFarmZoneSelection(player, rv);
                 }
                 // Pour le constructeur, slot 36 = info seule (pas d'action)
             }
@@ -525,6 +598,11 @@ public class VillagerGUI implements Listener {
                     if (rv.getCurrentTask() == null) { player.sendMessage(prefix() + "§cAucun chantier actif à annuler."); return; }
                     villagerManager.cancelCurrentTask(rv);
                     player.sendMessage(prefix() + "§aChantier actuel annulé.");
+                    openDetail(player, rv);
+                } else if (isHarvester && rv.hasFarmZone()) {
+                    if (!canManage) { denyManage(player); return; }
+                    villagerManager.clearFarmZone(rv);
+                    player.sendMessage(prefix() + "§aChamp retiré.");
                     openDetail(player, rv);
                 }
             }
@@ -546,6 +624,10 @@ public class VillagerGUI implements Listener {
                     if (!canManage) { denyManage(player); return; }
                     villagerManager.setCombatEnabled(rv, !rv.isCombatEnabled());
                     openDetail(player, rv);
+                } else if (isHarvester) {
+                    if (!canManage) { denyManage(player); return; }
+                    player.closeInventory();
+                    villagerManager.startOutputChestSelection(player, rv);
                 }
             }
             case 40 -> {
@@ -553,6 +635,11 @@ public class VillagerGUI implements Listener {
                     if (!canManage) { denyManage(player); return; }
                     player.closeInventory();
                     villagerManager.startGatherZoneSelection(player, rv);
+                } else if (isHarvester && rv.getOutputChest() != null) {
+                    if (!canManage) { denyManage(player); return; }
+                    villagerManager.clearOutputChest(rv);
+                    player.sendMessage(prefix() + "§aCoffre de dépôt retiré.");
+                    openDetail(player, rv);
                 }
             }
             case 41 -> {
@@ -575,14 +662,14 @@ public class VillagerGUI implements Listener {
                 }
             }
             case 43 -> {
-                if (isBuilder || isWarrior) {
+                if (isBuilder || isWarrior || isHarvester) {
                     if (!canManage) { denyManage(player); return; }
                     player.closeInventory();
                     villagerManager.startRallyPointSelection(player, rv);
                 }
             }
             case 44 -> {
-                if ((isBuilder || isWarrior) && rv.getRallyPoint() != null) {
+                if ((isBuilder || isWarrior || isHarvester) && rv.getRallyPoint() != null) {
                     if (!canManage) { denyManage(player); return; }
                     villagerManager.clearRallyPoint(rv);
                     player.sendMessage(prefix() + "§aPoint de rassemblement retiré.");
@@ -623,6 +710,7 @@ public class VillagerGUI implements Listener {
                 case BOOTS -> rv.setBoots(clean);
                 case BOW -> rv.setBow(clean);
                 case ARROWS -> rv.setArrows(clean);
+                case TOOL -> rv.setTool(clean);
                 case FOOD -> rv.setFood(clean);
             }
         }
@@ -690,7 +778,8 @@ public class VillagerGUI implements Listener {
             case BOOTS -> name.endsWith("_BOOTS");
             case BOW -> type == Material.BOW || type == Material.CROSSBOW;
             case ARROWS -> name.endsWith("ARROW");
-            case LOOT -> true; // butin : accepte n'importe quel objet
+            case TOOL -> name.endsWith("_PICKAXE") || (name.endsWith("_AXE") && !name.contains("PICK")) || name.endsWith("_SHOVEL");
+            case LOOT -> true; // butin/graines : accepte n'importe quel objet
             case FOOD -> isEdible(type);
         };
     }
@@ -703,6 +792,7 @@ public class VillagerGUI implements Listener {
         return switch (role) {
             case CONSTRUCTEUR -> "§b";
             case GUERRIER -> "§c";
+            case RECOLTEUR -> "§a";
             default -> "§7";
         };
     }

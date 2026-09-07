@@ -1,5 +1,5 @@
 name: FactionPlugin
-version: 5.9.8
+version: 5.10.0
 main: fr.faction.FactionPlugin
 api-version: "1.21"
 author: FactionDev

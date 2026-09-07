@@ -6,13 +6,15 @@ package fr.faction.villager;
 public enum VillagerRole {
     AUCUN,
     CONSTRUCTEUR,
-    GUERRIER;
+    GUERRIER,
+    RECOLTEUR;
 
     public String displayName() {
         return switch (this) {
             case AUCUN -> "Aucun rôle";
             case CONSTRUCTEUR -> "Constructeur";
             case GUERRIER -> "Guerrier";
+            case RECOLTEUR -> "Récolteur";
         };
     }
 
