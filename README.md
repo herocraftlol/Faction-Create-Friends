@@ -2,7 +2,7 @@
 
 > **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, shop global, statistiques et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.10.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.10.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -14,9 +14,23 @@ Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'em
 
 ---
 
+## 🆕 Nouveautés de la v5.10.2 — *verrou-gui* 🚪🔒
+
+Cette version introduit une amélioration de robustesse très attendue sur les interfaces (GUIs) de gestion des villageois recrutés :
+
+- **🔒 Verrouillage d'accès à la GUI d'un villageois (`verrou-gui`)** : un seul joueur à la fois peut ouvrir la fiche détaillée d'un villageois recruté. Si un autre joueur essaie d'y accéder en même temps, il reçoit un message clair du type *« §cCe villageois est déjà géré par §ePseudo§c en ce moment. Réessaie dans un instant. §8»*. Terminé les clics perdus qui changeaient l'équipement ou le chantier du villageois sous les doigts de quelqu'un d'autre !
+- **🛡️ Verrou libéré automatiquement** dans tous les cas : lors de la fermeture de la GUI (par le joueur), lors d'un `/reload`, mais aussi si le joueur se **déconnecte sans fermer la GUI** — un filet de sécurité nettoie alors le verrou proprement, sans laisser le villageois « bloqué ».
+- **⚡ Aucune action perdue** : pendant qu'un joueur gère un villageois, ses clics sont exécutés normalement ; les autres joueurs reçoivent simplement un refus poli, ce qui évite les conflits de configuration et les duplications de meta.
+- **🔧 Correctifs de compilation Paper API 1.21.4** : mise à jour interne des références à l'API moderne de Bukkit/Paper (`LUCK_OF_THE_SEA`, `WITHER`/`ROSE_RED`, `HAPPY_VILLAGER`, `YELLOW_STAINED_GLASS_PANE`, `WHITE_BED`, `RESISTANCE`/`STRENGTH`, `MOVE_BACK_TO_VILLAGE`, `WATER_AVOIDING_RANDOM_STROLL`, `MapPalette.matchColor(java.awt.Color)`…) pour garantir un binaire stable et un démarrage sans erreur sur Paper 1.21.4.
+- **📦 Aucune migration de données nécessaire** : changez simplement le `.jar` et redémarrez. Les fichiers `villagers.yml`, `factions.yml`, etc. restent compatibles.
+
+> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : indicateurs visuels dans les GUIs, mains occupées, anti-disparition d'objets, Récolteur, etc.
+
+---
+
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.10.1.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.10.2.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -59,6 +73,7 @@ Bonus :
 - 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
 - **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
 - **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
+- **🔒 Verrou de GUI** (nouveau en v5.10.2) : un seul joueur à la fois peut gérer un villageois, sans conflit
 
 ### 💰 Économie intégrée
 - **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
@@ -122,7 +137,7 @@ Bonus :
 | `/faction classementjoueurs <cat>` | Top 10 joueurs |
 | `/faction classement` | Top 10 factions |
 | `/faction shop / vendre / acheter / recuperer / mesannonces` | Shop |
-| `/faction recruter / villageois` | Recrutement villageois |
+| `/faction recruter / villageois` | Recrutement villageois (vérrou-gui en v5.10.2) |
 | `/faction power [joueur]` | Puissance |
 | `/faction setchest` / `faction chest` | Coffres privés |
 | `/faction sort` | Tri d'inventaire/coffre |
@@ -162,7 +177,7 @@ cd Faction-Create-Friends/FactionPlugin-v4
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.10.1.jar` (≈ 430 KB).
+Le JAR est produit dans `target/FactionPlugin-5.10.2.jar` (≈ 430 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -190,6 +205,13 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 ---
 
 ## 🆕 Historique des versions
+
+### **v5.10.2** — *Verrou de GUI pour villageois (verrou-gui)*
+- **🔒 Verrouillage d'accès à la GUI d'un villageois** : un seul joueur à la fois peut ouvrir la fiche détaillée d'un villageois recruté. Les autres reçoivent *« Ce villageois est déjà géré par Pseudo en ce moment. Réessaie dans un instant. »*
+- **🛡️ Libération automatique du verrou** : sur fermeture de la GUI, sur `/reload`, et sur déconnexion du joueur — aucune GUI « bloquée ».
+- **⚡ Aucune action perdue** : les clics du propriétaire sont exécutés normalement ; les autres reçoivent simplement un refus poli.
+- **🔧 Correctifs de compilation Paper API 1.21.4** : `LUCK_OF_THE_SEA`, `HAPPY_VILLAGER`, `YELLOW_STAINED_GLASS_PANE`, `WHITE_BED`, `RESISTANCE`/`STRENGTH`, `MOVE_BACK_TO_VILLAGE`, `WATER_AVOIDING_RANDOM_STROLL`, `MapPalette.matchColor(java.awt.Color)`, lambda `final MapView finalView`, `Sound.ENTITY_PLAYER_BURP`, etc.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
 
 ### **v5.10.1** — *Indicateurs d'emplacement, correctifs anti-disparition, mains occupées*
 - **Indicateurs visuels** dans chaque emplacement vide des GUIs de villageois (arc, flèches, épée, casque, blocs, outil, nourriture, graines…) : une icône-repère grisée indique précisément quoi y déposer. Disparaît dès qu'un vrai objet est posé, et ne peut jamais être ramassée par erreur.
