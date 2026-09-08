@@ -1,8 +1,6 @@
 package fr.faction.villager;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.entity.Villager;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayDeque;
@@ -85,6 +83,8 @@ public class RecruitedVillager {
     private transient int buildScanCursor;
     private transient int patrolIndex;
     private transient boolean fleeing;
+    /** État de sommeil du tick précédent (utilisé par sleepPolling). */
+    private transient boolean wasSleeping;
 
     public RecruitedVillager(UUID entityId, String factionName) {
         this.entityId = entityId;
@@ -92,18 +92,6 @@ public class RecruitedVillager {
     }
 
     public UUID getEntityId()                 { return entityId; }
-
-    /** Résout l'entité Bukkit correspondante (null si non chargée / expirée). */
-    public org.bukkit.entity.Entity getEntity() {
-        return Bukkit.getEntity(entityId);
-    }
-
-    /** Variante typée : renvoie le Villager uniquement si c'en est bien un. */
-    public Villager getVillager() {
-        org.bukkit.entity.Entity e = getEntity();
-        return (e instanceof Villager) ? (Villager) e : null;
-    }
-
     public String getFactionName()            { return factionName; }
     public void setFactionName(String f)      { this.factionName = f; }
     public String getCustomName()             { return customName; }
@@ -198,4 +186,6 @@ public class RecruitedVillager {
     public void setPatrolIndex(int i)         { this.patrolIndex = i; }
     public boolean isFleeing()                { return fleeing; }
     public void setFleeing(boolean f)         { this.fleeing = f; }
+    public boolean isWasSleeping()            { return wasSleeping; }
+    public void setWasSleeping(boolean s)     { this.wasSleeping = s; }
 }

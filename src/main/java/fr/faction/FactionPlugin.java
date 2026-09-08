@@ -1,7 +1,5 @@
 package fr.faction;
 
-import org.bukkit.Bukkit;
-
 import fr.faction.alliance.AllianceManager;
 import fr.faction.alliance.HomeManager;
 import fr.faction.alliance.PlayerTeleportManager;
@@ -28,6 +26,7 @@ import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FactionPlugin extends JavaPlugin {

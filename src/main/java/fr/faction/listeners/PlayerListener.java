@@ -11,6 +11,10 @@ import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.war.WarManager;
 import fr.faction.war.WarSession;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -18,7 +22,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -51,23 +54,29 @@ public class PlayerListener implements Listener {
     public void setTabManager(FactionTabManager t){ this.tabManager   = t; }
 
     // ── Chat ─────────────────────────────────────────────────────────────────────
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+
     /**
-     * Paper 1.21 utilise AsyncPlayerChatEvent (encore supporté en mode legacy).
-     * Le vrai texte affiché dans le chat est contrôlé par setFormat().
-     * Le préfixe dans le tab-list est géré via FactionTabManager (Scoreboard Teams).
+     * Paper 1.21 ne respecte plus vraiment AsyncPlayerChatEvent#setFormat() (API
+     * historique de Bukkit) depuis le passage au chat signé/par Component — le
+     * format peut silencieusement ne rien changer à l'affichage final. La bonne
+     * API pour personnaliser l'affichage (avec couleur) est désormais
+     * io.papermc.paper.event.player.AsyncChatEvent + event.renderer(...), qui
+     * construit un vrai Component (donc compatible avec le chat signé) au lieu
+     * de manipuler une chaîne "%s".
      *
-     * Format :
+     * Rendu :
      *   [icone_rang][Faction] NomJoueur: message
-     *   ex: §e§l[★] §e[TitanS] §fSteve§r: bonjour
+     *   ex: §e§l[★] §e[TitanS] §eSteve§7: §fbonjour
      */
     @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
+    public void onPlayerChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
 
         // Intercepter la saisie recherche shop
         if (shopGUI.isAwaitingSearch(player.getUniqueId())) {
             event.setCancelled(true);
-            final String msg = event.getMessage();
+            final String msg = PlainTextComponentSerializer.plainText().serialize(event.message());
             Bukkit.getScheduler().runTask(
                     Bukkit.getPluginManager().getPlugin("FactionPlugin"),
                     () -> shopGUI.handleSearchInput(player, msg));
@@ -85,27 +94,29 @@ public class PlayerListener implements Listener {
             warTag = ChatColor.RED + "⚔ ";
         }
 
-        String format;
+        // Préfixe + nom du joueur, entièrement en couleur (codes § via ChatColor) :
+        // seule cette partie est reconstruite en Component, le message lui-même
+        // (signé par le client) reste tel que fourni par Paper, sans y toucher.
+        String head;
         if (faction == null) {
-            // Sans faction : nom gris
-            format = ChatColor.DARK_GRAY + "[" + ChatColor.GRAY + "∅" + ChatColor.DARK_GRAY + "] "
-                    + ChatColor.GRAY + "%s" + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
+            head = "" + ChatColor.DARK_GRAY + "[" + ChatColor.GRAY + "∅" + ChatColor.DARK_GRAY + "] "
+                    + ChatColor.GRAY + player.getName();
         } else {
-            // Construire le préfixe rang + faction
             String rankPrefix;
             if (rank == FactionRank.LEGENDAIRE) {
-                rankPrefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[⚜] " + ChatColor.RESET;
+                rankPrefix = "" + ChatColor.LIGHT_PURPLE + ChatColor.BOLD + "[⚜] " + ChatColor.RESET;
             } else {
                 rankPrefix = rank.getChatPrefix();
             }
             String factionTag = rank.couleur + "[" + faction.getName() + "]";
-
-            format = warTag + rankPrefix + factionTag + " "
-                    + rank.couleur + "%s"
-                    + ChatColor.DARK_GRAY + ": " + ChatColor.WHITE + "%s";
+            head = warTag + rankPrefix + factionTag + " " + rank.couleur + player.getName();
         }
 
-        event.setFormat(format);
+        Component headComponent = LEGACY.deserialize(head);
+        Component separator = LEGACY.deserialize(ChatColor.DARK_GRAY + ": " + ChatColor.WHITE);
+
+        event.renderer((source, sourceDisplayName, message, viewer) ->
+                headComponent.append(separator).append(message));
     }
 
     // ── Join ─────────────────────────────────────────────────────────────────────

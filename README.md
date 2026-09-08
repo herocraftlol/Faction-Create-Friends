@@ -2,7 +2,7 @@
 
 > **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, shop global, statistiques et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.10.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.10.3-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -14,23 +14,32 @@ Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'em
 
 ---
 
-## 🆕 Nouveautés de la v5.10.2 — *verrou-gui* 🚪🔒
+## 🆕 Nouveautés de la v5.10.3 — *Chat en couleur rétabli* 🎨💬
 
-Cette version introduit une amélioration de robustesse très attendue sur les interfaces (GUIs) de gestion des villageois recrutés :
+Cette version règle un problème très visible en jeu : depuis le passage à Paper 1.21 et au chat signé (`Component`), la couleur et le préfixe de faction dans le tchat mondial avaient **disparu silencieusement**, parce que l'API historique `AsyncPlayerChatEvent#setFormat()` n'est plus vraiment respectée.
 
-- **🔒 Verrouillage d'accès à la GUI d'un villageois (`verrou-gui`)** : un seul joueur à la fois peut ouvrir la fiche détaillée d'un villageois recruté. Si un autre joueur essaie d'y accéder en même temps, il reçoit un message clair du type *« §cCe villageois est déjà géré par §ePseudo§c en ce moment. Réessaie dans un instant. §8»*. Terminé les clics perdus qui changeaient l'équipement ou le chantier du villageois sous les doigts de quelqu'un d'autre !
-- **🛡️ Verrou libéré automatiquement** dans tous les cas : lors de la fermeture de la GUI (par le joueur), lors d'un `/reload`, mais aussi si le joueur se **déconnecte sans fermer la GUI** — un filet de sécurité nettoie alors le verrou proprement, sans laisser le villageois « bloqué ».
-- **⚡ Aucune action perdue** : pendant qu'un joueur gère un villageois, ses clics sont exécutés normalement ; les autres joueurs reçoivent simplement un refus poli, ce qui évite les conflits de configuration et les duplications de meta.
-- **🔧 Correctifs de compilation Paper API 1.21.4** : mise à jour interne des références à l'API moderne de Bukkit/Paper (`LUCK_OF_THE_SEA`, `WITHER`/`ROSE_RED`, `HAPPY_VILLAGER`, `YELLOW_STAINED_GLASS_PANE`, `WHITE_BED`, `RESISTANCE`/`STRENGTH`, `MOVE_BACK_TO_VILLAGE`, `WATER_AVOIDING_RANDOM_STROLL`, `MapPalette.matchColor(java.awt.Color)`…) pour garantir un binaire stable et un démarrage sans erreur sur Paper 1.21.4.
-- **📦 Aucune migration de données nécessaire** : changez simplement le `.jar` et redémarrez. Les fichiers `villagers.yml`, `factions.yml`, etc. restent compatibles.
+- **🎨 Couleurs et préfixe de faction rétablis dans le tchat** : passage de `AsyncPlayerChatEvent#setFormat(...)` à la nouvelle API Paper `io.papermc.paper.event.player.AsyncChatEvent` + `event.renderer(...)`. Le rendu reconstruit un vrai `Component` (donc compatible avec le chat signé par le client) tout en gardant le **contenu du message tel que tapé par le joueur** — sans y toucher.
+- **🪖 Icône de guerre en préfixe** : si ta faction est en guerre, un tag rouge ⚔ apparaît automatiquement devant le préfixe pour le signaler à tous.
+- **⭐ Icône de rang Légendaire** : les joueurs au rang max ont `[⚜]` en doré devant leur nom.
+- **🔧 Soin pendant le sommeil** : le polling `Villager#isSleeping()` détecte maintenant correctement le coucher (l'événement Bukkit `EntitySleepEvent` n'est plus jamais lancé sur Paper 1.21+) et déclenche la régénération nocturne — comme en v5.9.x.
+- **🔧 Petite compilation propre** : suppression du `@EventHandler` cassé sur `EntitySleepEvent` (n'existe plus dans l'API), et la régénération reste inline dans la boucle d'IA principale (`sleepPolling`).
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
 
-> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : indicateurs visuels dans les GUIs, mains occupées, anti-disparition d'objets, Récolteur, etc.
+### Rendu concret du tchat en jeu
+
+```
+[⚔][⚜] [TitanS] Steve : on doit riposter ce soir
+[◆] [TitanS] Alex  : j'ai déjà 12 obsidienne en stock
+[∅]   Billy        : salut, on se voit demain
+```
+
+> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : verrou-gui des villageois, indicateurs visuels dans les GUIs, mains occupées, anti-disparition d'objets, Récolteur, guerre automatique, etc.
 
 ---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.10.2.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.10.3.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -73,7 +82,7 @@ Bonus :
 - 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
 - **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
 - **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
-- **🔒 Verrou de GUI** (nouveau en v5.10.2) : un seul joueur à la fois peut gérer un villageois, sans conflit
+- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif en 5.10.3) : un seul joueur à la fois peut gérer un villageois, sans conflit
 
 ### 💰 Économie intégrée
 - **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
@@ -137,7 +146,7 @@ Bonus :
 | `/faction classementjoueurs <cat>` | Top 10 joueurs |
 | `/faction classement` | Top 10 factions |
 | `/faction shop / vendre / acheter / recuperer / mesannonces` | Shop |
-| `/faction recruter / villageois` | Recrutement villageois (vérrou-gui en v5.10.2) |
+| `/faction recruter / villageois` | Recrutement villageois (verrou-gui depuis v5.10.2) |
 | `/faction power [joueur]` | Puissance |
 | `/faction setchest` / `faction chest` | Coffres privés |
 | `/faction sort` | Tri d'inventaire/coffre |
@@ -177,7 +186,7 @@ cd Faction-Create-Friends/FactionPlugin-v4
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.10.2.jar` (≈ 430 KB).
+Le JAR est produit dans `target/FactionPlugin-5.10.3.jar` (≈ 430 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -205,6 +214,13 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 ---
 
 ## 🆕 Historique des versions
+
+### **v5.10.3** — *Chat en couleur rétabli* 🎨💬
+- **🎨 Couleurs & préfixe de faction dans le tchat** : migration complète de `AsyncPlayerChatEvent#setFormat()` vers l'API moderne Paper `AsyncChatEvent` + `event.renderer(...)`. Les couleurs, le tag de guerre (⚔), le tag de rang Légendaire (⚜), et le tag de faction (ex. `[TitanS]`) sont à nouveau visibles — alors qu'ils avaient silencieusement disparu depuis le passage au chat signé sous Paper 1.21.
+- **✉️ Message du joueur inchangé** : le contenu tapé par le joueur passe tel quel dans le `Component` rendu, sans aucune modification (compatibilité totale avec le système de signature).
+- **🌙 Soin nocturne** : la régénération pendant le sommeil est de nouveau déclenchée pour les villageois (via polling `Villager#isSleeping()` dans la boucle d'IA principale — l'événement Bukkit `EntitySleepEvent` n'est plus jamais lancé sur Paper 1.21+).
+- **🧹 Code allégé** : suppression du `@EventHandler` cassé sur `EntitySleepEvent`, remplacement par un simple `sleepPolling(rv, v)` qui tourne dans `tickAll()`.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
 
 ### **v5.10.2** — *Verrou de GUI pour villageois (verrou-gui)*
 - **🔒 Verrouillage d'accès à la GUI d'un villageois** : un seul joueur à la fois peut ouvrir la fiche détaillée d'un villageois recruté. Les autres reçoivent *« Ce villageois est déjà géré par Pseudo en ce moment. Réessaie dans un instant. »*

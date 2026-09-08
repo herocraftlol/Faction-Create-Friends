@@ -13,6 +13,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.Inventory;
@@ -63,15 +65,20 @@ public class VillagerGUI implements Listener {
     private final FactionManager factionManager;
     private final VillagerManager villagerManager;
     private final NamespacedKey idKey;
+    private final NamespacedKey placeholderKey;
     private final Map<UUID, PendingChatInput> pendingChat = new HashMap<>();
     private final Map<UUID, Boolean> selectionMode = new HashMap<>();
     private final Map<UUID, Set<UUID>> selectedVillagers = new HashMap<>();
+    /** Villageois (entityId) -> joueur qui a actuellement sa fiche ouverte, pour empêcher deux
+     *  joueurs de la gérer en même temps (évite les bugs de duplication/perte d'objets). */
+    private final Map<UUID, UUID> openDetailBy = new HashMap<>();
 
     public VillagerGUI(JavaPlugin plugin, FactionManager factionManager, VillagerManager villagerManager) {
         this.plugin = plugin;
         this.factionManager = factionManager;
         this.villagerManager = villagerManager;
         this.idKey = new NamespacedKey(plugin, "villager_id");
+        this.placeholderKey = new NamespacedKey(plugin, "villager_slot_placeholder");
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -187,6 +194,16 @@ public class VillagerGUI implements Listener {
     }
 
     public void openDetail(Player player, RecruitedVillager rv) {
+        UUID villagerId = rv.getEntityId();
+        UUID currentOwner = openDetailBy.get(villagerId);
+        if (currentOwner != null && !currentOwner.equals(player.getUniqueId())) {
+            Player owner = Bukkit.getPlayer(currentOwner);
+            String ownerName = owner != null ? owner.getName() : "un autre joueur";
+            player.sendMessage(prefix() + "§cCe villageois est déjà géré par §e" + ownerName
+                    + "§c en ce moment. Réessaie dans un instant.");
+            return;
+        }
+
         Faction faction = factionManager.getFaction(rv.getFactionName());
         boolean canManage = faction != null && faction.canManage(player.getUniqueId());
 
@@ -228,7 +245,7 @@ public class VillagerGUI implements Listener {
             ItemStack[] res = rv.getResources();
             for (int i = 0; i < 9; i++) {
                 int slot = 18 + i;
-                inv.setItem(slot, res[i]);
+                inv.setItem(slot, slotIcon(res[i], Material.BRICKS, "Blocs de construction"));
                 holder.slotKinds.put(slot, SlotKind.RESOURCE);
                 holder.resourceIndex.put(slot, i);
             }
@@ -236,7 +253,7 @@ public class VillagerGUI implements Listener {
             String manageTag = canManage ? "" : " §8(chef/sous-chef)";
 
             // Emplacement pour choisir le type de bloc du PROCHAIN chantier
-            inv.setItem(27, null);
+            inv.setItem(27, slotIcon(null, Material.PAPER, "Type de bloc du prochain chantier"));
             holder.slotKinds.put(27, SlotKind.TASK_TYPE);
 
             inv.setItem(33, makeItem(Material.WRITABLE_BOOK, "§dAjouter un chantier",
@@ -284,19 +301,19 @@ public class VillagerGUI implements Listener {
                 inv.setItem(44, makeItem(Material.BARRIER, "§cAnnuler le rassemblement", "§7Clic pour retirer." + manageTag));
             }
         } else if (rv.getRole() == VillagerRole.GUERRIER) {
-            inv.setItem(18, rv.getBow());       holder.slotKinds.put(18, SlotKind.BOW);
-            inv.setItem(19, rv.getArrows());    holder.slotKinds.put(19, SlotKind.ARROWS);
-            inv.setItem(20, rv.getWeapon());   holder.slotKinds.put(20, SlotKind.WEAPON);
-            inv.setItem(21, rv.getHelmet());   holder.slotKinds.put(21, SlotKind.HELMET);
-            inv.setItem(22, rv.getChestplate()); holder.slotKinds.put(22, SlotKind.CHESTPLATE);
-            inv.setItem(23, rv.getLeggings()); holder.slotKinds.put(23, SlotKind.LEGGINGS);
-            inv.setItem(24, rv.getBoots());    holder.slotKinds.put(24, SlotKind.BOOTS);
+            inv.setItem(18, slotIcon(rv.getBow(), Material.BOW, "Arc ou arbalète"));           holder.slotKinds.put(18, SlotKind.BOW);
+            inv.setItem(19, slotIcon(rv.getArrows(), Material.ARROW, "Flèches"));               holder.slotKinds.put(19, SlotKind.ARROWS);
+            inv.setItem(20, slotIcon(rv.getWeapon(), Material.IRON_SWORD, "Épée ou hache (mêlée)"));   holder.slotKinds.put(20, SlotKind.WEAPON);
+            inv.setItem(21, slotIcon(rv.getHelmet(), Material.IRON_HELMET, "Casque"));          holder.slotKinds.put(21, SlotKind.HELMET);
+            inv.setItem(22, slotIcon(rv.getChestplate(), Material.IRON_CHESTPLATE, "Plastron")); holder.slotKinds.put(22, SlotKind.CHESTPLATE);
+            inv.setItem(23, slotIcon(rv.getLeggings(), Material.IRON_LEGGINGS, "Jambières"));   holder.slotKinds.put(23, SlotKind.LEGGINGS);
+            inv.setItem(24, slotIcon(rv.getBoots(), Material.IRON_BOOTS, "Bottes"));            holder.slotKinds.put(24, SlotKind.BOOTS);
 
             // Butin ramassé sur ses victimes (8 des 9 emplacements de sa réserve ; le 9e reste "en poche")
             ItemStack[] loot = rv.getResources();
             int[] lootSlots = {27, 28, 29, 30, 32, 33, 34, 35};
             for (int i = 0; i < lootSlots.length; i++) {
-                inv.setItem(lootSlots[i], loot[i]);
+                inv.setItem(lootSlots[i], slotIcon(loot[i], Material.CHEST, "Butin (n'importe quel objet)"));
                 holder.slotKinds.put(lootSlots[i], SlotKind.LOOT);
                 holder.resourceIndex.put(lootSlots[i], i);
             }
@@ -334,13 +351,13 @@ public class VillagerGUI implements Listener {
                 inv.setItem(44, makeItem(Material.BARRIER, "§cAnnuler le rassemblement", "§7Clic pour retirer." + manageTag));
             }
         } else if (rv.getRole() == VillagerRole.RECOLTEUR) {
-            inv.setItem(18, rv.getTool());
+            inv.setItem(18, slotIcon(rv.getTool(), Material.IRON_PICKAXE, "Pioche, hache ou pelle"));
             holder.slotKinds.put(18, SlotKind.TOOL);
 
             ItemStack[] stock = rv.getResources();
             int[] stockSlots = {19, 20, 21, 22, 23, 24, 25, 26};
             for (int i = 0; i < stockSlots.length; i++) {
-                inv.setItem(stockSlots[i], stock[i]);
+                inv.setItem(stockSlots[i], slotIcon(stock[i], Material.WHEAT_SEEDS, "Graines ou objets récoltés"));
                 holder.slotKinds.put(stockSlots[i], SlotKind.LOOT);
                 holder.resourceIndex.put(stockSlots[i], i);
             }
@@ -388,7 +405,7 @@ public class VillagerGUI implements Listener {
         }
 
         // Nourriture (commun à tous les rôles)
-        inv.setItem(31, rv.getFood());
+        inv.setItem(31, slotIcon(rv.getFood(), Material.BREAD, "Nourriture"));
         holder.slotKinds.put(31, SlotKind.FOOD);
 
         // Navigation
@@ -397,6 +414,7 @@ public class VillagerGUI implements Listener {
         inv.setItem(53, makeItem(Material.BARRIER, "§cFermer"));
 
         player.openInventory(inv);
+        openDetailBy.put(villagerId, player.getUniqueId());
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -413,6 +431,51 @@ public class VillagerGUI implements Listener {
         } else if (topHolder instanceof DetailHolder holder) {
             handleDetailClick(event, player, holder);
         }
+    }
+
+    /**
+     * Le glisser-déposer (drag) n'est pas géré objet par objet comme les clics simples : on
+     * l'interdit entièrement dans nos GUI pour ne jamais laisser un objet atterrir dans un
+     * emplacement décoratif (donc invisible et perdu au prochain rafraîchissement).
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDrag(InventoryDragEvent event) {
+        InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
+        if (!(topHolder instanceof ListHolder) && !(topHolder instanceof DetailHolder)) return;
+        int topSize = event.getView().getTopInventory().getSize();
+        for (int slot : event.getRawSlots()) {
+            if (slot < topSize) { event.setCancelled(true); return; }
+        }
+    }
+
+    /** Rend au joueur (ou dépose à ses pieds) tout objet laissé dans l'emplacement transitoire "type de bloc". */
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (!(event.getInventory().getHolder() instanceof DetailHolder holder)) return;
+
+        // Libère le verrou d'accès (seulement s'il appartenait bien à celui qui ferme).
+        if (event.getPlayer() instanceof Player closingPlayer) {
+            openDetailBy.remove(holder.villagerId, closingPlayer.getUniqueId());
+        }
+
+        RecruitedVillager rv = villagerManager.getByEntity(holder.villagerId);
+        if (rv == null || rv.getRole() != VillagerRole.CONSTRUCTEUR) return;
+
+        ItemStack typeItem = event.getInventory().getItem(27);
+        if (typeItem == null || typeItem.getType() == Material.AIR || isPlaceholder(typeItem)) return;
+
+        if (event.getPlayer() instanceof Player player) {
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(typeItem);
+            for (ItemStack extra : leftover.values()) player.getWorld().dropItemNaturally(player.getLocation(), extra);
+        }
+        event.getInventory().setItem(27, null);
+    }
+
+    /** Filet de sécurité : libère aussi le verrou si le joueur se déconnecte sans fermer proprement. */
+    @EventHandler
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        openDetailBy.entrySet().removeIf(e -> e.getValue().equals(uuid));
     }
 
     private void handleListClick(InventoryClickEvent event, Player player) {
@@ -515,6 +578,22 @@ public class VillagerGUI implements Listener {
             return;
         }
 
+        // L'emplacement affiche un indicateur (repère visuel) plutôt qu'un vrai objet : on gère
+        // nous-mêmes la pose pour ne jamais laisser le joueur repartir avec l'indicateur en main.
+        if (isPlaceholder(event.getCurrentItem())) {
+            event.setCancelled(true);
+            ItemStack cursor = event.getCursor();
+            if (cursor == null || cursor.getType() == Material.AIR) return; // rien à poser, rien à ramasser
+            if (!isValidForSlot(kind, cursor.getType())) {
+                player.sendMessage(prefix() + "§cCet objet n'est pas accepté dans cet emplacement.");
+                return;
+            }
+            holder.inv.setItem(slot, cursor.clone());
+            player.setItemOnCursor(null);
+            Bukkit.getScheduler().runTask(plugin, () -> persistDetailSlots(holder, rv));
+            return;
+        }
+
         ItemStack cursor = event.getCursor();
         if (cursor != null && cursor.getType() != Material.AIR && !isValidForSlot(kind, cursor.getType())) {
             event.setCancelled(true);
@@ -551,7 +630,7 @@ public class VillagerGUI implements Listener {
                 if (isBuilder) {
                     if (!canManage) { denyManage(player); return; }
                     ItemStack typeItem = holder.inv.getItem(27);
-                    if (typeItem == null || typeItem.getType() == Material.AIR || !typeItem.getType().isBlock()) {
+                    if (typeItem == null || typeItem.getType() == Material.AIR || isPlaceholder(typeItem) || !typeItem.getType().isBlock()) {
                         player.sendMessage(prefix() + "§cPlace d'abord un bloc dans l'emplacement au-dessus (type de bloc voulu).");
                         return;
                     }
@@ -696,7 +775,7 @@ public class VillagerGUI implements Listener {
             int slot = entry.getKey();
             SlotKind kind = entry.getValue();
             ItemStack item = inv.getItem(slot);
-            ItemStack clean = (item == null || item.getType() == Material.AIR) ? null : item;
+            ItemStack clean = (item == null || item.getType() == Material.AIR || isPlaceholder(item)) ? null : item;
             switch (kind) {
                 case RESOURCE, LOOT -> {
                     Integer idx = holder.resourceIndex.get(slot);
@@ -818,6 +897,34 @@ public class VillagerGUI implements Listener {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    /**
+     * Affiche l'objet réel s'il y en a un dans cet emplacement, sinon un repère visuel (indicateur)
+     * montrant ce qui doit y aller. L'indicateur est marqué (PDC) pour ne jamais être confondu avec
+     * un vrai objet lors des clics.
+     */
+    private ItemStack slotIcon(ItemStack real, Material icon, String label) {
+        if (real != null && real.getType() != Material.AIR) return real;
+        ItemStack ph = new ItemStack(icon);
+        ItemMeta meta = ph.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "§7[Vide] " + label));
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.translateAlternateColorCodes('&', "§8Dépose ici : §7" + label));
+            meta.setLore(lore);
+            meta.getPersistentDataContainer().set(placeholderKey, PersistentDataType.BYTE, (byte) 1);
+            ph.setItemMeta(meta);
+        }
+        return ph;
+    }
+
+    private boolean isPlaceholder(ItemStack item) {
+        if (item == null) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        Byte tag = meta.getPersistentDataContainer().get(placeholderKey, PersistentDataType.BYTE);
+        return tag != null && tag == (byte) 1;
     }
 
     private String prefix() {

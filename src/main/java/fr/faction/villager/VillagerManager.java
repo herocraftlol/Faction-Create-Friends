@@ -202,20 +202,11 @@ public class VillagerManager implements Listener {
     private void disableVanillaWander(Villager v) {
         try {
             var goals = Bukkit.getMobGoals();
-            // Utilise la réflexion pour éviter les erreurs de compilation sur les noms
-            // de constantes renommées entre versions de Paper (1.20 → 1.21).
-            for (String name : new String[]{"RANDOM_STROLL", "RANDOM_STROLL_LAND", "PANIC",
-                    "WALK_TO_VILLAGE", "MOVE_THROUGH_VILLAGE", "MOVE_BACK_TO_VILLAGE"}) {
-                try {
-                    java.lang.reflect.Field f = com.destroystokyo.paper.entity.ai.VanillaGoal.class.getField(name);
-                    Object goal = f.get(null);
-                    goals.getClass().getMethod("removeGoal", org.bukkit.entity.Mob.class,
-                            com.destroystokyo.paper.entity.ai.GoalKey.class).invoke(goals, v, goal);
-                } catch (NoSuchFieldException ignored) {
-                    /* constante renommée entre versions de Paper */
-                }
-            }
-        } catch (Throwable ignored) { /* best effort */ }
+            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.WATER_AVOIDING_RANDOM_STROLL);
+            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.PANIC);
+            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.MOVE_BACK_TO_VILLAGE);
+            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.MOVE_THROUGH_VILLAGE);
+        } catch (Throwable ignored) { /* selon la version du serveur, certains goals peuvent ne pas exister */ }
     }
 
     private void applyMaxHealthForLevel(RecruitedVillager rv, Villager v) {
@@ -278,6 +269,12 @@ public class VillagerManager implements Listener {
                 eq.setBoots(rv.getBoots());
             } else if (rv.getRole() == VillagerRole.RECOLTEUR) {
                 eq.setItemInMainHand(rv.getTool());
+                eq.setHelmet(null);
+                eq.setChestplate(null);
+                eq.setLeggings(null);
+                eq.setBoots(null);
+            } else if (rv.getRole() == VillagerRole.CONSTRUCTEUR) {
+                eq.setItemInMainHand(currentBuildMaterial(rv));
                 eq.setHelmet(null);
                 eq.setChestplate(null);
                 eq.setLeggings(null);
@@ -706,6 +703,7 @@ public class VillagerManager implements Listener {
             Entity e = Bukkit.getEntity(rv.getEntityId());
             if (!(e instanceof Villager v) || v.isDead()) continue;
             feedTick(rv, v);
+            sleepPolling(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
@@ -723,7 +721,7 @@ public class VillagerManager implements Listener {
         if (food != null && food.getAmount() > 0) {
             double healAmount = plugin.getConfig().getDouble("villager.heal-per-food", 4.0);
             v.setHealth(Math.min(max, v.getHealth() + healAmount));
-            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_GENERIC_EAT, 1f, 1f);
+            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_BURP, 1f, 1f);
 
             int newAmount = food.getAmount() - 1;
             if (newAmount <= 0) rv.setFood(null);
@@ -752,22 +750,19 @@ public class VillagerManager implements Listener {
     // SOIN EN DORMANT DANS UN LIT
     // ════════════════════════════════════════════════════════════════════════
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onSleep(org.bukkit.event.player.PlayerBedEnterEvent event) {
-        // En Paper 1.21, EntitySleepEvent a été retiré.
-        // On s'appuie sur la position du lit pour identifier le villageois recruté couché.
-        if (event.getBed() == null) return;
-        org.bukkit.block.Block bed = event.getBed();
-        for (RecruitedVillager rv : villagers.values()) {
-            if (rv == null) continue;
-            org.bukkit.entity.Villager v = rv.getVillager();
-            if (v == null) continue;
-            if (!v.getWorld().equals(bed.getWorld())) continue;
-            if (v.getLocation().distanceSquared(bed.getLocation().add(0.5, 0.5, 0.5)) < 2.0) {
-                startSleepHealing(rv);
-                break;
-            }
+    /**
+     * Détection de sommeil par polling pour Paper 1.21.4+, où l'événement
+     * EntitySleepEvent n'est plus jamais lancé (supprimé côté Bukkit depuis le
+     * passage des mobs à l'IA Brain). On détecte la transition awake → sleeping
+     * dans la boucle d'IA principale (tickAll) et on déclenche startSleepHealing
+     * une seule fois par "aller se coucher".
+     */
+    private void sleepPolling(RecruitedVillager rv, Villager v) {
+        boolean sleeping = v.isSleeping();
+        if (sleeping && !rv.isWasSleeping()) {
+            startSleepHealing(rv);
         }
+        rv.setWasSleeping(sleeping);
     }
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
@@ -780,11 +775,11 @@ public class VillagerManager implements Listener {
             int done = 0;
             @Override public void run() {
                 Entity e = Bukkit.getEntity(rv.getEntityId());
-                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
-                double max = getMaxHealth(v);
-                if (v.getHealth() < max) {
-                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
-                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
+                if (!(e instanceof Villager vill) || vill.isDead()) { cancel(); return; }
+                double max = getMaxHealth(vill);
+                if (vill.getHealth() < max) {
+                    vill.setHealth(Math.min(max, vill.getHealth() + healAmount));
+                    vill.getWorld().playSound(vill.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
                 }
                 if (++done >= maxTicks) cancel();
             }
@@ -793,6 +788,7 @@ public class VillagerManager implements Listener {
 
     // ── Constructeur : traite le chantier en tête de file, récolte si besoin ──
     private void builderTick(RecruitedVillager rv, Villager v) {
+        updateBuilderHand(rv, v);
         int actions = blocksPerAction(rv);
         for (int i = 0; i < actions; i++) {
             BuildTask task = rv.getCurrentTask();
@@ -804,6 +800,30 @@ public class VillagerManager implements Listener {
             }
             if (!builderAction(rv, v, task)) return; // en attente de ressources : on retente au tick suivant
         }
+    }
+
+    /** Met à jour ce qu'il tient en main pour refléter le matériau qu'il utilise en ce moment. */
+    private void updateBuilderHand(RecruitedVillager rv, Villager v) {
+        EntityEquipment eq = v.getEquipment();
+        if (eq == null) return;
+        ItemStack desired = currentBuildMaterial(rv);
+        ItemStack current = eq.getItemInMainHand();
+        boolean currentEmpty = current == null || current.getType() == Material.AIR;
+        boolean desiredEmpty = desired == null;
+        if (desiredEmpty != currentEmpty || (!desiredEmpty && !desired.isSimilar(current))) {
+            eq.setItemInMainHand(desired);
+        }
+    }
+
+    private ItemStack currentBuildMaterial(RecruitedVillager rv) {
+        BuildTask task = rv.getCurrentTask();
+        Material mat = task != null ? task.getBlockType() : null;
+        if (mat == null) {
+            for (ItemStack it : rv.getResources()) {
+                if (it != null && it.getType() != Material.AIR) { mat = it.getType(); break; }
+            }
+        }
+        return mat != null ? new ItemStack(mat, 1) : null;
     }
 
     /** Une "action" = un aller-miner OU une pose de bloc, exécutée immédiatement (téléportation + échafaudage si besoin). */
