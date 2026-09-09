@@ -1,37 +1,36 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, shop global, statistiques et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.10.3-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.12.0-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
 ## ✨ Qu'est-ce que FactionPlugin ?
 
-**FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent et récoltent pour vous.
+**FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
-## 🆕 Nouveautés de la v5.10.3 — *Chat en couleur rétabli* 🎨💬
+## 🆕 Nouveautés de la v5.12.0 — *Commerce inter-villes* 🚢🚂📦
 
-Cette version règle un problème très visible en jeu : depuis le passage à Paper 1.21 et au chat signé (`Component`), la couleur et le préfixe de faction dans le tchat mondial avaient **disparu silencieusement**, parce que l'API historique `AsyncPlayerChatEvent#setFormat()` n'est plus vraiment respectée.
+La v5.12.0 ouvre un tout nouveau système économique : les **villages** de votre faction peuvent désormais **échanger des ressources entre eux** par bateau ou par train. Plus de production en vase clos : vos surplus filent dans le port voisin, votre allié reçoit un wagon de charbon, et l'économie régionale prend forme toute seule.
 
-- **🎨 Couleurs et préfixe de faction rétablis dans le tchat** : passage de `AsyncPlayerChatEvent#setFormat(...)` à la nouvelle API Paper `io.papermc.paper.event.player.AsyncChatEvent` + `event.renderer(...)`. Le rendu reconstruit un vrai `Component` (donc compatible avec le chat signé par le client) tout en gardant le **contenu du message tel que tapé par le joueur** — sans y toucher.
-- **🪖 Icône de guerre en préfixe** : si ta faction est en guerre, un tag rouge ⚔ apparaît automatiquement devant le préfixe pour le signaler à tous.
-- **⭐ Icône de rang Légendaire** : les joueurs au rang max ont `[⚜]` en doré devant leur nom.
-- **🔧 Soin pendant le sommeil** : le polling `Villager#isSleeping()` détecte maintenant correctement le coucher (l'événement Bukkit `EntitySleepEvent` n'est plus jamais lancé sur Paper 1.21+) et déclenche la régénération nocturne — comme en v5.9.x.
-- **🔧 Petite compilation propre** : suppression du `@EventHandler` cassé sur `EntitySleepEvent` (n'existe plus dans l'API), et la régénération reste inline dans la boucle d'IA principale (`sleepPolling`).
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+- **🚢 Rôle Navigateur** — villageois qui **livre en bateau** entre deux **ports** d'une même faction ou de factions alliées. Charge, embarque, traverse à vue, dépose, revient à vide.
+- **🚂 Rôle Cheminot** — version ferroviaire, qui **livre en minecart** entre deux **gares** des deux villes.
+- **📦 Définir un port ou une gare** — `/faction port definir <village>` et `/faction gare definir <village>` posent un "coffre de fret" dans la zone du village, servant d'entrepôt d'expédition *et* de réception.
+- **📜 Contrats commerciaux** (`/faction contrat …`)
+  - `creer <fromVillage> <toVillage> <resource> <quantite>` — crée un contrat en attente
+  - `liste` — listez tous les contrats de la faction (en attente / en transit / livrés)
+  - `assigner <id>` — assigne un navigateur ou cheminot au contrat
+  - `annuler <id>` — annule (chef/sous-chef uniquement)
+- **🔒 Fret protégé** — seuls la faction propriétaire et ses alliées peuvent ouvrir le coffre de fret ou monter dans le véhicule de transport.
+- **🚤 Trajet simple** — un contrat = un aller simple en ligne droite, à vue, à petite vitesse (le chenal maritime ou la voie ferrée doit être dégagée entre les deux postes). Pas de pathfinding complexe : lisible et stable.
+- **🧹 Correctif important** — un précédent développement avait par erreur écrasé le fichier `TradeManager` du troc (joueur↔joueur, fonctionnalité totalement différente). Le troc a été **reconstruit à l'identique**, et le nouveau commerce est dans son **propre package** (`fr.faction.commerce`) pour ne plus jamais entrer en conflit.
 
-### Rendu concret du tchat en jeu
-
-```
-[⚔][⚜] [TitanS] Steve : on doit riposter ce soir
-[◆] [TitanS] Alex  : j'ai déjà 12 obsidienne en stock
-[∅]   Billy        : salut, on se voit demain
-```
+ℹ️ Voir [`CHANGELOG_v5_12_0.md`](./CHANGELOG_v5_12_0.md) pour le détail complet des changements, du correctif de compilation (Paper 1.21.4) et de la migration.
 
 > ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : verrou-gui des villageois, indicateurs visuels dans les GUIs, mains occupées, anti-disparition d'objets, Récolteur, guerre automatique, etc.
 
@@ -39,7 +38,7 @@ Cette version règle un problème très visible en jeu : depuis le passage à Pa
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.10.3.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.12.0.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -82,7 +81,7 @@ Bonus :
 - 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
 - **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
 - **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
-- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif en 5.10.3) : un seul joueur à la fois peut gérer un villageois, sans conflit
+- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif en v5.12.0) : un seul joueur à la fois peut gérer un villageois, sans conflit
 
 ### 💰 Économie intégrée
 - **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
@@ -94,6 +93,9 @@ Bonus :
 - Interface GUI dédiée : chacun pose ce qu'il propose et ce qu'il veut
 - **Confirmation des deux parties** requise pour finaliser
 - Annulation possible à tout moment, **anti-scam** garanti
+
+### 🚢 Commerce inter-villes (nouveau en 5.12)
+Vos villages ne sont plus des îles économiques. Choisissez une ressource dans un village, expédiez-la dans un port ou une gare, et un **Navigateur** (bateau) ou un **Cheminot** (minecart) la livre jusqu'au village allié. Contrats à sens unique, fret protégé par faction, itinéraire ligne droite à vue — simple, lisible, stable.
 
 ### 🏠 Homes & téléportation
 - `/sethome`, `/home`, `/delhome`, `/homes` — homes personnels
@@ -147,6 +149,8 @@ Bonus :
 | `/faction classement` | Top 10 factions |
 | `/faction shop / vendre / acheter / recuperer / mesannonces` | Shop |
 | `/faction recruter / villageois` | Recrutement villageois (verrou-gui depuis v5.10.2) |
+| `/faction contrat` | Commerce inter-villes (5.12) |
+| `/faction port` / `faction gare` | Définir ports / gares (5.12) |
 | `/faction power [joueur]` | Puissance |
 | `/faction setchest` / `faction chest` | Coffres privés |
 | `/faction sort` | Tri d'inventaire/coffre |
@@ -186,7 +190,7 @@ cd Faction-Create-Friends/FactionPlugin-v4
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.10.3.jar` (≈ 430 KB).
+Le JAR est produit dans `target/FactionPlugin-5.12.0.jar` (≈ 470 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -214,6 +218,22 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 ---
 
 ## 🆕 Historique des versions
+
+### **v5.12.0** — *Commerce inter-villes 🚢🚂📦*
+- **🚢 Rôle Navigateur** : villageois qui livre **en bateau** entre les **ports** de deux villes (factions alliées ou même faction). Charge → embarque → traverse à vue → dépose → revient à vide.
+- **🚂 Rôle Cheminot** : version **minecart** entre les **gares** des deux villes.
+- **📦 Définir un port/gare** : `/faction port definir <village>` et `/faction gare definir <village>` — pose un "coffre de fret" dans la zone du village, servant d'entrepôt d'expédition *et* de réception.
+- **📜 Contrats** (`/faction contrat …`) : `creer`, `liste`, `assigner`, `annuler` — permet de planifier une livraison **à sens unique** entre deux villes.
+- **🚤 Trajet simple** : un contrat = un aller simple en ligne droite, à vue, à petite vitesse (chenal maritime ou voie ferrée doit être dégagé). Pas de pathfinding complexe, lisible et stable.
+- **🔒 Fret protégé** : seuls la faction propriétaire et ses alliées peuvent ouvrir le coffre de fret ou monter dans le véhicule de transport.
+- **🧹 Correctif important** : un dev précédent avait écrasé par erreur le fichier `TradeManager` du **troc joueur↔joueur** (fonctionnalité totalement différente). **Troc reconstruit à l'identique**, nouveau commerce déplacé dans son **propre package `fr.faction.commerce`** — les deux fonctionnalités sont maintenant strictement indépendantes.
+- **🐛 Compatibilité Paper 1.21.4** : renommages d'API déjà corrigés en `Material.YELLOW_STAINED_GLASS_PANE`, `Material.RED_BED`, `Particle.HAPPY_VILLAGER`, `Particle.WITCH`, `Sound.ENTITY_GENERIC_EAT`, `Enchantment.LOOTING`, `PotionEffectType.STRENGTH`/`RESISTANCE`, `BuyResult.NOT_ENOUGH_PAYMENT`, conversion `MapPalette.matchColor(java.awt.Color)`.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit. (Contrats en transit au moment de la mise à jour seront perdus — pas de persistance encore.)
+
+### **v5.11.0** — *Villages & niveaux* 🏘️
+- Niveaux dérivés de la population (1-4 = Village, 5+ = Ville). Débloque l'accès au rôle Navigateur/Cheminot.
+- Base de repli par village (un villageois "naît" dans son village, y revient sans tâche).
+- Entraide entre villageois (le Récolteur donne jusqu'à 4 nourritures à un guerrier/constructeur à < 70% de vie, dans un rayon de 48 blocs).
 
 ### **v5.10.3** — *Chat en couleur rétabli* 🎨💬
 - **🎨 Couleurs & préfixe de faction dans le tchat** : migration complète de `AsyncPlayerChatEvent#setFormat()` vers l'API moderne Paper `AsyncChatEvent` + `event.renderer(...)`. Les couleurs, le tag de guerre (⚔), le tag de rang Légendaire (⚜), et le tag de faction (ex. `[TitanS]`) sont à nouveau visibles — alors qu'ils avaient silencieusement disparu depuis le passage au chat signé sous Paper 1.21.

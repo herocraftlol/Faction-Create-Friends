@@ -76,6 +76,8 @@ public class FactionPlugin extends JavaPlugin {
     // v5.9 — villageois recrutés
     private fr.faction.villager.VillagerManager villagerManager;
     private fr.faction.villager.VillagerGUI villagerGUI;
+    private fr.faction.village.VillageManager villageManager;
+    private fr.faction.commerce.CommerceManager commerceManager;
 
     @Override
     public void onEnable() {
@@ -139,6 +141,20 @@ public class FactionPlugin extends JavaPlugin {
         villagerManager.setWarManager(warManager);
         villagerManager.setPowerManager(powerManager);
         villagerGUI = new fr.faction.villager.VillagerGUI(this, factionManager, villagerManager);
+
+        // ── v5.11 — Villages ─────────────────────────────────────────────────
+        villageManager = new fr.faction.village.VillageManager(this, factionManager);
+        villageManager.setClaimManager(claimManager);
+        villageManager.setVillagerManager(villagerManager);
+        villagerManager.setVillageManager(villageManager);
+        villagerGUI.setVillageManager(villageManager);
+
+        // ── v5.12 — Commerce inter-villes (ports/gares, contrats) ─────────────
+        commerceManager = new fr.faction.commerce.CommerceManager(this, factionManager);
+        commerceManager.setVillageManager(villageManager);
+        commerceManager.setVillagerManager(villagerManager);
+        villagerManager.setCommerceManager(commerceManager);
+
         villagerManager.start();
 
         // ── Liaison compte web (/lier) ────────────────────────────────────────────
@@ -169,6 +185,8 @@ public class FactionPlugin extends JavaPlugin {
         cmd.setMapManager(mapManager);
         cmd.setVillagerManager(villagerManager);
         cmd.setVillagerGUI(villagerGUI);
+        cmd.setVillageManager(villageManager);
+        cmd.setCommerceManager(commerceManager);
         actionBarManager.setWarManager(warManager);
 
         getCommand("faction").setExecutor(cmd);
@@ -253,6 +271,9 @@ public class FactionPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sortMenuGUI, this);
         getServer().getPluginManager().registerEvents(villagerManager, this);
         getServer().getPluginManager().registerEvents(villagerGUI, this);
+        getServer().getPluginManager().registerEvents(villageManager, this);
+        getServer().getPluginManager().registerEvents(tradeManager, this);
+        getServer().getPluginManager().registerEvents(commerceManager, this);
 
         actionBarManager.start();
         playtimeTracker = new PlaytimeTracker(this, statsManager);
@@ -330,6 +351,9 @@ public class FactionPlugin extends JavaPlugin {
         if (privateChestManager != null)    privateChestManager.save();
         if (warManager != null)             { warManager.save(); warManager.stop(); }
         if (villagerManager != null)        villagerManager.save();
+        if (villageManager != null)         villageManager.save();
+        if (tradeManager != null)           tradeManager.save();
+        if (commerceManager != null)        commerceManager.save();
         if (webLinkManager != null)         webLinkManager.close();
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
@@ -361,5 +385,7 @@ public class FactionPlugin extends JavaPlugin {
     public fr.faction.sort.SortMenuGUI getSortMenuGUI()    { return sortMenuGUI; }
     public fr.faction.map.FactionMapManager getMapManager() { return mapManager; }
     public fr.faction.villager.VillagerManager getVillagerManager() { return villagerManager; }
+    public fr.faction.village.VillageManager getVillageManager() { return villageManager; }
+    public fr.faction.commerce.CommerceManager getCommerceManager() { return commerceManager; }
     public fr.faction.villager.VillagerGUI getVillagerGUI() { return villagerGUI; }
 }

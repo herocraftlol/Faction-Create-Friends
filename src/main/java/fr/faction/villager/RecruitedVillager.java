@@ -58,6 +58,19 @@ public class RecruitedVillager {
     private boolean combatEnabled = true;
     /** Joueur qu'il doit suivre et défendre en priorité (null = ne suit personne). */
     private UUID followTarget;
+    /** Si true : vagabonde et vit comme un villageois normal (commerce, déplacements...) tant
+     *  qu'il n'a rien à faire, tout en continuant à se défendre s'il y a un ennemi. */
+    private boolean freeRoam = false;
+    /** Village (de sa faction) dont il est originaire/membre, null s'il n'en fait partie d'aucun. */
+    private String villageName;
+
+    // ── Navigateur / Cheminot ────────────────────────────────────────────────
+    /** Contrat commercial en cours (persisté ; si le véhicule/trajet a été perdu au redémarrage, il est réinitialisé). */
+    private java.util.UUID contractId;
+    private transient java.util.List<org.bukkit.Location> transitWaypoints;
+    private transient int waypointIndex;
+    private transient java.util.UUID vehicleId;
+    private transient boolean returningTrip;
 
     // ── Récolteur ────────────────────────────────────────────────────────────
     /** Outil en main : détermine ce qu'il récolte (pioche → minerais, hache → bois, pelle → terre/sable/…). */
@@ -83,8 +96,6 @@ public class RecruitedVillager {
     private transient int buildScanCursor;
     private transient int patrolIndex;
     private transient boolean fleeing;
-    /** État de sommeil du tick précédent (utilisé par sleepPolling). */
-    private transient boolean wasSleeping;
 
     public RecruitedVillager(UUID entityId, String factionName) {
         this.entityId = entityId;
@@ -149,6 +160,21 @@ public class RecruitedVillager {
     public void setCombatEnabled(boolean b)   { this.combatEnabled = b; }
     public UUID getFollowTarget()             { return followTarget; }
     public void setFollowTarget(UUID u)       { this.followTarget = u; }
+    public boolean isFreeRoam()               { return freeRoam; }
+    public void setFreeRoam(boolean b)        { this.freeRoam = b; }
+    public String getVillageName()            { return villageName; }
+    public void setVillageName(String v)      { this.villageName = v; }
+
+    public java.util.UUID getContractId()                 { return contractId; }
+    public void setContractId(java.util.UUID id)           { this.contractId = id; }
+    public java.util.List<org.bukkit.Location> getTransitWaypoints() { return transitWaypoints; }
+    public void setTransitWaypoints(java.util.List<org.bukkit.Location> wps) { this.transitWaypoints = wps; }
+    public int getWaypointIndex()                          { return waypointIndex; }
+    public void setWaypointIndex(int i)                    { this.waypointIndex = i; }
+    public java.util.UUID getVehicleId()                   { return vehicleId; }
+    public void setVehicleId(java.util.UUID id)             { this.vehicleId = id; }
+    public boolean isReturningTrip()                        { return returningTrip; }
+    public void setReturningTrip(boolean b)                 { this.returningTrip = b; }
 
     public ItemStack getTool()                { return tool; }
     public void setTool(ItemStack i)          { this.tool = i; }
@@ -186,6 +212,4 @@ public class RecruitedVillager {
     public void setPatrolIndex(int i)         { this.patrolIndex = i; }
     public boolean isFleeing()                { return fleeing; }
     public void setFleeing(boolean f)         { this.fleeing = f; }
-    public boolean isWasSleeping()            { return wasSleeping; }
-    public void setWasSleeping(boolean s)     { this.wasSleeping = s; }
 }
