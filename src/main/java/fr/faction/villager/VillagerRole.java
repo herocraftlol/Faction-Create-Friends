@@ -7,7 +7,9 @@ public enum VillagerRole {
     AUCUN,
     CONSTRUCTEUR,
     GUERRIER,
-    RECOLTEUR;
+    RECOLTEUR,
+    NAVIGATEUR,
+    CHEMINOT;
 
     public String displayName() {
         return switch (this) {
@@ -15,6 +17,8 @@ public enum VillagerRole {
             case CONSTRUCTEUR -> "Constructeur";
             case GUERRIER -> "Guerrier";
             case RECOLTEUR -> "Récolteur";
+            case NAVIGATEUR -> "Navigateur";
+            case CHEMINOT -> "Cheminot";
         };
     }
 

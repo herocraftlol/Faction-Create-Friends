@@ -64,6 +64,8 @@ public class VillagerManager implements Listener {
     private ClaimManager claimManager;
     private WarManager warManager;
     private FactionPowerManager powerManager;
+    private fr.faction.village.VillageManager villageManager;
+    private fr.faction.commerce.CommerceManager commerceManager;
 
     private final Map<UUID, RecruitedVillager> villagers = new HashMap<>();
     private final Map<UUID, PendingSelection> pendingSelections = new HashMap<>();
@@ -81,6 +83,8 @@ public class VillagerManager implements Listener {
     public void setClaimManager(ClaimManager claimManager) { this.claimManager = claimManager; }
     public void setWarManager(WarManager warManager)       { this.warManager = warManager; }
     public void setPowerManager(FactionPowerManager pm)    { this.powerManager = pm; }
+    public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
+    public void setCommerceManager(fr.faction.commerce.CommerceManager cm) { this.commerceManager = cm; }
 
     public void start() {
         long interval = plugin.getConfig().getLong("villager.tick-interval", 20L);
@@ -109,10 +113,21 @@ public class VillagerManager implements Listener {
 
         RecruitedVillager rv = new RecruitedVillager(villager.getUniqueId(), faction.getName());
         rv.setPostLocation(villager.getLocation());
+        if (villageManager != null) {
+            fr.faction.village.Village village = villageManager.findVillageContaining(faction.getName(), villager.getLocation());
+            if (village != null) rv.setVillageName(village.getName());
+        }
         villagers.put(villager.getUniqueId(), rv);
         applyVisuals(rv, villager);
         save();
         return RecruitResult.SUCCESS;
+    }
+
+    /** Rattache (ou détache si villageName == null) ce villageois à un village de sa faction. */
+    public void setVillage(RecruitedVillager rv, String villageName) {
+        rv.setVillageName(villageName);
+        syncLiveEntity(rv);
+        save();
     }
 
     /** Rend un villageois recruté à la vie sauvage (retire ses effets/équipement/rôle). */
@@ -199,15 +214,17 @@ public class VillagerManager implements Listener {
      * aléatoire, panique) : nos recrues ne bougent que quand NOUS le décidons. Best-effort :
      * l'API Paper de retrait de goals est parfois peu fiable selon la version du serveur.
      */
-    private void disableVanillaWander(Villager v) {
-        try {
-            var goals = Bukkit.getMobGoals();
-            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.WATER_AVOIDING_RANDOM_STROLL);
-            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.PANIC);
-            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.MOVE_BACK_TO_VILLAGE);
-            goals.removeGoal(v, com.destroystokyo.paper.entity.ai.VanillaGoal.MOVE_THROUGH_VILLAGE);
-        } catch (Throwable ignored) { /* selon la version du serveur, certains goals peuvent ne pas exister */ }
-    }
+    /**
+     * ANCIENNE approche (abandonnée) : retirer les goals vanille de déambulation via
+     * Bukkit.getMobGoals().removeGoal(...). Problème découvert : Paper ne permet PAS
+     * de les remettre ensuite (aucune API publique pour recréer un goal vanille une
+     * fois retiré — cf. issue PaperMC/Paper#12942, toujours ouverte). Un guerrier
+     * dont les goals avaient été retirés restait donc figé pour toujours, même si on
+     * voulait plus tard le laisser "vivre comme un villageois normal".
+     * Remplacé par une approche réversible : on interrompt activement son
+     * déplacement à chaque passage d'IA tant qu'il est immobile ET pas en mode
+     * "vie normale" (voir warriorTick), au lieu de lui retirer des capacités.
+     */
 
     private void applyMaxHealthForLevel(RecruitedVillager rv, Villager v) {
         try {
@@ -230,6 +247,8 @@ public class VillagerManager implements Listener {
             case CONSTRUCTEUR -> "§b[Constructeur]";
             case GUERRIER -> "§c[Guerrier]";
             case RECOLTEUR -> "§a[Récolteur]";
+            case NAVIGATEUR -> "§9[Navigateur]";
+            case CHEMINOT -> "§6[Cheminot]";
             default -> "§7[Recrue]";
         };
         String factionTag = "";
@@ -237,7 +256,8 @@ public class VillagerManager implements Listener {
             FactionRank rank = powerManager.getFactionRank(rv.getFactionName());
             factionTag = " " + rank.couleur + rank.icone + " " + rv.getFactionName();
         }
-        v.setCustomName(ChatColor.YELLOW + rv.getDisplayName() + " §7Nv." + rv.getLevel() + " " + roleTag + factionTag);
+        String villageTag = rv.getVillageName() != null ? " §b<" + rv.getVillageName() + ">" : "";
+        v.setCustomName(ChatColor.YELLOW + rv.getDisplayName() + villageTag + " §7Nv." + rv.getLevel() + " " + roleTag + factionTag);
         v.setCustomNameVisible(true);
         v.setPersistent(true);
         v.setRemoveWhenFarAway(false);
@@ -246,6 +266,8 @@ public class VillagerManager implements Listener {
                 case CONSTRUCTEUR -> Villager.Profession.MASON;
                 case GUERRIER -> Villager.Profession.WEAPONSMITH;
                 case RECOLTEUR -> Villager.Profession.FARMER;
+                case NAVIGATEUR -> Villager.Profession.FISHERMAN;
+                case CHEMINOT -> Villager.Profession.TOOLSMITH;
                 default -> Villager.Profession.NONE;
             });
         } catch (Exception ignored) {}
@@ -257,7 +279,6 @@ public class VillagerManager implements Listener {
         } catch (Throwable ignored) { /* nom d'attribut différent selon version serveur */ }
 
         applyMaxHealthForLevel(rv, v);
-        disableVanillaWander(v);
         EntityEquipment eq = v.getEquipment();
         if (eq != null) {
             if (rv.getRole() == VillagerRole.GUERRIER) {
@@ -343,6 +364,17 @@ public class VillagerManager implements Listener {
         rv.setArcheryMode(enabled);
         Entity e = Bukkit.getEntity(rv.getEntityId());
         if (e instanceof Villager v) applyVisuals(rv, v);
+        save();
+    }
+
+    public void setFreeRoam(RecruitedVillager rv, boolean enabled) {
+        rv.setFreeRoam(enabled);
+        save();
+    }
+
+    public void clearPatrol(RecruitedVillager rv) {
+        rv.getPatrolPoints().clear();
+        rv.setPatrolIndex(0);
         save();
     }
 
@@ -703,14 +735,89 @@ public class VillagerManager implements Listener {
             Entity e = Bukkit.getEntity(rv.getEntityId());
             if (!(e instanceof Villager v) || v.isDead()) continue;
             feedTick(rv, v);
-            sleepPolling(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
                 case RECOLTEUR -> recolteurTick(rv, v);
+                case NAVIGATEUR -> { if (commerceManager != null) commerceManager.navigateurTick(rv, v); }
+                case CHEMINOT -> { if (commerceManager != null) commerceManager.cheminotTick(rv, v); }
                 default -> { }
             }
         }
+        shareFoodTick();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ENTRAIDE : un récolteur qui a de la nourriture en réserve en donne aux
+    // guerriers/constructeurs de sa faction à proximité qui en manquent.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void shareFoodTick() {
+        Map<String, List<RecruitedVillager>> byFaction = new HashMap<>();
+        for (RecruitedVillager rv : villagers.values()) {
+            byFaction.computeIfAbsent(rv.getFactionName(), k -> new ArrayList<>()).add(rv);
+        }
+        double shareRadius = plugin.getConfig().getDouble("villager.food-share-radius", 48.0);
+
+        for (List<RecruitedVillager> members : byFaction.values()) {
+            List<RecruitedVillager> farmers = new ArrayList<>();
+            List<RecruitedVillager> needy = new ArrayList<>();
+            for (RecruitedVillager rv : members) {
+                Entity e = Bukkit.getEntity(rv.getEntityId());
+                if (!(e instanceof Villager v) || v.isDead()) continue;
+                if (rv.getRole() == VillagerRole.RECOLTEUR && hasSpareFood(rv)) farmers.add(rv);
+                if ((rv.getRole() == VillagerRole.GUERRIER || rv.getRole() == VillagerRole.CONSTRUCTEUR)
+                        && rv.getFood() == null && v.getHealth() < getMaxHealth(v) * 0.7) needy.add(rv);
+            }
+            if (farmers.isEmpty() || needy.isEmpty()) continue;
+
+            for (RecruitedVillager hungry : needy) {
+                Entity he = Bukkit.getEntity(hungry.getEntityId());
+                if (!(he instanceof Villager hv)) continue;
+                for (RecruitedVillager farmer : farmers) {
+                    Entity fe = Bukkit.getEntity(farmer.getEntityId());
+                    if (!(fe instanceof Villager fv)) continue;
+                    if (!fv.getWorld().equals(hv.getWorld())) continue;
+                    if (fv.getLocation().distance(hv.getLocation()) > shareRadius) continue;
+
+                    ItemStack given = takeSpareFood(farmer);
+                    if (given != null) {
+                        hungry.setFood(given);
+                        notifyFaction(hungry.getFactionName(), "§7[§e" + farmer.getDisplayName()
+                                + "§7] §fJ'ai donné de la nourriture à §e" + hungry.getDisplayName() + "§f.");
+                        save();
+                    }
+                    break; // un don par cultivateur par passage suffit
+                }
+            }
+        }
+    }
+
+    private boolean hasSpareFood(RecruitedVillager rv) {
+        for (ItemStack it : rv.getResources()) {
+            if (it != null && it.getAmount() > 0 && isEdibleForSharing(it.getType())) return true;
+        }
+        return false;
+    }
+
+    private ItemStack takeSpareFood(RecruitedVillager rv) {
+        ItemStack[] res = rv.getResources();
+        for (int i = 0; i < res.length; i++) {
+            ItemStack it = res[i];
+            if (it != null && it.getAmount() > 0 && isEdibleForSharing(it.getType())) {
+                int give = Math.min(it.getAmount(), 4);
+                ItemStack given = it.clone();
+                given.setAmount(give);
+                int remaining = it.getAmount() - give;
+                if (remaining <= 0) res[i] = null; else it.setAmount(remaining);
+                return given;
+            }
+        }
+        return null;
+    }
+
+    private boolean isEdibleForSharing(Material m) {
+        try { return m.isEdible(); } catch (Throwable t) { return false; }
     }
 
     private void feedTick(RecruitedVillager rv, Villager v) {
@@ -721,7 +828,7 @@ public class VillagerManager implements Listener {
         if (food != null && food.getAmount() > 0) {
             double healAmount = plugin.getConfig().getDouble("villager.heal-per-food", 4.0);
             v.setHealth(Math.min(max, v.getHealth() + healAmount));
-            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_BURP, 1f, 1f);
+            v.getWorld().playSound(v.getLocation(), Sound.ENTITY_GENERIC_EAT, 1f, 1f);
 
             int newAmount = food.getAmount() - 1;
             if (newAmount <= 0) rv.setFood(null);
@@ -747,23 +854,8 @@ public class VillagerManager implements Listener {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // SOIN EN DORMANT DANS UN LIT
+    // SOIN EN DORMANT DANS UN LIT (polling isSleeping dans tickAll — pas d'event Bukkit en Paper 1.21+)
     // ════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Détection de sommeil par polling pour Paper 1.21.4+, où l'événement
-     * EntitySleepEvent n'est plus jamais lancé (supprimé côté Bukkit depuis le
-     * passage des mobs à l'IA Brain). On détecte la transition awake → sleeping
-     * dans la boucle d'IA principale (tickAll) et on déclenche startSleepHealing
-     * une seule fois par "aller se coucher".
-     */
-    private void sleepPolling(RecruitedVillager rv, Villager v) {
-        boolean sleeping = v.isSleeping();
-        if (sleeping && !rv.isWasSleeping()) {
-            startSleepHealing(rv);
-        }
-        rv.setWasSleeping(sleeping);
-    }
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
     private void startSleepHealing(RecruitedVillager rv) {
@@ -775,11 +867,11 @@ public class VillagerManager implements Listener {
             int done = 0;
             @Override public void run() {
                 Entity e = Bukkit.getEntity(rv.getEntityId());
-                if (!(e instanceof Villager vill) || vill.isDead()) { cancel(); return; }
-                double max = getMaxHealth(vill);
-                if (vill.getHealth() < max) {
-                    vill.setHealth(Math.min(max, vill.getHealth() + healAmount));
-                    vill.getWorld().playSound(vill.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
+                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
+                double max = getMaxHealth(v);
+                if (v.getHealth() < max) {
+                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
+                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
                 }
                 if (++done >= maxTicks) cancel();
             }
@@ -793,9 +885,14 @@ public class VillagerManager implements Listener {
         for (int i = 0; i < actions; i++) {
             BuildTask task = rv.getCurrentTask();
             if (task == null) {
-                // Plus de chantier en file : direction le point de rassemblement s'il est défini.
+                // Plus de chantier en file : direction le point de rassemblement, sinon le village, s'ils sont définis.
                 clearScaffolds(rv);
-                if (rv.getRallyPoint() != null) approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+                if (rv.getRallyPoint() != null) {
+                    approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+                } else {
+                    Location village = villageCenter(rv);
+                    if (village != null) approach(v, village, 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+                }
                 return;
             }
             if (!builderAction(rv, v, task)) return; // en attente de ressources : on retente au tick suivant
@@ -1080,8 +1177,13 @@ public class VillagerManager implements Listener {
         }
         if (rv.hasFarmZone() && farmTick(rv, v)) return;
 
-        // Rien à faire pour l'instant : direction le point de rassemblement s'il est défini.
-        if (rv.getRallyPoint() != null) approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+        // Rien à faire pour l'instant : direction le point de rassemblement, sinon le village.
+        if (rv.getRallyPoint() != null) {
+            approach(v, rv.getRallyPoint(), 2.0, 0.5, "villager.task-teleport-distance", 64.0);
+            return;
+        }
+        Location village = villageCenter(rv);
+        if (village != null) approach(v, village, 2.0, 0.5, "villager.task-teleport-distance", 64.0);
     }
 
     private Location faceKeepingTeleport(Villager v, Location dest) {
@@ -1332,7 +1434,7 @@ public class VillagerManager implements Listener {
         if (rv.getFollowTarget() != null) {
             Player followed = Bukkit.getPlayer(rv.getFollowTarget());
             if (followed != null && followed.isOnline()) {
-                approach(v, followed.getLocation(), 3.5, 0.6, "villager.follow-teleport-distance", 50.0);
+                approach(v, followed.getLocation(), 3.5, 0.6, "villager.follow-teleport-distance", 100.0);
                 return;
             }
         }
@@ -1356,7 +1458,30 @@ public class VillagerManager implements Listener {
 
         if (rv.getPostLocation() != null) {
             approach(v, rv.getPostLocation(), 4.0, 0.4, "villager.post-teleport-distance", 64.0);
+            return;
         }
+
+        Location village = villageCenter(rv);
+        if (village != null) {
+            approach(v, village, 4.0, 0.4, "villager.post-teleport-distance", 64.0);
+            return;
+        }
+
+        // Vraiment rien à faire (pas de poste/patrouille/rassemblement/suivi/village) : s'il n'est
+        // pas en mode "vie normale", on interrompt activement tout déplacement vanille (déambulation) pour
+        // qu'il reste sur place — de façon réversible, contrairement à un retrait de comportement.
+        if (!rv.isFreeRoam()) {
+            v.getPathfinder().stopPathfinding();
+        }
+        // Si freeRoam est activé, on ne touche à rien : il vit comme un villageois normal
+        // (déambulation, commerce...) tant qu'aucun ennemi n'entre dans son périmètre.
+    }
+
+    /** Centre du village auquel appartient ce villageois, si sa faction en a un correspondant. */
+    private Location villageCenter(RecruitedVillager rv) {
+        if (villageManager == null || rv.getVillageName() == null) return null;
+        fr.faction.village.Village village = villageManager.getByName(rv.getFactionName(), rv.getVillageName());
+        return village != null ? village.getCenter() : null;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1812,6 +1937,9 @@ public class VillagerManager implements Listener {
             if (rv.getBow() != null)        cfg.set(key + ".equip.bow", rv.getBow());
             if (rv.getArrows() != null)     cfg.set(key + ".equip.arrows", rv.getArrows());
             cfg.set(key + ".archeryMode", rv.isArcheryMode());
+            cfg.set(key + ".freeRoam", rv.isFreeRoam());
+            if (rv.getVillageName() != null) cfg.set(key + ".village", rv.getVillageName());
+            if (rv.getContractId() != null) cfg.set(key + ".contract", rv.getContractId().toString());
             if (rv.getFood() != null)       cfg.set(key + ".food", rv.getFood());
 
             if (!rv.getTaskQueue().isEmpty()) {
@@ -1886,6 +2014,12 @@ public class VillagerManager implements Listener {
             if (cfg.contains(path + ".equip.bow"))        rv.setBow(cfg.getItemStack(path + ".equip.bow"));
             if (cfg.contains(path + ".equip.arrows"))     rv.setArrows(cfg.getItemStack(path + ".equip.arrows"));
             rv.setArcheryMode(cfg.getBoolean(path + ".archeryMode", false));
+            rv.setFreeRoam(cfg.getBoolean(path + ".freeRoam", false));
+            if (cfg.contains(path + ".village")) rv.setVillageName(cfg.getString(path + ".village"));
+            if (cfg.contains(path + ".contract")) {
+                try { rv.setContractId(java.util.UUID.fromString(cfg.getString(path + ".contract"))); }
+                catch (Exception ignored) { /* le CommerceManager remettra ça en ordre au premier tick (resetLostTransit) */ }
+            }
             if (cfg.contains(path + ".food"))             rv.setFood(cfg.getItemStack(path + ".food"));
 
             if (cfg.contains(path + ".tasks")) {

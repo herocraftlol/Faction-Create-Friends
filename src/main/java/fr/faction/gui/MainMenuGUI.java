@@ -217,18 +217,19 @@ public class MainMenuGUI implements Listener {
         inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",
-                "§7Aller au spawn de ta faction.\n§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini")
-                        + "\n§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)"),
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",   "§7Aller au spawn de ta faction.",
+                "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
+                "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)"),
                 faction != null && faction.hasSpawn()));
-        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]",
-                "§7Définir un spawn de faction.\n§7/fac setspawn   → spawn principal\n§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)",
+        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]","§7Définir un spawn de faction.",
+                "§7/fac setspawn   → spawn principal",
+                "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)",
                 canMng));
 
         // Homes
         String homeLore = "§7Homes : §e" + curHomes + "§7/§e" + maxHomes
                 + "\n§7(1 sans faction, 2 avec, 3 si allié)";
-        inv.setItem(22, make(Material.WHITE_BED, "§a§l/fac sethome [nom]", homeLore.split("\n")));
+        inv.setItem(22, make(Material.RED_BED, "§a§l/fac sethome [nom]", homeLore.split("\n")));
         inv.setItem(23, make(Material.ENDER_EYE, "§a§l/fac home [nom]",    "§7Se TP à un home.", "§7Warmup 5s, cooldown 30s."));
         inv.setItem(24, make(Material.BARRIER,   "§c§l/fac delhome <nom>", "§7Supprimer un home."));
 
@@ -411,7 +412,7 @@ public class MainMenuGUI implements Listener {
                 "§e/fac claimdeny <fac>    §7Révoquer autorisation",
                 "§e/fac claimallies        §7Lister autorisations"));
 
-        inv.setItem(14, make(Material.WHITE_BED, "§a§lHomes & Spawn",
+        inv.setItem(14, make(Material.RED_BED, "§a§lHomes & Spawn",
                 "§e/sethome [nom]          §7Définir un home",
                 "§e/home [nom]             §7Aller à un home",
                 "§e/delhome <nom>          §7Supprimer un home",
@@ -1131,10 +1132,17 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
+    /** Surcharge avec lignes de description supplémentaires */
+    private ItemStack cmdItem(Material mat, String name, String desc, String extra1, String extra2, boolean enabled) {
+        if (enabled) return make(mat, name, desc, extra1, extra2, "§7Clic pour info");
+        return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
+                "§8Réservé au §7Chef §8ou non disponible.");
+    }
+
     private ItemStack glowing(ItemStack is) {
         ItemMeta meta = is.getItemMeta();
         if (meta == null) return is;
-        meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+        meta.addEnchant(Enchantment.LOOTING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         is.setItemMeta(meta);
         return is;

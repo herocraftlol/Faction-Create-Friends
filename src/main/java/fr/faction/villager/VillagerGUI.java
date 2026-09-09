@@ -42,6 +42,13 @@ public class VillagerGUI implements Listener {
 
     private static class ListHolder implements InventoryHolder {
         Inventory inv;
+        /** null = tous les villageois de la faction ; sinon, uniquement les habitants de ce village. */
+        String villageFilter;
+        public Inventory getInventory() { return inv; }
+    }
+
+    private static class VillageListHolder implements InventoryHolder {
+        Inventory inv;
         public Inventory getInventory() { return inv; }
     }
 
@@ -54,7 +61,7 @@ public class VillagerGUI implements Listener {
         public Inventory getInventory() { return inv; }
     }
 
-    private enum PendingType { RENAME, RADIUS }
+    private enum PendingType { RENAME, RADIUS, VILLAGE }
     private static class PendingChatInput {
         final UUID villagerId;
         final PendingType type;
@@ -64,6 +71,7 @@ public class VillagerGUI implements Listener {
     private final JavaPlugin plugin;
     private final FactionManager factionManager;
     private final VillagerManager villagerManager;
+    private fr.faction.village.VillageManager villageManager;
     private final NamespacedKey idKey;
     private final NamespacedKey placeholderKey;
     private final Map<UUID, PendingChatInput> pendingChat = new HashMap<>();
@@ -81,21 +89,32 @@ public class VillagerGUI implements Listener {
         this.placeholderKey = new NamespacedKey(plugin, "villager_slot_placeholder");
     }
 
+    public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
+
     // ════════════════════════════════════════════════════════════════════════
     // LISTE
     // ════════════════════════════════════════════════════════════════════════
 
-    public void openList(Player player) {
+    public void openList(Player player) { openList(player, null); }
+
+    public void openList(Player player, String villageFilter) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + "§cTu n'es pas dans une faction."); return; }
 
         boolean selecting = selectionMode.getOrDefault(player.getUniqueId(), false);
         Set<UUID> selected = selectedVillagers.computeIfAbsent(player.getUniqueId(), k -> new HashSet<>());
 
-        List<RecruitedVillager> list = villagerManager.getFactionVillagers(faction.getName());
+        List<RecruitedVillager> list = new ArrayList<>();
+        for (RecruitedVillager rv : villagerManager.getFactionVillagers(faction.getName())) {
+            if (villageFilter == null || villageFilter.equalsIgnoreCase(rv.getVillageName())) list.add(rv);
+        }
+
         ListHolder holder = new ListHolder();
-        Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.translateAlternateColorCodes('&',
-                "&8&l[&6Villageois&8&l] &f" + faction.getName() + (selecting ? " &7(sélection)" : "")));
+        holder.villageFilter = villageFilter;
+        String title = villageFilter != null
+                ? "&8&l[&6" + villageFilter + "&8&l] &fHabitants"
+                : "&8&l[&6Villageois&8&l] &f" + faction.getName() + (selecting ? " &7(sélection)" : "");
+        Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.translateAlternateColorCodes('&', title));
         holder.inv = inv;
 
         int slot = 0;
@@ -104,12 +123,20 @@ public class VillagerGUI implements Listener {
             inv.setItem(slot++, buildListIcon(rv, selecting && selected.contains(rv.getEntityId())));
         }
         if (list.isEmpty()) {
-            inv.setItem(22, makeItem(Material.VILLAGER_SPAWN_EGG, "§7Aucun villageois recruté",
-                    "§7Vise un villageois (8 blocs max)",
-                    "§7et tape §e/fac recruter"));
+            inv.setItem(22, makeItem(Material.VILLAGER_SPAWN_EGG,
+                    villageFilter != null ? "§7Aucun habitant pour l'instant" : "§7Aucun villageois recruté",
+                    villageFilter != null ? "§7Assigne-lui un villageois via sa fiche." : "§7Vise un villageois (8 blocs max)",
+                    villageFilter != null ? "" : "§7et tape §e/fac recruter"));
         }
         ItemStack filler = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ");
         for (int i = 45; i < 54; i++) inv.setItem(i, filler);
+
+        if (villageFilter != null) {
+            // Vue filtrée sur un village : juste un retour à la liste complète.
+            inv.setItem(49, makeItem(Material.ARROW, "§7◀ Retour à la liste complète"));
+            player.openInventory(inv);
+            return;
+        }
 
         inv.setItem(45, makeItem(selecting ? Material.LIME_DYE : Material.GRAY_DYE,
                 selecting ? "§aMode sélection : activé" : "§7Mode sélection : désactivé",
@@ -130,6 +157,49 @@ public class VillagerGUI implements Listener {
                 "§7Assigne le même point de rassemblement à tous", "§7les villageois actuellement sélectionnés."));
         inv.setItem(52, makeItem(Material.SHIELD, "§eRanger en cercle",
                 "§7Dispose autour de toi tous tes villageois", "§7à moins de 40 blocs."));
+        inv.setItem(53, makeItem(Material.OAK_DOOR, "§dVillages",
+                "§7Voir les villages fondés par ta faction", "§7et leurs habitants."));
+
+        player.openInventory(inv);
+    }
+
+    public void openVillages(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + "§cTu n'es pas dans une faction."); return; }
+        if (villageManager == null) { player.sendMessage(prefix() + "§cSystème de villages non disponible."); return; }
+
+        List<fr.faction.village.Village> villages = villageManager.getFactionVillages(faction.getName());
+        VillageListHolder holder = new VillageListHolder();
+        Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.translateAlternateColorCodes('&',
+                "&8&l[&6Villages&8&l] &f" + faction.getName()));
+        holder.inv = inv;
+
+        int slot = 0;
+        for (fr.faction.village.Village village : villages) {
+            if (slot >= 45) break;
+            int pop = villageManager.getPopulation(village);
+            int level = villageManager.getLevel(village);
+            List<String> lore = new ArrayList<>();
+            lore.add("§7" + fr.faction.village.Village.levelLabel(level));
+            lore.add("§7Habitants : §e" + pop);
+            lore.add("");
+            lore.add("§eClic → voir les habitants");
+            ItemStack item = makeItem(fr.faction.village.Village.isCityAtLevel(level) ? Material.EMERALD_BLOCK : Material.OAK_DOOR,
+                    "§e" + village.getName(), lore.toArray(new String[0]));
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, village.getName());
+                item.setItemMeta(meta);
+            }
+            inv.setItem(slot++, item);
+        }
+        if (villages.isEmpty()) {
+            inv.setItem(22, makeItem(Material.OAK_DOOR, "§7Aucun village fondé",
+                    "§7Tape §e/faction village fonder <nom>", "§7depuis tes claims pour en fonder un."));
+        }
+        ItemStack filler = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int i = 45; i < 54; i++) inv.setItem(i, filler);
+        inv.setItem(49, makeItem(Material.ARROW, "§7◀ Retour à la liste des villageois"));
 
         player.openInventory(inv);
     }
@@ -224,11 +294,18 @@ public class VillagerGUI implements Listener {
                 rv.getRole() == VillagerRole.GUERRIER ? "§a✔ Actuellement sélectionné" : "§eClic → devenir guerrier" + (canManage ? "" : " §8(chef/sous-chef)")));
         inv.setItem(3, makeItem(Material.IRON_PICKAXE, "§aRécolteur",
                 rv.getRole() == VillagerRole.RECOLTEUR ? "§a✔ Actuellement sélectionné" : "§eClic → devenir récolteur" + (canManage ? "" : " §8(chef/sous-chef)")));
+        inv.setItem(5, makeItem(Material.OAK_BOAT, "§9Navigateur",
+                rv.getRole() == VillagerRole.NAVIGATEUR ? "§a✔ Actuellement sélectionné" : "§eClic → devenir navigateur" + (canManage ? "" : " §8(chef/sous-chef)"),
+                "§7Livre des marchandises en bateau, entre ports."));
+        inv.setItem(7, makeItem(Material.MINECART, "§6Cheminot",
+                rv.getRole() == VillagerRole.CHEMINOT ? "§a✔ Actuellement sélectionné" : "§eClic → devenir cheminot" + (canManage ? "" : " §8(chef/sous-chef)"),
+                "§7Livre des marchandises en train, entre gares."));
 
         // Info
         Entity e = Bukkit.getEntity(rv.getEntityId());
         List<String> infoLore = new ArrayList<>();
         infoLore.add("§7Faction : §e" + rv.getFactionName());
+        infoLore.add("§7Village : " + (rv.getVillageName() != null ? "§b" + rv.getVillageName() : "§8Aucun"));
         infoLore.add("§7Rôle : " + roleColor(rv.getRole()) + rv.getRole().displayName());
         infoLore.add("§7Niveau : §e" + rv.getLevel() + "§7/5 §8(" + rv.getXp() + " XP)");
         if (rv.getRole() == VillagerRole.GUERRIER) infoLore.add("§7Ennemis tués : §c" + rv.getKillCount());
@@ -239,6 +316,11 @@ public class VillagerGUI implements Listener {
         // Renommer
         inv.setItem(8, makeItem(Material.NAME_TAG, "§eRenommer",
                 "§7Clic → tape le nouveau nom dans le chat" + (canManage ? "" : " §8(chef/sous-chef)")));
+
+        inv.setItem(6, makeItem(Material.OAK_DOOR, "§dVillage",
+                "§7Actuel : " + (rv.getVillageName() != null ? "§b" + rv.getVillageName() : "§8Aucun"),
+                "§7Clic → tape le nom du village dans le chat",
+                "§7(ou 'aucun' pour le détacher)" + (canManage ? "" : " §8(chef/sous-chef)")));
 
         // Zone de rôle
         if (rv.getRole() == VillagerRole.CONSTRUCTEUR) {
@@ -309,6 +391,16 @@ public class VillagerGUI implements Listener {
             inv.setItem(23, slotIcon(rv.getLeggings(), Material.IRON_LEGGINGS, "Jambières"));   holder.slotKinds.put(23, SlotKind.LEGGINGS);
             inv.setItem(24, slotIcon(rv.getBoots(), Material.IRON_BOOTS, "Bottes"));            holder.slotKinds.put(24, SlotKind.BOOTS);
 
+            String manageTag0 = canManage ? "" : " §8(chef/sous-chef)";
+            inv.setItem(25, makeItem(rv.isFreeRoam() ? Material.EMERALD : Material.IRON_BARS,
+                    rv.isFreeRoam() ? "§aVie normale : activée" : "§7Vie normale : désactivée",
+                    "§7Activé : vagabonde et vit comme un villageois",
+                    "§7normal (commerce, déplacements...) tant qu'il",
+                    "§7n'a rien à faire, tout en continuant à se",
+                    "§7défendre si un ennemi entre dans son périmètre.",
+                    "§7Désactivé : reste immobile tant qu'il n'a pas d'ordre.",
+                    "§eClic → " + (rv.isFreeRoam() ? "désactiver" : "activer") + manageTag0));
+
             // Butin ramassé sur ses victimes (8 des 9 emplacements de sa réserve ; le 9e reste "en poche")
             ItemStack[] loot = rv.getResources();
             int[] lootSlots = {27, 28, 29, 30, 32, 33, 34, 35};
@@ -329,6 +421,10 @@ public class VillagerGUI implements Listener {
                     "§7Clic-droit dans le monde pour ajouter des points,",
                     "§7shift+clic-droit pour terminer." + manageTag,
                     "§eClic → démarrer la sélection"));
+            if (!rv.getPatrolPoints().isEmpty()) {
+                inv.setItem(40, makeItem(Material.BARRIER, "§cAnnuler la patrouille",
+                        "§7Clic pour retirer tous les points." + manageTag));
+            }
             inv.setItem(39, makeItem(rv.isCombatEnabled() ? Material.SHIELD : Material.BARRIER,
                     rv.isCombatEnabled() ? "§aCombat : activé" : "§cCombat : arrêté",
                     "§7Clic → " + (rv.isCombatEnabled() ? "cesser le combat" : "reprendre le combat") + manageTag));
@@ -399,9 +495,37 @@ public class VillagerGUI implements Listener {
             if (rv.getRallyPoint() != null) {
                 inv.setItem(44, makeItem(Material.BARRIER, "§cAnnuler le rassemblement", "§7Clic pour retirer." + manageTag));
             }
+        } else if (rv.getRole() == VillagerRole.NAVIGATEUR || rv.getRole() == VillagerRole.CHEMINOT) {
+            boolean isBoat = rv.getRole() == VillagerRole.NAVIGATEUR;
+            String manageTagT = canManage ? "" : " §8(chef/sous-chef)";
+
+            List<String> postLoreT = new ArrayList<>();
+            if (rv.getPostLocation() != null) postLoreT.add("§aDéfini. §7Point de rattachement (" + (isBoat ? "port" : "gare") + ").");
+            else postLoreT.add("§cAucun poste défini.");
+            postLoreT.add("§eClic → utiliser sa position actuelle" + manageTagT);
+            inv.setItem(36, makeItem(isBoat ? Material.OAK_BOAT : Material.MINECART, "§dPoste (" + (isBoat ? "port" : "gare") + ")",
+                    postLoreT.toArray(new String[0])));
+
+            List<String> contractLore = new ArrayList<>();
+            if (rv.getContractId() != null) {
+                contractLore.add("§aEn cours de livraison" + (rv.isReturningTrip() ? " §7(trajet retour)" : " §7(trajet aller)") + "§a.");
+            } else {
+                contractLore.add("§7Aucun contrat en cours.");
+                contractLore.add("§7Assigne-le avec :");
+                contractLore.add("§7/faction contrat assigner <id>");
+                contractLore.add("§7(en le visant)");
+            }
+            inv.setItem(31, makeItem(Material.PAPER, "§dContrat", contractLore.toArray(new String[0])));
+
+            List<String> infoT = new ArrayList<>();
+            infoT.add("§7Utilise §e/faction contrat liste");
+            infoT.add("§7pour voir les contrats disponibles.");
+            infoT.add("§7Utilise §e/faction port definir <village>");
+            infoT.add(isBoat ? "§7pour définir le port de départ." : "§7Utilise §e/faction gare definir <village>");
+            inv.setItem(40, makeItem(Material.BOOK, "§dAide commerce", infoT.toArray(new String[0])));
         } else {
             inv.setItem(22, makeItem(Material.BARRIER, "§7Aucun rôle assigné",
-                    "§7Choisis Constructeur, Guerrier ou Récolteur", "§7en haut pour débloquer l'équipement."));
+                    "§7Choisis un rôle en haut pour débloquer l'équipement."));
         }
 
         // Nourriture (commun à tous les rôles)
@@ -426,8 +550,10 @@ public class VillagerGUI implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
 
-        if (topHolder instanceof ListHolder) {
-            handleListClick(event, player);
+        if (topHolder instanceof ListHolder holder) {
+            handleListClick(event, player, holder);
+        } else if (topHolder instanceof VillageListHolder) {
+            handleVillageListClick(event, player);
         } else if (topHolder instanceof DetailHolder holder) {
             handleDetailClick(event, player, holder);
         }
@@ -441,7 +567,7 @@ public class VillagerGUI implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDrag(InventoryDragEvent event) {
         InventoryHolder topHolder = event.getView().getTopInventory().getHolder();
-        if (!(topHolder instanceof ListHolder) && !(topHolder instanceof DetailHolder)) return;
+        if (!(topHolder instanceof ListHolder) && !(topHolder instanceof DetailHolder) && !(topHolder instanceof VillageListHolder)) return;
         int topSize = event.getView().getTopInventory().getSize();
         for (int slot : event.getRawSlots()) {
             if (slot < topSize) { event.setCancelled(true); return; }
@@ -478,14 +604,14 @@ public class VillagerGUI implements Listener {
         openDetailBy.entrySet().removeIf(e -> e.getValue().equals(uuid));
     }
 
-    private void handleListClick(InventoryClickEvent event, Player player) {
+    private void handleListClick(InventoryClickEvent event, Player player, ListHolder holder) {
         if (event.getClickedInventory() != event.getView().getTopInventory()) return;
         event.setCancelled(true);
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
         UUID uuid = player.getUniqueId();
-        boolean selecting = selectionMode.getOrDefault(uuid, false);
+        boolean selecting = holder.villageFilter == null && selectionMode.getOrDefault(uuid, false);
         Set<UUID> selected = selectedVillagers.computeIfAbsent(uuid, k -> new HashSet<>());
 
         if (clicked.getType() == Material.VILLAGER_SPAWN_EGG) {
@@ -506,6 +632,8 @@ public class VillagerGUI implements Listener {
             return;
         }
 
+        if (clicked.getType() == Material.ARROW) { openList(player); return; } // retour depuis une vue filtrée
+        if (clicked.getType() == Material.OAK_DOOR) { openVillages(player); return; }
         if (clicked.getType() == Material.BARRIER) { player.closeInventory(); return; }
         if (clicked.getType() == Material.OAK_SIGN) { player.closeInventory(); villagerManager.formation(player, VillagerManager.FormationType.LIGNE); return; }
         if (clicked.getType() == Material.SHIELD) { player.closeInventory(); villagerManager.formation(player, VillagerManager.FormationType.CERCLE); return; }
@@ -560,6 +688,23 @@ public class VillagerGUI implements Listener {
         }
     }
 
+    private void handleVillageListClick(InventoryClickEvent event, Player player) {
+        if (event.getClickedInventory() != event.getView().getTopInventory()) return;
+        event.setCancelled(true);
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) return;
+
+        if (clicked.getType() == Material.ARROW) { openList(player); return; }
+
+        if (clicked.getType() == Material.OAK_DOOR || clicked.getType() == Material.EMERALD_BLOCK) {
+            ItemMeta meta = clicked.getItemMeta();
+            if (meta == null) return;
+            String villageName = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+            if (villageName == null) return;
+            openList(player, villageName);
+        }
+    }
+
     private void handleDetailClick(InventoryClickEvent event, Player player, DetailHolder holder) {
         boolean topClick = event.getClickedInventory() == event.getView().getTopInventory();
         if (!topClick) return; // clic dans l'inventaire du joueur : comportement normal
@@ -611,17 +756,34 @@ public class VillagerGUI implements Listener {
         boolean isBuilder = rv.getRole() == VillagerRole.CONSTRUCTEUR;
         boolean isWarrior = rv.getRole() == VillagerRole.GUERRIER;
         boolean isHarvester = rv.getRole() == VillagerRole.RECOLTEUR;
+        boolean isTrader = rv.getRole() == VillagerRole.NAVIGATEUR || rv.getRole() == VillagerRole.CHEMINOT;
 
         switch (slot) {
             case 0 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.AUCUN); openDetail(player, rv); } else denyManage(player); }
             case 1 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.CONSTRUCTEUR); openDetail(player, rv); } else denyManage(player); }
             case 2 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.GUERRIER); openDetail(player, rv); } else denyManage(player); }
             case 3 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.RECOLTEUR); openDetail(player, rv); } else denyManage(player); }
+            case 5 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.NAVIGATEUR); openDetail(player, rv); } else denyManage(player); }
+            case 7 -> { if (canManage) { villagerManager.setRole(rv, VillagerRole.CHEMINOT); openDetail(player, rv); } else denyManage(player); }
+            case 25 -> {
+                if (isWarrior) {
+                    if (!canManage) { denyManage(player); return; }
+                    villagerManager.setFreeRoam(rv, !rv.isFreeRoam());
+                    openDetail(player, rv);
+                }
+            }
             case 8 -> {
                 if (canManage) {
                     pendingChat.put(player.getUniqueId(), new PendingChatInput(rv.getEntityId(), PendingType.RENAME));
                     player.closeInventory();
                     player.sendMessage(prefix() + "§eTape le nouveau nom de ce villageois dans le chat (ou §cannuler§e).");
+                } else denyManage(player);
+            }
+            case 6 -> {
+                if (canManage) {
+                    pendingChat.put(player.getUniqueId(), new PendingChatInput(rv.getEntityId(), PendingType.VILLAGE));
+                    player.closeInventory();
+                    player.sendMessage(prefix() + "§eTape le nom du village dans le chat (ou §caucun§e / §cannuler§e).");
                 } else denyManage(player);
             }
 
@@ -663,6 +825,13 @@ public class VillagerGUI implements Listener {
                     if (!canManage) { denyManage(player); return; }
                     player.closeInventory();
                     villagerManager.startFarmZoneSelection(player, rv);
+                } else if (isTrader) {
+                    if (!canManage) { denyManage(player); return; }
+                    Entity e = Bukkit.getEntity(rv.getEntityId());
+                    if (e == null) { player.sendMessage(prefix() + "§cVillageois introuvable (chunk non chargé)."); return; }
+                    villagerManager.setPost(rv, e.getLocation());
+                    player.sendMessage(prefix() + "§a✔ Poste défini à sa position actuelle.");
+                    openDetail(player, rv);
                 }
                 // Pour le constructeur, slot 36 = info seule (pas d'action)
             }
@@ -718,6 +887,11 @@ public class VillagerGUI implements Listener {
                     if (!canManage) { denyManage(player); return; }
                     villagerManager.clearOutputChest(rv);
                     player.sendMessage(prefix() + "§aCoffre de dépôt retiré.");
+                    openDetail(player, rv);
+                } else if (isWarrior && !rv.getPatrolPoints().isEmpty()) {
+                    if (!canManage) { denyManage(player); return; }
+                    villagerManager.clearPatrol(rv);
+                    player.sendMessage(prefix() + "§aPatrouille annulée.");
                     openDetail(player, rv);
                 }
             }
@@ -837,6 +1011,22 @@ public class VillagerGUI implements Listener {
                         player.sendMessage(prefix() + "§cNombre invalide.");
                     }
                 }
+                case VILLAGE -> {
+                    if (msg.equalsIgnoreCase("aucun")) {
+                        villagerManager.setVillage(rv, null);
+                        player.sendMessage(prefix() + "§aVillageois détaché de son village.");
+                        return;
+                    }
+                    if (villageManager == null) { player.sendMessage(prefix() + "§cSystème de villages non disponible."); return; }
+                    var village = villageManager.getByName(rv.getFactionName(), msg);
+                    if (village == null) {
+                        player.sendMessage(prefix() + "§cAucun village de ta faction ne s'appelle §e" + msg + "§c. "
+                                + "Vérifie avec §e/faction village liste§c.");
+                        return;
+                    }
+                    villagerManager.setVillage(rv, village.getName());
+                    player.sendMessage(prefix() + "§a✔ " + rv.getDisplayName() + " rattaché au village §e" + village.getName() + "§a.");
+                }
             }
         });
     }
@@ -872,6 +1062,8 @@ public class VillagerGUI implements Listener {
             case CONSTRUCTEUR -> "§b";
             case GUERRIER -> "§c";
             case RECOLTEUR -> "§a";
+            case NAVIGATEUR -> "§9";
+            case CHEMINOT -> "§6";
             default -> "§7";
         };
     }

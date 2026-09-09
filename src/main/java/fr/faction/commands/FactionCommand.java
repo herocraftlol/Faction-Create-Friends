@@ -82,6 +82,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private fr.faction.claim.ClaimVisualizer claimVisualizer;
     private fr.faction.villager.VillagerManager villagerManager;
     private fr.faction.villager.VillagerGUI villagerGUI;
+    private fr.faction.village.VillageManager villageManager;
+    private fr.faction.commerce.CommerceManager commerceManager;
     private final BankGUI bankGUI;
     private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
@@ -142,6 +144,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public void setClaimVisualizer(fr.faction.claim.ClaimVisualizer cv) { this.claimVisualizer = cv; }
     public void setVillagerManager(fr.faction.villager.VillagerManager vm) { this.villagerManager = vm; }
     public void setVillagerGUI(fr.faction.villager.VillagerGUI vg) { this.villagerGUI = vg; }
+    public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
+    public void setCommerceManager(fr.faction.commerce.CommerceManager cm) { this.commerceManager = cm; }
     public void setTabManager(fr.faction.power.FactionTabManager tm) { this.tabManager = tm; }
     public void setMapManager(fr.faction.map.FactionMapManager mm) { this.mapManager = mm; }
 
@@ -240,6 +244,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             // ── Villageois recrutés v5.9 ─────────────────────────────────────
             case "recruter"                  -> handleRecruter(player);
             case "villageois", "villagers"    -> handleVillageois(player, args);
+            case "village"                    -> handleVillage(player, args);
+            case "port"                       -> handlePost(player, args, fr.faction.village.PostType.PORT);
+            case "gare"                       -> handlePost(player, args, fr.faction.village.PostType.GARE);
+            case "contrat"                    -> handleContrat(player, args);
 
             default                          -> sendHelp(player);
         }
@@ -1704,6 +1712,183 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         villagerGUI.openList(player);
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // VILLAGES v5.11
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleVillage(Player player, String[] args) {
+        if (villageManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villages non disponible."); return; }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.GOLD + "══ Villages ══");
+            player.sendMessage(ChatColor.YELLOW + "/faction village fonder <nom> " + ChatColor.GRAY + "Fonder un village (chef/sous-chef)");
+            player.sendMessage(ChatColor.YELLOW + "/faction village liste        " + ChatColor.GRAY + "Voir les villages de ta faction");
+            player.sendMessage(ChatColor.YELLOW + "/faction village dissoudre <nom> " + ChatColor.GRAY + "Dissoudre un village (chef/sous-chef)");
+            return;
+        }
+
+        switch (args[1].toLowerCase()) {
+            case "fonder", "creer", "create" -> {
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction village fonder <nom>"); return; }
+                String name = args[2];
+                fr.faction.village.VillageManager.FoundResult result = villageManager.startFoundation(player, name);
+                switch (result) {
+                    case SUCCESS -> {} // le message d'instruction a déjà été envoyé par startFoundation
+                    case NOT_IN_FACTION -> player.sendMessage(prefix() + msg("not-in-faction"));
+                    case NO_PERMISSION -> player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut fonder un village.");
+                    case NAME_TAKEN -> player.sendMessage(prefix() + ChatColor.RED + "Un village de ta faction porte déjà ce nom.");
+                    case NAME_INVALID -> player.sendMessage(prefix() + ChatColor.RED + "Nom invalide (1 à 24 caractères).");
+                }
+            }
+            case "liste", "list" -> {
+                Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+                if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+                var villages = villageManager.getFactionVillages(faction.getName());
+                if (villages.isEmpty()) { player.sendMessage(prefix() + ChatColor.GRAY + "Aucun village fondé. Utilise §e/faction village fonder <nom>§7."); return; }
+                player.sendMessage(ChatColor.GOLD + "══ Villages de §e" + faction.getName() + ChatColor.GOLD + " ══");
+                for (var village : villages) {
+                    int pop = villageManager.getPopulation(village);
+                    int level = villageManager.getLevel(village);
+                    player.sendMessage(ChatColor.YELLOW + village.getName() + ChatColor.GRAY + " — "
+                            + fr.faction.village.Village.levelLabel(level) + ChatColor.GRAY + ", " + pop + " habitant(s)");
+                }
+            }
+            case "dissoudre", "disband", "supprimer" -> {
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction village dissoudre <nom>"); return; }
+                Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+                if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+                var village = villageManager.getByName(faction.getName(), args[2]);
+                if (village == null) { player.sendMessage(prefix() + ChatColor.RED + "Aucun village de ce nom."); return; }
+                if (villageManager.disband(player, village)) {
+                    player.sendMessage(prefix() + ChatColor.GREEN + "✔ Village §e" + village.getName() + " §adissous.");
+                } else {
+                    player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut dissoudre un village.");
+                }
+            }
+            default -> player.sendMessage(prefix() + ChatColor.RED + "Sous-commande inconnue. Utilise /faction village pour l'aide.");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // PORT / GARE — v5.12
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handlePost(Player player, String[] args, fr.faction.village.PostType type) {
+        if (villageManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villages non disponible."); return; }
+        String label = type == fr.faction.village.PostType.PORT ? "port" : "gare";
+        if (args.length < 3 || !args[1].equalsIgnoreCase("definir")) {
+            player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction " + (type == fr.faction.village.PostType.PORT ? "port" : "gare") + " definir <village>");
+            return;
+        }
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+        var village = villageManager.getByName(faction.getName(), args[2]);
+        if (village == null) { player.sendMessage(prefix() + ChatColor.RED + "Aucun village de ce nom."); return; }
+        if (!villageManager.startPostSelection(player, village, type)) {
+            player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut définir un " + label + ".");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // CONTRATS COMMERCIAUX — v5.12
+    // ════════════════════════════════════════════════════════════════════════════
+
+    private void handleContrat(Player player, String[] args) {
+        if (commerceManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de commerce non disponible."); return; }
+
+        if (args.length < 2) {
+            player.sendMessage(ChatColor.GOLD + "══ Contrats ══");
+            player.sendMessage(ChatColor.YELLOW + "/faction contrat creer <village> <port|gare> <factionCible> <villageCible> <ressource> <quantite>");
+            player.sendMessage(ChatColor.YELLOW + "/faction contrat liste                " + ChatColor.GRAY + "Voir les contrats de ta faction");
+            player.sendMessage(ChatColor.YELLOW + "/faction contrat assigner <id>        " + ChatColor.GRAY + "Assigner (en visant un navigateur/cheminot)");
+            player.sendMessage(ChatColor.YELLOW + "/faction contrat annuler <id>         " + ChatColor.GRAY + "Annuler un contrat en attente");
+            return;
+        }
+
+        switch (args[1].toLowerCase()) {
+            case "creer", "create" -> {
+                if (args.length < 8) {
+                    player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction contrat creer <village> <port|gare> <factionCible> <villageCible> <ressource> <quantite>");
+                    return;
+                }
+                fr.faction.village.PostType type;
+                if (args[3].equalsIgnoreCase("port")) type = fr.faction.village.PostType.PORT;
+                else if (args[3].equalsIgnoreCase("gare")) type = fr.faction.village.PostType.GARE;
+                else { player.sendMessage(prefix() + ChatColor.RED + "Le type doit être 'port' ou 'gare'."); return; }
+
+                org.bukkit.Material resource;
+                try { resource = org.bukkit.Material.valueOf(args[6].toUpperCase()); }
+                catch (IllegalArgumentException ex) { player.sendMessage(prefix() + ChatColor.RED + "Ressource invalide : " + args[6]); return; }
+
+                int quantity;
+                try { quantity = Integer.parseInt(args[7]); }
+                catch (NumberFormatException ex) { player.sendMessage(prefix() + ChatColor.RED + "Quantité invalide."); return; }
+
+                var result = commerceManager.createContract(player, args[2], type, args[4], args[5], resource, quantity);
+                player.sendMessage(prefix() + (result.success() ? ChatColor.GREEN + "✔ " : ChatColor.RED) + result.message());
+            }
+            case "liste", "list" -> {
+                Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+                if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
+                var contracts = commerceManager.getFactionContracts(faction.getName());
+                if (contracts.isEmpty()) { player.sendMessage(prefix() + ChatColor.GRAY + "Aucun contrat."); return; }
+                player.sendMessage(ChatColor.GOLD + "══ Contrats de §e" + faction.getName() + ChatColor.GOLD + " ══");
+                for (var c : contracts) {
+                    player.sendMessage(ChatColor.YELLOW + c.getId().toString().substring(0, 8) + ChatColor.GRAY + " — "
+                            + c.getFromVillage() + " (" + c.getFromFaction() + ") → " + c.getToVillage() + " (" + c.getToFaction() + ") : "
+                            + c.getQuantity() + " " + c.getResource().name().toLowerCase() + ChatColor.GRAY + " [" + c.getStatus() + "]");
+                }
+            }
+            case "assigner", "assign" -> {
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction contrat assigner <id>"); return; }
+                if (villagerManager == null) { player.sendMessage(prefix() + ChatColor.RED + "Système de villageois non disponible."); return; }
+
+                fr.faction.commerce.Contract contract = findContractByShortId(player, args[2]);
+                if (contract == null) { player.sendMessage(prefix() + ChatColor.RED + "Contrat introuvable."); return; }
+
+                var rt = player.rayTraceEntities(8);
+                if (rt == null || !(rt.getHitEntity() instanceof org.bukkit.entity.Villager targetVillager)) {
+                    player.sendMessage(prefix() + ChatColor.RED + "Vise le navigateur/cheminot à assigner (8 blocs max).");
+                    return;
+                }
+                var rv = villagerManager.getByEntity(targetVillager.getUniqueId());
+                if (rv == null) { player.sendMessage(prefix() + ChatColor.RED + "Ce n'est pas un villageois recruté."); return; }
+
+                var result = commerceManager.assignContract(rv, contract);
+                switch (result) {
+                    case SUCCESS -> player.sendMessage(prefix() + ChatColor.GREEN + "✔ Contrat assigné : " + rv.getDisplayName() + " part en livraison !");
+                    case WRONG_ROLE -> player.sendMessage(prefix() + ChatColor.RED + "Ce villageois n'a pas le bon rôle pour ce contrat (navigateur pour un port, cheminot pour une gare).");
+                    case ALREADY_BUSY -> player.sendMessage(prefix() + ChatColor.RED + "Ce villageois a déjà un contrat en cours, ou ce contrat est déjà pris.");
+                    case NOT_WAITING -> player.sendMessage(prefix() + ChatColor.RED + "Ce contrat n'est plus en attente.");
+                    case WRONG_FACTION -> player.sendMessage(prefix() + ChatColor.RED + "Ce villageois n'appartient pas à la faction du contrat.");
+                    case NO_WAREHOUSE -> player.sendMessage(prefix() + ChatColor.RED + "Aucun coffre au port/à la gare de départ.");
+                    case NOT_ENOUGH_CARGO -> player.sendMessage(prefix() + ChatColor.RED + "Pas assez de marchandise dans l'entrepôt de départ.");
+                    case NO_DEST_POST -> player.sendMessage(prefix() + ChatColor.RED + "Port/gare de départ ou d'arrivée introuvable.");
+                }
+            }
+            case "annuler", "cancel" -> {
+                if (args.length < 3) { player.sendMessage(prefix() + ChatColor.RED + "Usage: /faction contrat annuler <id>"); return; }
+                fr.faction.commerce.Contract contract = findContractByShortId(player, args[2]);
+                if (contract == null) { player.sendMessage(prefix() + ChatColor.RED + "Contrat introuvable."); return; }
+                if (commerceManager.cancelContract(player, contract)) {
+                    player.sendMessage(prefix() + ChatColor.GREEN + "✔ Contrat annulé.");
+                } else {
+                    player.sendMessage(prefix() + ChatColor.RED + "Impossible (déjà en transit, ou tu n'as pas la permission).");
+                }
+            }
+            default -> player.sendMessage(prefix() + ChatColor.RED + "Sous-commande inconnue. Utilise /faction contrat pour l'aide.");
+        }
+    }
+
+    private fr.faction.commerce.Contract findContractByShortId(Player player, String shortId) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) return null;
+        for (var c : commerceManager.getFactionContracts(faction.getName())) {
+            if (c.getId().toString().startsWith(shortId.toLowerCase())) return c;
+        }
+        return null;
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "══════ " + ChatColor.YELLOW + "Aide /faction" + ChatColor.GOLD + " ══════");
         player.sendMessage(ChatColor.GRAY + "— Gestion —");
@@ -1770,6 +1955,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction recruter            " + ChatColor.GRAY + "Recruter le villageois visé (chef/sous-chef)");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction villageois          " + ChatColor.GRAY + "Gérer tes villageois recrutés (GUI)");
         player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction villageois ranger   " + ChatColor.GRAY + "Aligner tes villageois proches devant toi");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction village fonder <nom>" + ChatColor.GRAY + "Fonder un village depuis tes claims");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction village liste       " + ChatColor.GRAY + "Voir les villages de ta faction");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction port definir <village>" + ChatColor.GRAY + "Définir le port d'un village (niveau Ville)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction gare definir <village>" + ChatColor.GRAY + "Définir la gare d'un village (niveau Ville)");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "/faction contrat creer ...   " + ChatColor.GRAY + "Créer un contrat commercial (voir /faction contrat)");
         player.sendMessage(ChatColor.GRAY + "— TP joueur —");
         player.sendMessage(ChatColor.AQUA + "/faction tpa <joueur>        " + ChatColor.GRAY + "Demande de TP vers un joueur");
         player.sendMessage(ChatColor.AQUA + "/faction tpaccept            " + ChatColor.GRAY + "Accepter une demande de TP");
@@ -1835,7 +2025,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     "sethome","home","delhome","homes",
                     "tpa","tpaccept","tpdeny",
                     "guerre","ranger","trier","organiser",
-                    "recruter","villageois"
+                    "recruter","villageois","village","port","gare","contrat"
             );
             return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -1857,6 +2047,15 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "villageois", "villagers" -> Arrays.asList("ranger","formation").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "village" -> Arrays.asList("fonder","liste","dissoudre").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "port", "gare" -> Arrays.asList("definir").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+                case "contrat" -> Arrays.asList("creer","liste","assigner","annuler").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
                 case "classementjoueurs", "cj" -> STATS_CATEGORIES.stream()
@@ -1949,6 +2148,35 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                             .collect(Collectors.toList());
                     default -> Collections.emptyList();
                 };
+                case "village" -> switch (args[1].toLowerCase()) {
+                    case "dissoudre","disband","supprimer" -> {
+                        Faction vFac = factionManager.getPlayerFaction(player.getUniqueId());
+                        if (vFac == null || villageManager == null) yield Collections.emptyList();
+                        yield villageManager.getFactionVillages(vFac.getName()).stream()
+                                .map(fr.faction.village.Village::getName)
+                                .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                                .collect(Collectors.toList());
+                    }
+                    default -> Collections.emptyList();
+                };
+                case "port", "gare" -> {
+                    if (!args[1].equalsIgnoreCase("definir")) yield Collections.emptyList();
+                    Faction pFac = factionManager.getPlayerFaction(player.getUniqueId());
+                    if (pFac == null || villageManager == null) yield Collections.emptyList();
+                    yield villageManager.getFactionVillages(pFac.getName()).stream()
+                            .map(fr.faction.village.Village::getName)
+                            .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                            .collect(Collectors.toList());
+                }
+                case "contrat" -> {
+                    if (!args[1].equalsIgnoreCase("creer")) yield Collections.emptyList();
+                    Faction cFac = factionManager.getPlayerFaction(player.getUniqueId());
+                    if (cFac == null || villageManager == null) yield Collections.emptyList();
+                    yield villageManager.getFactionVillages(cFac.getName()).stream()
+                            .map(fr.faction.village.Village::getName)
+                            .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                            .collect(Collectors.toList());
+                }
                 default -> Collections.emptyList();
             };
         }

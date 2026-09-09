@@ -54,6 +54,12 @@ import java.util.*;
  * Rouvrir l'inventaire à chaque interaction cassait le glisser-déposer côté client
  * (le client annule/renvoie l'item quand la fenêtre est fermée puis rouverte immédiatement
  * après un drag) — c'est la cause du bug « le troc ne veut pas faire glisser les items ».
+ *
+ * NOTE DE RECONSTRUCTION : ce fichier a été accidentellement supprimé puis restauré dans
+ * la même session. L'essentiel a pu être récupéré tel quel depuis l'historique de la
+ * conversation ; la section gestion des clics/drag (onInventoryClick, début de
+ * onInventoryDrag, fin de renderDynamicContent) a dû être reconstruite à l'identique de
+ * l'esprit documenté ci-dessus plutôt que restaurée telle quelle — à valider en jeu.
  */
 public class TradeGUI implements Listener {
 
@@ -180,160 +186,111 @@ public class TradeGUI implements Listener {
             inv.setItem(MY_SLOTS[i], (item != null && item.getType() != Material.AIR) ? item.clone() : null);
         }
 
-        // ── Leurs slots (lecture seule) ───────────────────────────────────────
-        List<ItemStack> theirOffer = session.getTheirOffer(player.getUniqueId());
-        ItemStack readOnly = makeItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE,
-                ChatColor.GRAY + "Offre de " + otherName,
-                READONLY_TAG);
+        // ── Leurs slots (lecture seule) ──────────────────────────────────────
+        List<ItemStack> theirOffer = session.getMyOffer(other);
         for (int i = 0; i < THEIR_SLOTS.length; i++) {
             ItemStack item = (i < theirOffer.size()) ? theirOffer.get(i) : null;
-            inv.setItem(THEIR_SLOTS[i], (item != null && item.getType() != Material.AIR) ? item.clone() : readOnly);
+            inv.setItem(THEIR_SLOTS[i], (item != null && item.getType() != Material.AIR) ? item.clone() : null);
         }
 
-        // ── Boutons ───────────────────────────────────────────────────────────
-        inv.setItem(SLOT_CONFIRM, myConfirm
-                ? makeItem(Material.RED_CONCRETE,
-                        ChatColor.RED + "✘ Retirer ma confirmation",
-                        ChatColor.GRAY + "Clique pour annuler ta validation.")
-                : makeItem(Material.LIME_CONCRETE,
-                        ChatColor.GREEN + "✔ Confirmer l'échange",
-                        ChatColor.GRAY + "Les deux doivent confirmer pour échanger."));
-        inv.setItem(SLOT_CANCEL, makeItem(Material.BARRIER,
-                ChatColor.RED + "✘ Annuler le troc",
-                ChatColor.GRAY + "Tes items te seront rendus."));
+        // ── Boutons ──────────────────────────────────────────────────────────
+        inv.setItem(SLOT_CONFIRM, makeItem(
+                myConfirm ? Material.LIME_CONCRETE : Material.LIME_STAINED_GLASS_PANE,
+                myConfirm ? ChatColor.GREEN + "✔ Confirmé §7(clic pour annuler)" : ChatColor.GREEN + "" + ChatColor.BOLD + "Confirmer l'échange",
+                ChatColor.GRAY + "Les deux joueurs doivent confirmer."));
+        inv.setItem(SLOT_CANCEL, makeItem(Material.BARRIER, ChatColor.RED + "" + ChatColor.BOLD + "Annuler le troc",
+                ChatColor.GRAY + "Rend tous les objets déposés."));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // GESTION DES CLICS
+    // CLICS
     // ══════════════════════════════════════════════════════════════════════════
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!event.getView().getTitle().startsWith(TITLE_PREFIX)) return;
-
         TradeManager.TradeSession session = tradeManager.getSession(player.getUniqueId());
-        if (session == null) { event.setCancelled(true); return; }
+        if (session == null) return;
 
-        int raw = event.getRawSlot();
+        Inventory topInv = event.getView().getTopInventory();
+        if (!topInv.equals(openInventories.get(player.getUniqueId()))) return;
 
-        // ── Clic dans l'inventaire joueur (partie basse, raw ≥ 54) ───────────
-        boolean fromPlayerInv = (raw >= 54)
-                || (event.getClickedInventory() != null
-                    && event.getClickedInventory().equals(player.getInventory()));
+        Inventory clickedInv = event.getClickedInventory();
+        boolean clickedTop = clickedInv != null && clickedInv.equals(topInv);
 
-        if (fromPlayerInv) {
-            // Shift-clic ou clic simple depuis l'inventaire joueur → ajout à l'offre
-            if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY
-                    || event.getClick().isLeftClick()
-                    || event.getClick().isRightClick()) {
-
-                if (session.hasConfirmed(player.getUniqueId())) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Annule ta confirmation avant de modifier ton offre.");
-                    return;
-                }
-
-                ItemStack clicked = event.getCurrentItem();
-                if (clicked == null || clicked.getType() == Material.AIR) {
-                    event.setCancelled(true);
-                    return;
-                }
-
-                List<ItemStack> myOffer = session.getMyOffer(player.getUniqueId());
-                if (myOffer.size() >= MY_SLOTS.length) {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Offre pleine ! (max " + MY_SLOTS.length + " stacks)");
-                    return;
-                }
-
-                // Laisser l'action MOVE_TO_OTHER_INVENTORY se faire naturellement
-                // est impossible car le GUI n'est pas un inventory normal.
-                // On annule et on gère manuellement.
-                event.setCancelled(true);
-
-                ItemStack toAdd;
-                if (event.getClick().isRightClick()) {
-                    // Clic droit → on prend la moitié
-                    int half = (int) Math.ceil(clicked.getAmount() / 2.0);
-                    toAdd = clicked.clone();
-                    toAdd.setAmount(half);
-                    clicked.setAmount(clicked.getAmount() - half);
-                    if (clicked.getAmount() <= 0)
-                        player.getInventory().setItem(event.getSlot(), null);
-                    else
-                        player.getInventory().setItem(event.getSlot(), clicked);
-                } else {
-                    // Clic gauche ou shift → on prend tout le stack
-                    toAdd = clicked.clone();
-                    player.getInventory().setItem(event.getSlot(), null);
-                }
-
-                myOffer.add(toAdd);
-                session.unconfirm();
-                refreshBoth(session);
-            } else {
-                event.setCancelled(true);
-            }
-            return;
-        }
-
-        // ── Clic dans le GUI (partie haute, raw < 54) ─────────────────────────
-
-        // Boutons fonctionnels
-        if (raw == SLOT_CONFIRM) { event.setCancelled(true); handleConfirm(player, session); return; }
-        if (raw == SLOT_CANCEL)  { event.setCancelled(true); cancelTrade(player, session, true); return; }
-
-        // Mes slots → clic pour reprendre l'item
-        if (isMySlot(raw)) {
+        if (!clickedTop) {
+            // Clic (simple ou shift) dans l'inventaire du joueur : ajoute l'item cliqué à son offre.
+            ItemStack toAdd = event.getCurrentItem();
+            if (toAdd == null || toAdd.getType() == Material.AIR) return;
             event.setCancelled(true);
-            ItemStack item = event.getCurrentItem();
-            if (item == null || item.getType() == Material.AIR) return;
+
             if (session.hasConfirmed(player.getUniqueId())) {
                 player.sendMessage(ChatColor.RED + "Annule ta confirmation avant de modifier ton offre.");
                 return;
             }
-            // Retirer de l'offre et rendre au joueur
-            List<ItemStack> myOffer = session.getMyOffer(player.getUniqueId());
-            int idx = slotToOfferIndex(raw);
-            if (idx >= 0 && idx < myOffer.size()) {
-                ItemStack returned = myOffer.remove(idx);
-                player.getInventory().addItem(returned);
+
+            int freeSlot = -1;
+            for (int s : MY_SLOTS) {
+                ItemStack existing = topInv.getItem(s);
+                if (existing == null || existing.getType() == Material.AIR) { freeSlot = s; break; }
             }
-            session.unconfirm();
-            refreshBoth(session);
+            if (freeSlot == -1) {
+                player.sendMessage(ChatColor.RED + "Offre pleine ! (max " + MY_SLOTS.length + " stacks)");
+                return;
+            }
+
+            topInv.setItem(freeSlot, toAdd.clone());
+            clickedInv.setItem(event.getSlot(), null);
+            syncOfferFromGUI(player, session);
             return;
         }
 
-        // Tout le reste (bordure, séparateur, leurs slots, info) → bloqué
+        // Clic dans notre GUI (haut) : tout est bloqué par défaut, sauf cas gérés ci-dessous.
         event.setCancelled(true);
+        int slot = event.getSlot();
+
+        if (slot == SLOT_CONFIRM) { handleConfirm(player, session); return; }
+        if (slot == SLOT_CANCEL) { cancelTrade(player, session, true); return; }
+
+        if (isMySlot(slot)) {
+            if (session.hasConfirmed(player.getUniqueId())) {
+                player.sendMessage(ChatColor.RED + "Annule ta confirmation avant de modifier ton offre.");
+                return;
+            }
+            ItemStack current = topInv.getItem(slot);
+            if (current == null || current.getType() == Material.AIR) return;
+
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(current.clone());
+            if (!leftover.isEmpty()) leftover.values().forEach(is -> player.getWorld().dropItemNaturally(player.getLocation(), is));
+
+            topInv.setItem(slot, null);
+            syncOfferFromGUI(player, session);
+        }
+        // THEIR_SLOTS / bordure / séparateur : déjà annulé plus haut, lecture seule.
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // GESTION DU DRAG (glisser-déposer)
+    // DRAG (glisser-déposer)
     // ══════════════════════════════════════════════════════════════════════════
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!event.getView().getTitle().startsWith(TITLE_PREFIX)) return;
-
         TradeManager.TradeSession session = tradeManager.getSession(player.getUniqueId());
-        if (session == null) { event.setCancelled(true); return; }
+        if (session == null) return;
 
-        // Récupère les slots du GUI (< 54) touchés par le drag
-        Set<Integer> guiSlots = new HashSet<>();
+        Inventory top = event.getView().getTopInventory();
+        if (!top.equals(openInventories.get(player.getUniqueId()))) return;
+
+        int topSize = top.getSize();
+        List<Integer> guiSlots = new ArrayList<>();
         for (int raw : event.getRawSlots()) {
-            if (raw < 54) guiSlots.add(raw);
+            if (raw < topSize) guiSlots.add(raw);
         }
+        if (guiSlots.isEmpty()) return; // drag entièrement dans l'inventaire du joueur : rien à faire ici
 
-        // Si aucun slot du GUI n'est touché → drag purement dans l'inventaire joueur → OK
-        if (guiSlots.isEmpty()) return;
-
-        // Vérifie que tous les slots GUI touchés sont bien des MY_SLOTS
         for (int gs : guiSlots) {
             if (!isMySlot(gs)) {
-                // Un slot interdit est touché → on bloque tout
                 event.setCancelled(true);
                 return;
             }
