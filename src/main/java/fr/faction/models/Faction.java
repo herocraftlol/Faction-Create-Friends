@@ -35,6 +35,8 @@ public class Faction {
     private Set<String> allies = new HashSet<>();
     /** Invitations d'alliance envoyées (en attente d'acceptation) */
     private Set<String> pendingAllianceInvites = new HashSet<>();
+    /** Timestamp (ms epoch) du dernier renommage, pour le cooldown d'une fois par jour. 0 = jamais renommée. */
+    private long lastRenameTime = 0L;
 
     public Faction(String name, UUID chef) {
         this.name = name;
@@ -126,4 +128,6 @@ public class Faction {
     public void addPendingAlliance(String name)          { pendingAllianceInvites.add(name.toLowerCase()); }
     public void removePendingAlliance(String name)       { pendingAllianceInvites.remove(name.toLowerCase()); }
     public int getAllyCount()                             { return allies.size(); }
+    public long getLastRenameTime()                       { return lastRenameTime; }
+    public void setLastRenameTime(long t)                 { this.lastRenameTime = t; }
 }

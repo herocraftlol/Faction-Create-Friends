@@ -84,6 +84,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private fr.faction.villager.VillagerGUI villagerGUI;
     private fr.faction.village.VillageManager villageManager;
     private fr.faction.commerce.CommerceManager commerceManager;
+    private fr.faction.web.WebMapSync webMapSync;
     private final BankGUI bankGUI;
     private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
@@ -146,6 +147,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public void setVillagerGUI(fr.faction.villager.VillagerGUI vg) { this.villagerGUI = vg; }
     public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
     public void setCommerceManager(fr.faction.commerce.CommerceManager cm) { this.commerceManager = cm; }
+    public void setWebMapSync(fr.faction.web.WebMapSync wms) { this.webMapSync = wms; }
     public void setTabManager(fr.faction.power.FactionTabManager tm) { this.tabManager = tm; }
     public void setMapManager(fr.faction.map.FactionMapManager mm) { this.mapManager = mm; }
 
@@ -277,13 +279,21 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
         String name = faction.getName();
-        for (UUID uuid : new ArrayList<>(faction.getMembers())) {
+        List<UUID> members = new ArrayList<>(faction.getMembers());
+        for (UUID uuid : members) {
             Player m = Bukkit.getPlayer(uuid);
             if (m != null && !m.equals(player)) m.sendMessage(prefix() + ChatColor.RED + "La faction " + name + " a été dissoute.");
         }
         sharedInvManager.deleteFactionInventory(name);
         factionManager.disbandFaction(name);
         player.sendMessage(prefix() + msg("faction-disbanded").replace("%name%", name));
+        if (tabManager != null) {
+            for (UUID uuid : members) {
+                Player m = Bukkit.getPlayer(uuid);
+                if (m != null) tabManager.refresh(m);
+            }
+        }
+        if (webMapSync != null) webMapSync.pushSnapshotNow();
     }
 
     private void handleInvite(Player player, String[] args) {
@@ -311,6 +321,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         factionManager.addMember(args[1], player.getUniqueId());
         player.sendMessage(prefix() + msg("joined-faction").replace("%name%", faction.getName()));
         if (tabManager != null) tabManager.refresh(player);
+        if (webMapSync != null) webMapSync.pushSnapshotNow();
         notifyMembers(faction, player, ChatColor.GREEN + player.getName() + " a rejoint la faction !");
     }
 
@@ -322,6 +333,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + ChatColor.RED + "Tu n'es pas dans une faction."); return; }
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + ChatColor.RED + "Seul le chef peut renommer la faction."); return; }
+
+        long cooldownMs = 24L * 60 * 60 * 1000;
+        long elapsed = System.currentTimeMillis() - faction.getLastRenameTime();
+        if (faction.getLastRenameTime() > 0 && elapsed < cooldownMs) {
+            long remainingMs = cooldownMs - elapsed;
+            long hours = remainingMs / (60 * 60 * 1000);
+            long minutes = (remainingMs / (60 * 1000)) % 60;
+            player.sendMessage(prefix() + ChatColor.RED + "Ta faction ne peut être renommée qu'une fois par jour. "
+                    + "Réessaie dans " + hours + "h" + minutes + "min.");
+            return;
+        }
 
         String newName = args[1];
 
@@ -346,14 +368,20 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Notifier tous les membres en ligne
-        for (UUID uuid : faction.getMembers()) {
-            Player member = Bukkit.getPlayer(uuid);
-            if (member != null && member.isOnline()) {
-                member.sendMessage(prefix() + ChatColor.YELLOW + "La faction §e" + oldName
-                        + ChatColor.YELLOW + " a été renommée en §e" + newName + ChatColor.YELLOW + ".");
-            }
+        faction.setLastRenameTime(System.currentTimeMillis());
+        if (bankManager != null) bankManager.renameFactionAccount(oldName, newName);
+        factionManager.saveFactions();
+
+        // Diffusé à TOUT le serveur, pas seulement aux membres — d'autres joueurs peuvent
+        // avoir cette faction en mémoire (alliés, ennemis, classements...).
+        String broadcast = prefix() + ChatColor.YELLOW + "La faction §e" + oldName
+                + ChatColor.YELLOW + " a été renommée en §e" + newName + ChatColor.YELLOW + ".";
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            online.sendMessage(broadcast);
         }
+
+        if (webMapSync != null) webMapSync.pushSnapshotNow();
+
         player.sendMessage(prefix() + ChatColor.GREEN + "✔ Faction renommée : §e" + oldName
                 + ChatColor.GREEN + " → §e" + newName + ChatColor.GREEN + ".");
     }
@@ -369,6 +397,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         notifyMembers(faction, player, ChatColor.YELLOW + player.getName() + " a quitté la faction.");
         factionManager.removeMember(name, player.getUniqueId());
         player.sendMessage(prefix() + msg("left-faction").replace("%name%", name));
+        if (tabManager != null) tabManager.refresh(player);
+        if (webMapSync != null) webMapSync.pushSnapshotNow();
     }
 
     private void handleSetChef(Player player, String[] args) {
@@ -487,8 +517,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         String tName = target.getName() != null ? target.getName() : args[1];
         factionManager.removeMember(faction.getName(), target.getUniqueId());
         player.sendMessage(prefix() + ChatColor.YELLOW + tName + " expulsé de la faction.");
-        if (target.isOnline() && target.getPlayer() != null) target.getPlayer().sendMessage(prefix() + ChatColor.RED + "Tu as été expulsé de la faction " + faction.getName() + ".");
+        if (target.isOnline() && target.getPlayer() != null) {
+            target.getPlayer().sendMessage(prefix() + ChatColor.RED + "Tu as été expulsé de la faction " + faction.getName() + ".");
+            if (tabManager != null) tabManager.refresh(target.getPlayer());
+        }
         notifyMembers(faction, player, ChatColor.RED + tName + " a été expulsé de la faction.");
+        if (webMapSync != null) webMapSync.pushSnapshotNow();
     }
 
     private void handleTp(Player player, String[] args) {

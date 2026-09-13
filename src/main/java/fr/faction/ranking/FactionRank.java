@@ -50,7 +50,7 @@ public enum FactionRank {
             "§a2 spawns de faction",
             "§a4 homes personnels"),
 
-    LEGENDAIRE(60000, "Légendaire", "⚜", ChatColor.LIGHT_PURPLE,
+    LEGENDAIRE(100000, "Légendaire", "⚜", ChatColor.LIGHT_PURPLE,
             "Hâte III + Regen II + Force I + Résistance II passifs",
             "Aura de Regen II sur les alliés à ≤15 blocs",
             "Halo de particules dorées distinctif",

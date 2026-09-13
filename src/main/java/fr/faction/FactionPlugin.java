@@ -187,6 +187,7 @@ public class FactionPlugin extends JavaPlugin {
         cmd.setVillagerGUI(villagerGUI);
         cmd.setVillageManager(villageManager);
         cmd.setCommerceManager(commerceManager);
+        cmd.setWebMapSync(webMapSync);
         actionBarManager.setWarManager(warManager);
 
         getCommand("faction").setExecutor(cmd);
