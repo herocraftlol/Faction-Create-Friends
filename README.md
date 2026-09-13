@@ -1,8 +1,8 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour** et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.12.0-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.13.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,11 +10,47 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
 
+En v5.13.1, toute la tuyauterie interne a été revue pour que le **tab** (la liste des joueurs du serveur) reflète **immédiatement** votre faction actuelle — même quand vous la quittez, que vous êtes expulsé, ou que votre faction est dissoute. Plus d'ancienne étiquette fantôme qui reste affichée jusqu'à votre prochaine action.
+
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
-## 🆕 Nouveautés de la v5.12.0 — *Commerce inter-villes* 🚢🚂📦
+## 🆕 Nouveautés de la v5.13.1 — *Le tab se rafraîchit (enfin) en quittant une faction* ✅👋
+
+La v5.13.1 règle un bug visuellement très désagréable qui traînait depuis longtemps : **après `/faction leave`, `/faction kick` ou `/faction disband`, votre tab gardait l'ancienne faction affichée** jusqu'à ce qu'un autre événement (typiquement rejoindre ou fonder une nouvelle faction) déclenche une mise à jour. C'est trompeur, surtout si l'on rejoint immédiatement une autre faction : on lit `[AncienneFaction] Pseudo` dans la liste des joueurs alors qu'on en fait déjà partie d'une autre.
+
+### Avant / Après
+
+| Commande | En v5.13.0 | En v5.13.1 |
+|----------|------------|------------|
+| `/faction leave` | ❌ L'étiquette de faction reste dans le tab | ✅ Le tab se rafraîchit à la seconde |
+| `/faction kick <joueur>` (sur vous) | ❌ Idem | ✅ Le joueur expulsé est rafraîchi (ainsi que le kicker, le cas échéant) |
+| `/faction disband` | ❌ Tous les anciens membres gardent leur ancienne faction dans le tab | ✅ Tous les anciens membres voient leur tab nettoyé |
+
+### Pourquoi cette commande posait problème
+
+`/faction create` et `/faction join` rafraîchissaient déjà le tab parce qu'on rejoint quelque chose — la branche de code appelait `tabManager.refresh(...)` au passage. Mais `/faction leave`, `/faction kick` et `/faction disband` ne faisaient qu'**enlever** une appartenance, et la branche correspondante n'appelait jamais cette fonction. Résultat : l'étiquette restait en mémoire jusqu'à un événement extérieur.
+
+### Le correctif
+
+Les trois commandes appellent désormais `tabManager.refresh(...)` **pour chaque joueur concerné** :
+
+- `leave` → rafraîchit le joueur qui quitte.
+- `kick` → rafraîchit le joueur expulsé.
+- `disband` → rafraîchit tous les anciens membres de la faction dissoute.
+
+Et comme la v5.13.0 avait déjà ajouté l'envoi immédiat au dashboard web (Herosite / HeroTab), tout changement visible dans le tab est désormais **aussi** propagé au site web sans attendre le cycle de 60 secondes.
+
+ℹ️ Voir [`CHANGELOG_v5_13_1.md`](./CHANGELOG_v5_13_1.md) pour la liste complète des symboles / imports Paper 1.21.4 remis au goût du jour (Material.RED_BED, Enchantment.LOOTING, PotionEffectType.STRENGTH, etc.) — tout compilable sur `mvn clean package`.
+
+> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : le commerce inter-villes 🚢🚂 (v5.12.0), les villageois autonomes (v5.9.0+), les ranges Village/Ville (v5.11), le verrou-gui (v5.10.2), la banque, le shop, le troc, les guerres, les alliances, les sous-chefs, et tout le reste.
+
+---
+
+## 🆕 Nouveautés historiques (toujours présentes)
+
+### v5.12.0 — *Commerce inter-villes* 🚢🚂📦
 
 La v5.12.0 ouvre un tout nouveau système économique : les **villages** de votre faction peuvent désormais **échanger des ressources entre eux** par bateau ou par train. Plus de production en vase clos : vos surplus filent dans le port voisin, votre allié reçoit un wagon de charbon, et l'économie régionale prend forme toute seule.
 
@@ -38,7 +74,7 @@ La v5.12.0 ouvre un tout nouveau système économique : les **villages** de votr
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.12.0.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.13.1.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -190,7 +226,7 @@ cd Faction-Create-Friends/FactionPlugin-v4
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.12.0.jar` (≈ 470 KB).
+Le JAR est produit dans `target/FactionPlugin-5.13.1.jar` (≈ 470 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -218,6 +254,11 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 ---
 
 ## 🆕 Historique des versions
+
+### **v5.13.1** — *Tab rafraîchi en quittant la faction* ✅👋
+- **🐛 Bug corrigé — le tab gardait l'ancienne faction après un départ** : `/faction leave`, `/faction kick` et `/faction disband` ne rafraîchissaient jamais le tab du/des joueur(s) concerné(s). Le code appelait déjà `tabManager.refresh(...)` dans `/faction create` et `/faction join` (parce qu'on rejoint quelque chose), mais oubliait complètement cette étape sur les trois commandes qui **enlèvent** une appartenance. Résultat : tant qu'un autre événement (typiquement rejoindre ou fonder une autre faction) ne déclenchait pas un rafraîchissement, l'étiquette `[AncienneFaction] Pseudo` restait affichée — y compris, et c'est le pire cas, juste après avoir rejoint une nouvelle faction. Les trois commandes appellent maintenant `tabManager.refresh(...)` pour chaque joueur concerné.
+- **🔧 Correctifs de compilation Paper API 1.21.4** : `Material.RED_BED` (BED retiré), `Enchantment.LOOTING` (LUCK retiré), `PotionEffectType.STRENGTH`/`RESISTANCE` (INCREASE_DAMAGE / DAMAGE_RESISTANCE renommés), `BuyResult.NOT_ENOUGH_PAYMENT`, `Particle.WITCH` / `Particle.HAPPY_VILLAGER`, `Sound.ENTITY_GENERIC_EAT`, `Material.YELLOW_STAINED_GLASS_PANE`, conversion explicite en `java.awt.Color` pour `MapPalette.matchColor(...)`, import correct `org.bukkit.plugin.java.JavaPlugin`, lambda `final MapView finalView`, suppression du listener cassé sur `EntitySleepEvent` (déjà remplacé par polling depuis la v5.10.3), ajout de l'import `fr.faction.village.PostType` dans `Contract`. Tout est compilable sur `mvn clean package`.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit. Tous les YAML des versions >= v5.0.0 restent compatibles.
 
 ### **v5.12.0** — *Commerce inter-villes 🚢🚂📦*
 - **🚢 Rôle Navigateur** : villageois qui livre **en bateau** entre les **ports** de deux villes (factions alliées ou même faction). Charge → embarque → traverse à vue → dépose → revient à vide.

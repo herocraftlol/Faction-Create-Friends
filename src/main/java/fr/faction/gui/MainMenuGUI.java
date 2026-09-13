@@ -217,13 +217,15 @@ public class MainMenuGUI implements Listener {
         inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",   "§7Aller au spawn de ta faction.",
-                "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
-                "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)"),
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",
+                "§7Aller au spawn de ta faction.\n"
+                + "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini") + "\n"
+                + "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)"),
                 faction != null && faction.hasSpawn()));
-        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]","§7Définir un spawn de faction.",
-                "§7/fac setspawn   → spawn principal",
-                "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)",
+        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]",
+                "§7Définir un spawn de faction.\n"
+                + "§7/fac setspawn   → spawn principal\n"
+                + "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)",
                 canMng));
 
         // Homes
@@ -1127,14 +1129,13 @@ public class MainMenuGUI implements Listener {
 
     /** Item grisé si disabled */
     private ItemStack cmdItem(Material mat, String name, String desc, boolean enabled) {
-        if (enabled) return make(mat, name, desc, "", "§7Clic pour info");
-        return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
-                "§8Réservé au §7Chef §8ou non disponible.");
-    }
-
-    /** Surcharge avec lignes de description supplémentaires */
-    private ItemStack cmdItem(Material mat, String name, String desc, String extra1, String extra2, boolean enabled) {
-        if (enabled) return make(mat, name, desc, extra1, extra2, "§7Clic pour info");
+        if (enabled) {
+            String[] lore = desc.split("\n", -1);
+            String[] fullLore = new String[lore.length + 1];
+            System.arraycopy(lore, 0, fullLore, 0, lore.length);
+            fullLore[lore.length] = "§7Clic pour info";
+            return make(mat, name, fullLore);
+        }
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
