@@ -210,6 +210,20 @@ public class ClaimManager {
         if (d != null) { d.allow(uuid); save(); }
     }
 
+    /**
+     * Autorise ce joueur sur TOUS les chunks actuellement claimés par cette faction —
+     * utilisé pour la période de grâce d'une dissolution différée : un membre qui a
+     * depuis rejoint une autre faction doit quand même pouvoir venir récupérer ses
+     * affaires tant que les claims ne sont pas encore libérés (1h). Cette autorisation
+     * disparaît naturellement avec le claim lorsqu'il est libéré (removeAllClaims).
+     */
+    public void allowPlayerOnAllClaims(String factionName, UUID uuid) {
+        for (ClaimData data : claims.values()) {
+            if (data.getFactionName().equalsIgnoreCase(factionName)) data.allow(uuid);
+        }
+        save();
+    }
+
     public void denyPlayer(Chunk chunk, UUID uuid) {
         ClaimData d = claims.get(ChunkKey.of(chunk));
         if (d != null) { d.deny(uuid); save(); }

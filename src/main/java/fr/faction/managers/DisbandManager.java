@@ -53,6 +53,16 @@ public class DisbandManager {
     /** Démarre le compte à rebours d'une heure pour une faction qui vient d'être dissoute. */
     public void scheduleDisband(Faction faction) {
         faction.setDisbandScheduledAt(System.currentTimeMillis());
+
+        // Autorise explicitement chaque membre actuel sur tous les claims de la faction :
+        // s'il quitte pour une autre faction avant la fin de l'heure (ex: pour rerejoindre
+        // son ancienne faction), il garde quand même accès à ses coffres/claims jusqu'à ce
+        // qu'ils soient réellement libérés — sinon il perdrait l'accès à ses propres affaires
+        // en plein milieu du délai censé lui laisser le temps de les récupérer.
+        for (UUID uuid : faction.getMembers()) {
+            claimManager.allowPlayerOnAllClaims(faction.getName(), uuid);
+        }
+
         factionManager.saveFactions();
         scheduleTask(faction.getName(), DELAY_MS);
     }
@@ -136,6 +146,28 @@ public class DisbandManager {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             int removed = purgeGhostFactions();
             if (removed > 0) plugin.getLogger().info(removed + " faction(s) fantôme(s) (0 membre) nettoyée(s) automatiquement.");
+            int orphanedClaims = purgeOrphanedClaims();
+            if (orphanedClaims > 0) plugin.getLogger().info(orphanedClaims + " faction(s) disparue(s) avaient encore des claims orphelins : libérés automatiquement.");
         }, 6000L, 36000L); // 5 min après le démarrage, puis toutes les 30 min
+    }
+
+    /**
+     * Libère les claims "orphelins" : des chunks encore marqués comme claimés par une
+     * faction qui n'existe plus (dissoute avant que la libération automatique des claims
+     * n'existe). Les coffres qu'ils contenaient redeviennent accessibles à tous, comme
+     * n'importe quel chunk non claimé.
+     *
+     * @return le nombre de factions orphelines dont les claims ont été libérés
+     */
+    public int purgeOrphanedClaims() {
+        java.util.Set<String> orphanFactionNames = new java.util.HashSet<>();
+        for (ClaimManager.ClaimData data : claimManager.getAllClaims().values()) {
+            String owner = data.getFactionName();
+            if (factionManager.getFaction(owner) == null) orphanFactionNames.add(owner);
+        }
+        for (String name : orphanFactionNames) {
+            claimManager.removeAllClaims(name);
+        }
+        return orphanFactionNames.size();
     }
 }

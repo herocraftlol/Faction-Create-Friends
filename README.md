@@ -1,8 +1,8 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.14.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.14.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,9 +10,37 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.14.1**) poursuit le nettoyage en profondeur entamé en 5.14.0 : en plus de la dissolution différée d'une heure, **les factions qui se retrouvent vides** (à cause de bugs anciens où la dissolution ne libérait pas tout) sont désormais **automatiquement et entièrement supprimées**, au démarrage puis toutes les 30 minutes — fini les entrées fantômes dans `/faction topbanque`, `/faction classement`, ou les claims « à personne ».
+La version actuelle (**5.14.2**) ferme un trou important dans la dissolution différée (v5.14.0) : **tu gardes l'accès à tes coffres et claims pendant toute l'heure qui suit le `/faction disband`**, même si tu quittes (volontairement ou par exclusion) la faction pendant ce délai. Et au démarrage, plus aucun claim orphelin ne reste bloqué : tout chunk appartenant à une faction qui n'existe plus est libéré automatiquement.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
+
+---
+
+## 🆕 Nouveautés de la v5.14.2 — *Accès aux coffres pendant la dissolution* 🧳🔓
+
+La v5.14.0 introduit la dissolution différée d'une heure — le temps de tout récupérer. La v5.14.2 ferme un trou important : si un membre **quittait** la faction (ou en était exclu) pendant cette heure, il **perdait instantanément l'accès à ses propres coffres et claims**, alors que la faction existait encore techniquement et que les claims n'étaient pas libérés.
+
+### Avant / Après
+
+| Situation | En v5.14.0 | En v5.14.2 |
+|-----------|------------|------------|
+| Tu fais `/faction disband`, attends 30 min, puis `/faction leave` pour rejoindre une autre faction | ❌ Tes coffres et claims deviennent inaccessibles pendant les 30 min restantes — tu perds ton propre butin | ✅ Tes coffres et claims restent accessibles jusqu'à la libération effective des claims (fin du compte à rebours) |
+| Un chef te fait `/faction kick` pendant l'heure de grâce | ⚠️ Tu perdais l'accès à tes coffres le temps qu'il reste | ✅ Tu gardes l'accès jusqu'à la fin du compte à rebours |
+| Le serveur redémarre pendant l'heure | ✅ Reprise correcte | ✅ Identique, plus nettoyage automatique des claims orphelins au démarrage |
+
+### Comment ça marche
+
+- Au moment où un chef fait `/faction disband`, le plugin **ajoute chaque membre actuel à la liste des joueurs autorisés sur tous les claims de la faction**.
+- Cette autorisation est attachée **au claim** : elle ne disparaît pas quand le joueur quitte la faction — elle disparaît seulement quand le claim est réellement libéré (fin du compte à rebours ou `removeAllClaims`).
+- Le joueur peut donc quitter, rejoindre une autre faction, voyager, mourir — **ses anciens coffres l'attendent toujours**, jusqu'à la libération effective des claims.
+
+### Bonus : nettoyage des claims orphelins au démarrage
+
+La v5.14.1 traitait déjà les **factions fantômes** (factions à 0 membre). La v5.14.2 ajoute `purgeOrphanedClaims` : **les chunks encore marqués comme claimés par une faction qui n'existe plus** sont automatiquement libérés au démarrage du serveur, puis toutes les 30 minutes. Les coffres qui s'y trouvent redeviennent accessibles à tous, comme n'importe quel chunk non claimé.
+
+ℹ️ Voir `CHANGELOG_v5_14_2.md` pour le détail complet.
+
+> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : dissolution différée d'une heure (v5.14.0), tab toujours à jour (v5.13.1), commerce inter-villes 🚢🚂 (v5.12.0), villageois autonomes (v5.9.0+), rangs Village/Ville (v5.11), verrou-gui (v5.10.2), banque, shop, troc, guerres, alliances, sous-chefs, et tout le reste.
 
 ---
 
@@ -56,7 +84,7 @@ Ces zombies empilaient de la donnée morte et un peu de CPU à chaque rechargeme
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.14.1.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.14.2.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -213,7 +241,7 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.14.1.jar` (≈ 475 KB).
+Le JAR est produit dans `target/FactionPlugin-5.14.2.jar` (≈ 475 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -242,7 +270,13 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 
 ## 🆕 Historique des versions
 
-### **v5.14.1** — *Nettoyage des factions fantômes* 👻🧹 *(version actuelle)*
+### **v5.14.2** — *Accès aux coffres pendant la dissolution* 🧳🔓 *(version actuelle)*
+- **🔓 Tu gardes l'accès à tes coffres pendant l'heure de grâce** : au moment d'un `/faction disband`, chaque membre actuel est explicitement autorisé sur tous les claims de la faction. Cette autorisation est attachée au claim, pas à l'appartenance — donc même si tu quittes ou que tu te fais exclure pendant l'heure, tu peux revenir prendre tes affaires tant que les claims ne sont pas libérés.
+- **🧹 `purgeOrphanedClaims` au démarrage + toutes les 30 min** : les chunks encore marqués comme claimés par une faction qui n'existe plus sont automatiquement libérés, comme n'importe quel chunk non claimé. Les coffres qu'ils contenaient redeviennent accessibles à tous.
+- **🔧 Petits correctifs** : `WebMapSync.java` corrigé (erreur de syntaxe JSON), import manquant `PostType` dans `Contract.java`, `DisbandManager.resumePendingDisbands()` réautorise les membres si la dissolution a été demandée avant la mise à jour.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+
+### **v5.14.1** — *Nettoyage des factions fantômes* 👻🧹
 - **🧹 Suppression automatique des factions sans membre** : toute faction dont la liste de membres est vide est désormais traitée comme « fantôme » et intégralement supprimée — claims libérés, coffre partagé supprimé, compte en banque supprimé, entrée retirée du classement, faction réellement détruite.
 - **🚀 Pas de délai d'1h dans ce cas** (contrairement à un disband volontaire) : personne n'est là pour récupérer quoi que ce soit, on nettoie tout de suite.
 - **⏱️ Purge au démarrage + filet de sécurité toutes les 30 min** : la première passe rattrape les zombies déjà présents dans vos fichiers YAML ; la suivante garantit qu'aucune faction ne reste fantôme si une situation analogue se reproduit par un futur bug.
