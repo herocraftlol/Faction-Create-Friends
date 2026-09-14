@@ -176,6 +176,8 @@ public class FactionPlugin extends JavaPlugin {
         disbandManager.resumePendingDisbands();
         int ghostsPurged = disbandManager.purgeGhostFactions();
         if (ghostsPurged > 0) getLogger().info(ghostsPurged + " faction(s) fantôme(s) existante(s) (0 membre) nettoyée(s) au démarrage.");
+        int orphanedClaimsPurged = disbandManager.purgeOrphanedClaims();
+        if (orphanedClaimsPurged > 0) getLogger().info(orphanedClaimsPurged + " faction(s) disparue(s) avaient encore des claims orphelins : libérés au démarrage.");
         disbandManager.startGhostFactionWatch();
 
         FactionCommand cmd = new FactionCommand(
