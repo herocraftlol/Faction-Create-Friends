@@ -1,8 +1,8 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, **synchronisation immédiate du tab lors d'une montée de rang**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.14.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.14.3-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,9 +10,40 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.14.2**) ferme un trou important dans la dissolution différée (v5.14.0) : **tu gardes l'accès à tes coffres et claims pendant toute l'heure qui suit le `/faction disband`**, même si tu quittes (volontairement ou par exclusion) la faction pendant ce délai. Et au démarrage, plus aucun claim orphelin ne reste bloqué : tout chunk appartenant à une faction qui n'existe plus est libéré automatiquement.
+La version actuelle (**5.14.3**) est une micro-version qui ferme le dernier délai perceptible sur le tab-list : **toute montée de rang d'une faction propage désormais immédiatement la mise à jour du tab vers le site web et le backing-service HeroTab**, sans attendre le cycle de synchronisation de 60 s. Local, site et onglet sont désormais cohérents en permanence.
+
+Les apports précédents des versions 5.14.x restent bien sûr actifs :
+
+- **5.14.0** — dissolution différée d'1 h, avec libération automatique des claims ;
+- **5.14.1** — nettoyage des factions fantômes et de leurs blocages ;
+- **5.14.2** — accès aux coffres préservé pendant l'heure de grâce + libération des claims orphelins.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
+
+---
+
+## 🆕 Nouveautés de la v5.14.3 — *Synchronisation immédiate du tab à la promotion de rang* 🏷️✨
+
+La v5.14.3 ferme le dernier délai perceptible sur le tab-list. Quand une faction gagne assez de puissance pour franchir un cap (par exemple `BRONZE → ARGENT`, `OR → DIAMANT`, …), **le tab local** se mettait déjà à jour instantanément. Mais le **tab global HeroTab** et **la carte web** attendaient le cycle de synchronisation de 60 s. Résultat : un coéquipier pouvait rester affiché `[⬡ Bronze]` pendant près d'une minute après la promotion.
+
+À partir de la v5.14.3, **toute montée de rang déclenche un `FactionTabManager.refresh(...)` immédiat**, exactement comme pour un recrutement, un départ, un renommage ou une dissolution. Les onglets du serveur, le site et le backing-service HeroTab sont maintenant cohérents **sans aucun délai**.
+
+### Avant / Après
+
+| Action | En v5.14.2 | En v5.14.3 |
+|--------|------------|------------|
+| Tab **local** lors d'une promotion de rang | ✅ instantané | ✅ instantané |
+| Tab **global** HeroTab lors d'une promotion | ⏳ jusqu'à 60 s | ✅ instantané |
+| `/fac top` après promotion | ✅ cohérent | ✅ identique + cache invalidé |
+| Site web et carte web après promotion | ⏳ cyclique (60 s) | ✅ propage tout de suite |
+
+### Comment ça marche
+
+- `FactionTabManager.refresh(factionName)` est désormais appelé de façon synchrone par `FactionPowerManager.evaluateRankChange(...)` dès qu'un franchissement de cap est détecté (gain/perte de puissance d'un membre, dissolution annulée, etc.).
+- Le hook déclenche également `webMapSync.pushFactionInfo(factionName)`, exactement comme pour les autres opérations de modification de faction (`join`, `leave`, `kick`, `disband`, `rename`, `setspawn`).
+- La classe de team (`faction.Officier`, `faction.Membre`, `faction.Chef`, `faction.None`) reste cohérente entre le tab local, le tab HeroTab et l'affichage de la carte web — sans fenêtre de bascule visible pour les autres joueurs.
+
+ℹ️ Voir `CHANGELOG_v5_14_3.md` pour le détail complet.
 
 ---
 
@@ -84,7 +115,7 @@ Ces zombies empilaient de la donnée morte et un peu de CPU à chaque rechargeme
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.14.2.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.14.3.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -241,7 +272,7 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.14.2.jar` (≈ 475 KB).
+Le JAR est produit dans `target/FactionPlugin-5.14.3.jar` (≈ 475 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -270,7 +301,14 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 
 ## 🆕 Historique des versions
 
-### **v5.14.2** — *Accès aux coffres pendant la dissolution* 🧳🔓 *(version actuelle)*
+### **v5.14.3** — *Synchronisation immédiate du tab à la promotion de rang* 🏷️✨ *(version actuelle)*
+- **⚡ Tab global synchrone lors d'une promotion** : `FactionTabManager.refresh(factionName)` est désormais appelé dès qu'une faction franchit un cap de puissance (`BRONZE → ARGENT`, `OR → DIAMANT`, …). Fini l'attente pouvant aller jusqu'à 60 s côté HeroTab / carte web.
+- **🔄 `/fac top` et cache de puissance** : le cache local de `FactionPowerManager` est invalidé sur tout franchissement de cap — `/fac top`, l'écran de détail d'une faction et la carte web s'alignent immédiatement.
+- **🛡️ Cohérence totale local / web / tab** : la classe de team (`faction.Officier`, `faction.Membre`, `faction.Chef`, `faction.None`) reste identique partout, sans fenêtre de bascule visible pour les autres joueurs.
+- **🔧 Petits correctifs** : aucun changement significatif de format YAML, juste un hook manquant dans le chemin de synchronisation du tab suite à une promotion.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+
+### **v5.14.2** — *Accès aux coffres pendant la dissolution* 🧳🔓
 - **🔓 Tu gardes l'accès à tes coffres pendant l'heure de grâce** : au moment d'un `/faction disband`, chaque membre actuel est explicitement autorisé sur tous les claims de la faction. Cette autorisation est attachée au claim, pas à l'appartenance — donc même si tu quittes ou que tu te fais exclure pendant l'heure, tu peux revenir prendre tes affaires tant que les claims ne sont pas libérés.
 - **🧹 `purgeOrphanedClaims` au démarrage + toutes les 30 min** : les chunks encore marqués comme claimés par une faction qui n'existe plus sont automatiquement libérés, comme n'importe quel chunk non claimé. Les coffres qu'ils contenaient redeviennent accessibles à tous.
 - **🔧 Petits correctifs** : `WebMapSync.java` corrigé (erreur de syntaxe JSON), import manquant `PostType` dans `Contract.java`, `DisbandManager.resumePendingDisbands()` réautorise les membres si la dissolution a été demandée avant la mise à jour.

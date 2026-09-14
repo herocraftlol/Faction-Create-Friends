@@ -856,7 +856,12 @@ public class VillagerManager implements Listener {
     // ════════════════════════════════════════════════════════════════════════
     // SOIN EN DORMANT DANS UN LIT
     // ════════════════════════════════════════════════════════════════════════
-    // (désactivé : l'événement Bukkit EntitySleepEvent n'existe plus en Paper 1.21+)
+
+    // note: onSleep(EntitySleepEvent) handler removed in v5.14.x —
+    // the EntitySleepEvent class was removed by the Paper 1.21.4 API
+    // (the underlying event listener no longer exists). Sleeping
+    // villagers simply rest passively and heal via the existing per-tick
+    // self-care path.
 
     // ── Constructeur : traite le chantier en tête de file, récolte si besoin ──
     private void builderTick(RecruitedVillager rv, Villager v) {

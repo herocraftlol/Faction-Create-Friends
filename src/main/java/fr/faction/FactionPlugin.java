@@ -26,8 +26,8 @@ import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Bukkit;
 
 public class FactionPlugin extends JavaPlugin {
 
@@ -167,6 +167,7 @@ public class FactionPlugin extends JavaPlugin {
         webMapSync = new fr.faction.web.WebMapSync(this, factionManager, powerManager);
         webMapSync.setClaimManager(claimManager);
         getServer().getPluginManager().registerEvents(webMapSync, this);
+        powerManager.setWebMapSync(webMapSync);
 
         // ── Dissolution différée d'une heure (claims/coffres/banque/classement) ───
         disbandManager = new fr.faction.managers.DisbandManager(
