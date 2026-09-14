@@ -240,6 +240,7 @@ public class FactionManager {
             cfg.set(key + ".allies", new ArrayList<>(f.getAllies()));
             cfg.set(key + ".pendingAlliances", new ArrayList<>(f.getPendingAllianceInvites()));
             cfg.set(key + ".lastRenameTime", f.getLastRenameTime());
+            cfg.set(key + ".disbandScheduledAt", f.getDisbandScheduledAt());
         }
         try { cfg.save(dataFile); } catch (IOException e) {
             plugin.getLogger().severe("Erreur sauvegarde factions : " + e.getMessage());
@@ -298,6 +299,7 @@ public class FactionManager {
             for (String ally : cfg.getStringList(path + ".allies")) faction.addAlly(ally);
             for (String pa : cfg.getStringList(path + ".pendingAlliances")) faction.addPendingAlliance(pa);
             faction.setLastRenameTime(cfg.getLong(path + ".lastRenameTime", 0L));
+            faction.setDisbandScheduledAt(cfg.getLong(path + ".disbandScheduledAt", 0L));
 
             factions.put(key, faction);
         }

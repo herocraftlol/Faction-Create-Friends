@@ -98,8 +98,8 @@ public class FactionMapManager {
         }
 
         // Retirer les renderers par défaut (fond vanilla gris)
-        final MapView finalView = view;
-        view.getRenderers().forEach(r -> finalView.removeRenderer(r));
+        final org.bukkit.map.MapView finalView = view;
+        view.getRenderers().forEach(finalView::removeRenderer);
 
         // Créer et attacher notre renderer
         FactionMapRenderer renderer = new FactionMapRenderer(

@@ -85,6 +85,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private fr.faction.village.VillageManager villageManager;
     private fr.faction.commerce.CommerceManager commerceManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.managers.DisbandManager disbandManager;
     private final BankGUI bankGUI;
     private final EmeraldBankManager bankManager;
     private final TradeManager tradeManager;
@@ -148,6 +149,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
     public void setCommerceManager(fr.faction.commerce.CommerceManager cm) { this.commerceManager = cm; }
     public void setWebMapSync(fr.faction.web.WebMapSync wms) { this.webMapSync = wms; }
+    public void setDisbandManager(fr.faction.managers.DisbandManager dm) { this.disbandManager = dm; }
     public void setTabManager(fr.faction.power.FactionTabManager tm) { this.tabManager = tm; }
     public void setMapManager(fr.faction.map.FactionMapManager mm) { this.mapManager = mm; }
 
@@ -278,21 +280,33 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
         if (faction == null) { player.sendMessage(prefix() + msg("not-in-faction")); return; }
         if (!faction.isChef(player.getUniqueId())) { player.sendMessage(prefix() + msg("not-chef")); return; }
+        if (faction.isPendingDisband()) {
+            player.sendMessage(prefix() + ChatColor.RED + "La dissolution de cette faction est déjà en cours.");
+            return;
+        }
         String name = faction.getName();
         List<UUID> members = new ArrayList<>(faction.getMembers());
+
         for (UUID uuid : members) {
             Player m = Bukkit.getPlayer(uuid);
-            if (m != null && !m.equals(player)) m.sendMessage(prefix() + ChatColor.RED + "La faction " + name + " a été dissoute.");
-        }
-        sharedInvManager.deleteFactionInventory(name);
-        factionManager.disbandFaction(name);
-        player.sendMessage(prefix() + msg("faction-disbanded").replace("%name%", name));
-        if (tabManager != null) {
-            for (UUID uuid : members) {
-                Player m = Bukkit.getPlayer(uuid);
-                if (m != null) tabManager.refresh(m);
+            if (m != null) {
+                m.sendMessage(prefix() + ChatColor.RED + "La faction " + name
+                        + " va être dissoute. §eVous avez 1 heure pour récupérer vos affaires "
+                        + "dans les claims et coffres avant qu'ils ne soient définitivement libérés.");
             }
         }
+
+        if (disbandManager != null) {
+            disbandManager.scheduleDisband(faction);
+        } else {
+            // Filet de sécurité si le système différé n'est pas disponible : dissolution immédiate.
+            sharedInvManager.deleteFactionInventory(name);
+            factionManager.disbandFaction(name);
+        }
+
+        player.sendMessage(prefix() + ChatColor.YELLOW + "✔ Dissolution de §e" + name
+                + ChatColor.YELLOW + " lancée : suppression définitive dans 1 heure.");
+
         if (webMapSync != null) webMapSync.pushSnapshotNow();
     }
 
@@ -370,6 +384,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
         faction.setLastRenameTime(System.currentTimeMillis());
         if (bankManager != null) bankManager.renameFactionAccount(oldName, newName);
+        powerManager.renameFaction(oldName, newName);
         factionManager.saveFactions();
 
         // Diffusé à TOUT le serveur, pas seulement aux membres — d'autres joueurs peuvent

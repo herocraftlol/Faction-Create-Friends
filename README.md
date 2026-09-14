@@ -1,8 +1,8 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour** et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.13.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.14.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,71 +10,53 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
 
-En v5.13.1, toute la tuyauterie interne a été revue pour que le **tab** (la liste des joueurs du serveur) reflète **immédiatement** votre faction actuelle — même quand vous la quittez, que vous êtes expulsé, ou que votre faction est dissoute. Plus d'ancienne étiquette fantôme qui reste affichée jusqu'à votre prochaine action.
+La version actuelle (**5.14.1**) poursuit le nettoyage en profondeur entamé en 5.14.0 : en plus de la dissolution différée d'une heure, **les factions qui se retrouvent vides** (à cause de bugs anciens où la dissolution ne libérait pas tout) sont désormais **automatiquement et entièrement supprimées**, au démarrage puis toutes les 30 minutes — fini les entrées fantômes dans `/faction topbanque`, `/faction classement`, ou les claims « à personne ».
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
-## 🆕 Nouveautés de la v5.13.1 — *Le tab se rafraîchit (enfin) en quittant une faction* ✅👋
+## 🆕 Nouveautés de la v5.14.1 — *Nettoyage des factions fantômes* 👻🧹
 
-La v5.13.1 règle un bug visuellement très désagréable qui traînait depuis longtemps : **après `/faction leave`, `/faction kick` ou `/faction disband`, votre tab gardait l'ancienne faction affichée** jusqu'à ce qu'un autre événement (typiquement rejoindre ou fonder une nouvelle faction) déclenche une mise à jour. C'est trompeur, surtout si l'on rejoint immédiatement une autre faction : on lit `[AncienneFaction] Pseudo` dans la liste des joueurs alors qu'on en fait déjà partie d'une autre.
+La v5.14.1 complète la v5.14.0 : si la dissolution volontaire d'une faction reste différée d'une heure (pour laisser aux membres le temps de récupérer leurs affaires), **les factions qui n'ont déjà plus aucun membre** — état pathologique laissé par d'anciens bugs où la dissolution ne libérait pas tout — sont maintenant nettoyées d'elles-mêmes, automatiquement.
 
-### Avant / Après
+### Le problème
 
-| Commande | En v5.13.0 | En v5.13.1 |
-|----------|------------|------------|
-| `/faction leave` | ❌ L'étiquette de faction reste dans le tab | ✅ Le tab se rafraîchit à la seconde |
-| `/faction kick <joueur>` (sur vous) | ❌ Idem | ✅ Le joueur expulsé est rafraîchi (ainsi que le kicker, le cas échéant) |
-| `/faction disband` | ❌ Tous les anciens membres gardent leur ancienne faction dans le tab | ✅ Tous les anciens membres voient leur tab nettoyé |
+Au fil des versions, plusieurs bugs historiques avaient laissé des factions dans un état « zombie » :
 
-### Pourquoi cette commande posait problème
+- 💰 Un **compte en banque** jamais supprimé au disband → entrée orpheline pour toujours dans `/faction topbanque`.
+- 🏦 Un **coffre partagé** jamais supprimé au disband.
+- 🗺️ Des **claims** jamais libérés (avant la v5.14.0).
+- 📊 Un **cache de puissance/classement** jamais purgé au disband ni au renommage → entrée fantôme dans `/faction classement`.
 
-`/faction create` et `/faction join` rafraîchissaient déjà le tab parce qu'on rejoint quelque chose — la branche de code appelait `tabManager.refresh(...)` au passage. Mais `/faction leave`, `/faction kick` et `/faction disband` ne faisaient qu'**enlever** une appartenance, et la branche correspondante n'appelait jamais cette fonction. Résultat : l'étiquette restait en mémoire jusqu'à un événement extérieur.
+Ces zombies empilaient de la donnée morte et un peu de CPU à chaque rechargement du plugin.
 
-### Le correctif
+### La solution
 
-Les trois commandes appellent désormais `tabManager.refresh(...)` **pour chaque joueur concerné** :
+- **Toute faction dont la liste de membres est vide** est désormais considérée comme **fantôme** et est **automatiquement et entièrement supprimée** :
+  - claims libérés,
+  - coffre partagé supprimé,
+  - compte en banque supprimé,
+  - entrée retirée du classement de puissance,
+  - faction réellement supprimée (elle n'existe plus nulle part).
+- **Pas de délai d'une heure** dans ce cas (à la différence d'un disband « normal ») : il n'y a personne pour récupérer quoi que ce soit, autant faire le ménage tout de suite.
+- **Nettoyage initial au démarrage** : un passage est exécuté **une fois au démarrage du serveur**, pour rattraper les zombies déjà présents dans vos fichiers de sauvegarde.
+- **Filet de sécurité** : la même purge est répétée **toutes les 30 minutes** au cas où une faction se retrouverait un jour vide par un autre chemin.
 
-- `leave` → rafraîchit le joueur qui quitte.
-- `kick` → rafraîchit le joueur expulsé.
-- `disband` → rafraîchit tous les anciens membres de la faction dissoute.
+### Pourquoi deux rythmes ?
 
-Et comme la v5.13.0 avait déjà ajouté l'envoi immédiat au dashboard web (Herosite / HeroTab), tout changement visible dans le tab est désormais **aussi** propagé au site web sans attendre le cycle de 60 secondes.
+- **Au démarrage** : indispensable pour purger les zombies hérités des versions précédentes, déjà présents dans les YAML.
+- **Toutes les 30 min** : rustine de sécurité pour ne pas avoir à prouver une seule et unique porte d'entrée vers « faction vide » — si une telle situation apparaît par un futur bug, elle sera nettoyée d'elle-même peu après.
 
-ℹ️ Voir [`CHANGELOG_v5_13_1.md`](./CHANGELOG_v5_13_1.md) pour la liste complète des symboles / imports Paper 1.21.4 remis au goût du jour (Material.RED_BED, Enchantment.LOOTING, PotionEffectType.STRENGTH, etc.) — tout compilable sur `mvn clean package`.
+ℹ️ Voir [`CHANGELOG_v5_14_1.md`](./CHANGELOG_v5_14_1.md) pour le détail complet et les derniers correctifs de compilation Paper 1.21.4 (déplacement de `JavaPlugin`, renommages `Particle`/`Sound`/`Material`, conversion `MapPalette.matchColor(java.awt.Color)`).
 
-> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : le commerce inter-villes 🚢🚂 (v5.12.0), les villageois autonomes (v5.9.0+), les ranges Village/Ville (v5.11), le verrou-gui (v5.10.2), la banque, le shop, le troc, les guerres, les alliances, les sous-chefs, et tout le reste.
-
----
-
-## 🆕 Nouveautés historiques (toujours présentes)
-
-### v5.12.0 — *Commerce inter-villes* 🚢🚂📦
-
-La v5.12.0 ouvre un tout nouveau système économique : les **villages** de votre faction peuvent désormais **échanger des ressources entre eux** par bateau ou par train. Plus de production en vase clos : vos surplus filent dans le port voisin, votre allié reçoit un wagon de charbon, et l'économie régionale prend forme toute seule.
-
-- **🚢 Rôle Navigateur** — villageois qui **livre en bateau** entre deux **ports** d'une même faction ou de factions alliées. Charge, embarque, traverse à vue, dépose, revient à vide.
-- **🚂 Rôle Cheminot** — version ferroviaire, qui **livre en minecart** entre deux **gares** des deux villes.
-- **📦 Définir un port ou une gare** — `/faction port definir <village>` et `/faction gare definir <village>` posent un "coffre de fret" dans la zone du village, servant d'entrepôt d'expédition *et* de réception.
-- **📜 Contrats commerciaux** (`/faction contrat …`)
-  - `creer <fromVillage> <toVillage> <resource> <quantite>` — crée un contrat en attente
-  - `liste` — listez tous les contrats de la faction (en attente / en transit / livrés)
-  - `assigner <id>` — assigne un navigateur ou cheminot au contrat
-  - `annuler <id>` — annule (chef/sous-chef uniquement)
-- **🔒 Fret protégé** — seuls la faction propriétaire et ses alliées peuvent ouvrir le coffre de fret ou monter dans le véhicule de transport.
-- **🚤 Trajet simple** — un contrat = un aller simple en ligne droite, à vue, à petite vitesse (le chenal maritime ou la voie ferrée doit être dégagée entre les deux postes). Pas de pathfinding complexe : lisible et stable.
-- **🧹 Correctif important** — un précédent développement avait par erreur écrasé le fichier `TradeManager` du troc (joueur↔joueur, fonctionnalité totalement différente). Le troc a été **reconstruit à l'identique**, et le nouveau commerce est dans son **propre package** (`fr.faction.commerce`) pour ne plus jamais entrer en conflit.
-
-ℹ️ Voir [`CHANGELOG_v5_12_0.md`](./CHANGELOG_v5_12_0.md) pour le détail complet des changements, du correctif de compilation (Paper 1.21.4) et de la migration.
-
-> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : verrou-gui des villageois, indicateurs visuels dans les GUIs, mains occupées, anti-disparition d'objets, Récolteur, guerre automatique, etc.
+> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : dissolution différée d'une heure (v5.14.0), tab toujours à jour (v5.13.1), commerce inter-villes 🚢🚂 (v5.12.0), villageois autonomes (v5.9.0+), rangs Village/Ville (v5.11), verrou-gui (v5.10.2), banque, shop, troc, guerres, alliances, sous-chefs, et tout le reste.
 
 ---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.13.1.jar**](../../releases/latest)
+1. Téléchargez la dernière release : [**FactionPlugin-5.14.1.jar**](../../releases/latest)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
 4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
@@ -91,6 +73,8 @@ La v5.12.0 ouvre un tout nouveau système économique : les **villages** de votr
 - Système de **sous-chefs** (jusqu'à 2) avec permissions granulaires
 - Chat de faction, ranks visuels, GUI intuitive
 - Classement des factions par puissance
+- **Dissolution différée d'une heure** (v5.14.0) — le temps de tout récupérer
+- **Nettoyage automatique des factions fantômes** (v5.14.1) — plus de zombies dans les fichiers
 
 ### ⚔️ Alliances & Guerres
 - Proposez, acceptez, refusez et rompez des **alliances** avec d'autres factions
@@ -112,12 +96,14 @@ Recrutez des villageois vanilla et attribuez-leur un rôle : ils deviennent auto
 | 🔨 **Constructeur** | Remplit des zones définies (châteaux, murs, repairs). Pose des blocs, se téléporte instantanément, monte un échafaudage pour les endroits difficiles. |
 | ⚔️ **Guerrier** | Patrouille, défend un périmètre, attaque les mobs hostiles et les joueurs ennemis en guerre. Riposte automatique. Mode mêlée/archerie au choix. |
 | 🌾 **Récolteur** | Mine, coupe du bois, creuse ou récolte des cultures selon l'outil qu'on lui donne. Dépose le butin dans un coffre, replante tout seul. |
+| 🚢 **Navigateur** | Livre en **bateau** entre les ports de deux villes alliées. |
+| 🚂 **Cheminot** | Livre en **minecart** entre les gares de deux villes alliées. |
 
 Bonus :
 - 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
 - **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
 - **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
-- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif en v5.12.0) : un seul joueur à la fois peut gérer un villageois, sans conflit
+- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif) : un seul joueur à la fois peut gérer un villageois, sans conflit
 
 ### 💰 Économie intégrée
 - **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
@@ -130,7 +116,7 @@ Bonus :
 - **Confirmation des deux parties** requise pour finaliser
 - Annulation possible à tout moment, **anti-scam** garanti
 
-### 🚢 Commerce inter-villes (nouveau en 5.12)
+### 🚢 Commerce inter-villes (depuis la v5.12)
 Vos villages ne sont plus des îles économiques. Choisissez une ressource dans un village, expédiez-la dans un port ou une gare, et un **Navigateur** (bateau) ou un **Cheminot** (minecart) la livre jusqu'au village allié. Contrats à sens unique, fret protégé par faction, itinéraire ligne droite à vue — simple, lisible, stable.
 
 ### 🏠 Homes & téléportation
@@ -149,6 +135,7 @@ Vos villages ne sont plus des îles économiques. Choisissez une ressource dans 
 - `/faction stats [joueur]` : kills, mobs tués, dégâts, blocs, temps de jeu, K/D ratio, advancements
 - `/faction classementjoueurs <cat>` : top 10 par catégorie (`mobs`, `pvp`, `morts`, `blocs`, `temps`, `dommages`, `kd`, `advancements`)
 - `/faction classement` : top 10 des factions par puissance (GUI)
+- **Tab toujours à jour** (v5.13.1) — reflète immédiatement votre faction actuelle, même après un leave / kick / disband
 - Persistance complète dans `stats.yml`
 
 ### 🔌 Liaisons externes (web map / site)
@@ -171,7 +158,7 @@ Vos villages ne sont plus des îles économiques. Choisissez une ressource dans 
 | `/faction list` | Liste des factions |
 | `/faction invite / kick / setchef` | Gestion des membres |
 | `/faction rename <nom>` | Renomme la faction (chef) |
-| `/faction leave / disband` | Quitter ou dissoudre |
+| `/faction leave / disband` | Quitter ou dissoudre (différé d'1h en 5.14.0, zombies nettoyés en 5.14.1) |
 | `/faction claim / unclaim / claims` | Gestion des claims |
 | `/faction claimmap` | Mini-map des claims |
 | `/faction perms` | Permissions du chunk |
@@ -222,11 +209,11 @@ Vos villages ne sont plus des îles économiques. Choisissez une ressource dans 
 
 ```bash
 git clone https://github.com/herocraftlol/Faction-Create-Friends.git
-cd Faction-Create-Friends/FactionPlugin-v4
+cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.13.1.jar` (≈ 470 KB).
+Le JAR est produit dans `target/FactionPlugin-5.14.1.jar` (≈ 475 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -255,72 +242,68 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 
 ## 🆕 Historique des versions
 
+### **v5.14.1** — *Nettoyage des factions fantômes* 👻🧹 *(version actuelle)*
+- **🧹 Suppression automatique des factions sans membre** : toute faction dont la liste de membres est vide est désormais traitée comme « fantôme » et intégralement supprimée — claims libérés, coffre partagé supprimé, compte en banque supprimé, entrée retirée du classement, faction réellement détruite.
+- **🚀 Pas de délai d'1h dans ce cas** (contrairement à un disband volontaire) : personne n'est là pour récupérer quoi que ce soit, on nettoie tout de suite.
+- **⏱️ Purge au démarrage + filet de sécurité toutes les 30 min** : la première passe rattrape les zombies déjà présents dans vos fichiers YAML ; la suivante garantit qu'aucune faction ne reste fantôme si une situation analogue se reproduit par un futur bug.
+- **🔧 Derniers correctifs de compilation Paper API 1.21.4** : déplacement de `JavaPlugin` (`org.bukkit.plugin.java`), renommages `Particle.WITCH` / `Particle.HAPPY_VILLAGER` / `Sound.ENTITY_GENERIC_EAT` / `Material.YELLOW_STAINED_GLASS_PANE`, conversion explicite `MapPalette.matchColor(java.awt.Color)`, désactivation du listener `EntitySleepEvent` (événement supprimé en 1.21+).
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit. La purge initiale fait le ménage dans les YAML existants.
+
+### **v5.14.0** — *Dissolution différée d'une heure* ⏳
+- **`/faction disband` ne supprime plus rien instantanément** : la faction continue d'exister normalement pendant **1 heure**, le temps de tout récupérer. Chaque membre en ligne est informé au moment de la demande.
+- **Après 1 h, suppression définitive et complète** : claims libérés, coffre partagé supprimé, banque supprimée, classement nettoyé, faction réellement détruite.
+- **Bugs historiques corrigés au passage** : la faction ne disparaissait jamais complètement — la banque n'était jamais supprimée, les claims jamais libérés, le cache de classement jamais nettoyé, ni au disband ni au renommage. Tout est corrigé ici, et résiste à un redémarrage serveur pendant le délai d'une heure.
+
 ### **v5.13.1** — *Tab rafraîchi en quittant la faction* ✅👋
-- **🐛 Bug corrigé — le tab gardait l'ancienne faction après un départ** : `/faction leave`, `/faction kick` et `/faction disband` ne rafraîchissaient jamais le tab du/des joueur(s) concerné(s). Le code appelait déjà `tabManager.refresh(...)` dans `/faction create` et `/faction join` (parce qu'on rejoint quelque chose), mais oubliait complètement cette étape sur les trois commandes qui **enlèvent** une appartenance. Résultat : tant qu'un autre événement (typiquement rejoindre ou fonder une autre faction) ne déclenchait pas un rafraîchissement, l'étiquette `[AncienneFaction] Pseudo` restait affichée — y compris, et c'est le pire cas, juste après avoir rejoint une nouvelle faction. Les trois commandes appellent maintenant `tabManager.refresh(...)` pour chaque joueur concerné.
-- **🔧 Correctifs de compilation Paper API 1.21.4** : `Material.RED_BED` (BED retiré), `Enchantment.LOOTING` (LUCK retiré), `PotionEffectType.STRENGTH`/`RESISTANCE` (INCREASE_DAMAGE / DAMAGE_RESISTANCE renommés), `BuyResult.NOT_ENOUGH_PAYMENT`, `Particle.WITCH` / `Particle.HAPPY_VILLAGER`, `Sound.ENTITY_GENERIC_EAT`, `Material.YELLOW_STAINED_GLASS_PANE`, conversion explicite en `java.awt.Color` pour `MapPalette.matchColor(...)`, import correct `org.bukkit.plugin.java.JavaPlugin`, lambda `final MapView finalView`, suppression du listener cassé sur `EntitySleepEvent` (déjà remplacé par polling depuis la v5.10.3), ajout de l'import `fr.faction.village.PostType` dans `Contract`. Tout est compilable sur `mvn clean package`.
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit. Tous les YAML des versions >= v5.0.0 restent compatibles.
+- **🐛 Bug corrigé — le tab gardait l'ancienne faction après un départ** : `/faction leave`, `/faction kick` et `/faction disband` ne rafraîchissaient jamais le tab. Les trois commandes appellent maintenant `tabManager.refresh(...)` pour chaque joueur concerné.
+- **🔧 Correctifs de compilation Paper API 1.21.4** : `Material.RED_BED`, `Enchantment.LOOTING`, `PotionEffectType.STRENGTH`/`RESISTANCE`, `BuyResult.NOT_ENOUGH_PAYMENT`, `Particle.WITCH` / `Particle.HAPPY_VILLAGER`, `Sound.ENTITY_GENERIC_EAT`, `Material.YELLOW_STAINED_GLASS_PANE`, `org.bukkit.plugin.java.JavaPlugin`, lambda `final MapView`, conversion `MapPalette.matchColor(java.awt.Color)`.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+
+### **v5.13.0** — *Correctifs classement, renommage, synchronisation*
+- **🐛 Bug corrigé — la faction Légendaire ne s'ouvrait pas dans `/faction classement`** : son icône (`NETHER_STAR`) était le même matériau que le bouton-titre décoratif, et le code excluait ce matériau de la détection. Détection désormais basée sur l'emplacement (slot), pas le matériau.
+- **Seuil du rang Légendaire** : passé de 60 000 à 100 000 de puissance.
+- **Renommage de faction** : cooldown "une fois par jour" réellement appliqué, annonce à tout le serveur, solde de banque déplacé vers le nouveau nom.
+- **Tab & site synchronisés instantanément** sur rejoin/kick/renommage (en plus du cycle de 60 s).
 
 ### **v5.12.0** — *Commerce inter-villes 🚢🚂📦*
-- **🚢 Rôle Navigateur** : villageois qui livre **en bateau** entre les **ports** de deux villes (factions alliées ou même faction). Charge → embarque → traverse à vue → dépose → revient à vide.
+- **🚢 Rôle Navigateur** : villageois qui livre **en bateau** entre les **ports** de deux villes.
 - **🚂 Rôle Cheminot** : version **minecart** entre les **gares** des deux villes.
-- **📦 Définir un port/gare** : `/faction port definir <village>` et `/faction gare definir <village>` — pose un "coffre de fret" dans la zone du village, servant d'entrepôt d'expédition *et* de réception.
-- **📜 Contrats** (`/faction contrat …`) : `creer`, `liste`, `assigner`, `annuler` — permet de planifier une livraison **à sens unique** entre deux villes.
-- **🚤 Trajet simple** : un contrat = un aller simple en ligne droite, à vue, à petite vitesse (chenal maritime ou voie ferrée doit être dégagé). Pas de pathfinding complexe, lisible et stable.
-- **🔒 Fret protégé** : seuls la faction propriétaire et ses alliées peuvent ouvrir le coffre de fret ou monter dans le véhicule de transport.
-- **🧹 Correctif important** : un dev précédent avait écrasé par erreur le fichier `TradeManager` du **troc joueur↔joueur** (fonctionnalité totalement différente). **Troc reconstruit à l'identique**, nouveau commerce déplacé dans son **propre package `fr.faction.commerce`** — les deux fonctionnalités sont maintenant strictement indépendantes.
-- **🐛 Compatibilité Paper 1.21.4** : renommages d'API déjà corrigés en `Material.YELLOW_STAINED_GLASS_PANE`, `Material.RED_BED`, `Particle.HAPPY_VILLAGER`, `Particle.WITCH`, `Sound.ENTITY_GENERIC_EAT`, `Enchantment.LOOTING`, `PotionEffectType.STRENGTH`/`RESISTANCE`, `BuyResult.NOT_ENOUGH_PAYMENT`, conversion `MapPalette.matchColor(java.awt.Color)`.
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit. (Contrats en transit au moment de la mise à jour seront perdus — pas de persistance encore.)
+- **📦 Définir un port/gare** : `/faction port definir <village>` et `/faction gare definir <village>`.
+- **📜 Contrats** (`/faction contrat …`) : `creer`, `liste`, `assigner`, `annuler` — livraison à sens unique entre deux villes.
+- **🚤 Trajet simple** : aller simple en ligne droite, à vue, à petite vitesse.
+- **🔒 Fret protégé** : seuls la faction propriétaire et ses alliées peuvent ouvrir le coffre de fret ou monter dans le véhicule.
+- **🧹 Correctif important** : troc joueur↔joueur reconstruit à l'identique, nouveau commerce dans son propre package `fr.faction.commerce`.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
 
 ### **v5.11.0** — *Villages & niveaux* 🏘️
 - Niveaux dérivés de la population (1-4 = Village, 5+ = Ville). Débloque l'accès au rôle Navigateur/Cheminot.
-- Base de repli par village (un villageois "naît" dans son village, y revient sans tâche).
-- Entraide entre villageois (le Récolteur donne jusqu'à 4 nourritures à un guerrier/constructeur à < 70% de vie, dans un rayon de 48 blocs).
+- Base de repli par village (un villageois « naît » dans son village, y revient sans tâche).
+- Entraide entre villageois (le Récolteur donne jusqu'à 4 nourritures à un guerrier/constructeur à < 70 % de vie, dans un rayon de 48 blocs).
 
 ### **v5.10.3** — *Chat en couleur rétabli* 🎨💬
-- **🎨 Couleurs & préfixe de faction dans le tchat** : migration complète de `AsyncPlayerChatEvent#setFormat()` vers l'API moderne Paper `AsyncChatEvent` + `event.renderer(...)`. Les couleurs, le tag de guerre (⚔), le tag de rang Légendaire (⚜), et le tag de faction (ex. `[TitanS]`) sont à nouveau visibles — alors qu'ils avaient silencieusement disparu depuis le passage au chat signé sous Paper 1.21.
-- **✉️ Message du joueur inchangé** : le contenu tapé par le joueur passe tel quel dans le `Component` rendu, sans aucune modification (compatibilité totale avec le système de signature).
-- **🌙 Soin nocturne** : la régénération pendant le sommeil est de nouveau déclenchée pour les villageois (via polling `Villager#isSleeping()` dans la boucle d'IA principale — l'événement Bukkit `EntitySleepEvent` n'est plus jamais lancé sur Paper 1.21+).
-- **🧹 Code allégé** : suppression du `@EventHandler` cassé sur `EntitySleepEvent`, remplacement par un simple `sleepPolling(rv, v)` qui tourne dans `tickAll()`.
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+- Migration complète de `AsyncPlayerChatEvent#setFormat()` vers l'API Paper `AsyncChatEvent` + `event.renderer(...)`. Couleurs, tag de guerre (⚔), tag de rang Légendaire (⚜), tag de faction à nouveau visibles.
 
 ### **v5.10.2** — *Verrou de GUI pour villageois (verrou-gui)*
-- **🔒 Verrouillage d'accès à la GUI d'un villageois** : un seul joueur à la fois peut ouvrir la fiche détaillée d'un villageois recruté. Les autres reçoivent *« Ce villageois est déjà géré par Pseudo en ce moment. Réessaie dans un instant. »*
-- **🛡️ Libération automatique du verrou** : sur fermeture de la GUI, sur `/reload`, et sur déconnexion du joueur — aucune GUI « bloquée ».
-- **⚡ Aucune action perdue** : les clics du propriétaire sont exécutés normalement ; les autres reçoivent simplement un refus poli.
-- **🔧 Correctifs de compilation Paper API 1.21.4** : `LUCK_OF_THE_SEA`, `HAPPY_VILLAGER`, `YELLOW_STAINED_GLASS_PANE`, `WHITE_BED`, `RESISTANCE`/`STRENGTH`, `MOVE_BACK_TO_VILLAGE`, `WATER_AVOIDING_RANDOM_STROLL`, `MapPalette.matchColor(java.awt.Color)`, lambda `final MapView finalView`, `Sound.ENTITY_PLAYER_BURP`, etc.
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
-
-### **v5.10.1** — *Indicateurs d'emplacement, correctifs anti-disparition, mains occupées*
-- **Indicateurs visuels** dans chaque emplacement vide des GUIs de villageois (arc, flèches, épée, casque, blocs, outil, nourriture, graines…) : une icône-repère grisée indique précisément quoi y déposer. Disparaît dès qu'un vrai objet est posé, et ne peut jamais être ramassée par erreur.
-- **Correctifs anti-disparition d'objets** : le glisser-déposer (drag) est désormais bloqué dans les GUI de villageois — il pouvait faire atterrir un objet dans un emplacement décoratif invisible, perdu au rafraîchissement suivant. L'emplacement transitoire "type de bloc du prochain chantier" rend désormais l'objet posé au joueur si inutilisé.
-- **Les villageois tiennent maintenant ce qu'ils utilisent** : le constructeur tient en main le bloc de son chantier actif (le guerrier et le récolteur le faisaient déjà).
+- **🔒 Verrouillage d'accès à la GUI d'un villageois** : un seul joueur à la fois peut ouvrir la fiche détaillée.
 
 ### **v5.10.0** — *Le Récolteur, la construction instantanée et la fuite des guerriers*
-- Nouveau rôle **Récolteur** : mine, coupe du bois, creuse ou cultive selon l'outil ; dépose dans un coffre, replante automatiquement.
-- **Constructeur — construction instantanée** : téléportation directe sur chaque bloc à poser ou à miner, échafaudage en bambou auto-installé pour les endroits difficiles.
-- **Guerrier — fuite et discrétion** : sous 25 % de vie ou face à 3+ ennemis, il fuit au lieu de se battre.
-- **Formations en cercle** : `/faction villageois ranger cercle`.
+- Nouveau rôle **Récolteur** : mine, coupe du bois, creuse ou cultive selon l'outil.
+- **Constructeur — construction instantanée**, échafaudage auto.
+- **Guerrier — fuite et discrétion** sous 25 % de vie ou face à 3+ ennemis.
 
-### **v5.9.x** — *Tout tombe au sol à la mort, clic-droit direct, niveaux d'XP, somme réparatrice, longue distance, rassemblement*
-- 5 niveaux d'expérience pour les villageois, soins auto, équipements qui s'usent réellement
-- Clic-droit direct sur un villageois recruté pour ouvrir sa fiche
-- Butin de guerre (les guerriers ramassent automatiquement l'équipement de leurs victimes)
-- Sommeil réparateur (le villageois soigné pendant qu'il dort dans un lit)
-- Mode archerie pour les guerriers (tir à distance, garde ses distances, repasse en mêlée si besoin)
-- Suivi longue distance, retour au poste, chantiers n'importe où
-- Assignation en groupe (poste commun, chantier commun, rassemblement commun)
+### **v5.9.x** — *Tout tombe au sol à la mort, clic-droit direct, niveaux d'XP, somme réparatrice*
+- 5 niveaux d'XP, soins auto, équipements qui s'usent réellement.
+- Clic-droit direct sur un villageois recruté, butin de guerre, sommeil réparateur.
 
 ### **v5.9.0** — *Villageois recrutés (Constructeur / Guerrier)*
-- `/faction recruter` : convertit un villageois en unité de faction
-- `/faction villageois` : GUI de gestion (nom, rôle, équipement, chantier, libération)
+- `/faction recruter` : convertit un villageois en unité de faction.
 
 ### **v5.8.4** — *Sous-chefs*
-- 2 sous-chefs max, avec permissions granulaires (invitations, kick, alliances, guerres, claims)
+- 2 sous-chefs max, avec permissions granulaires.
 
 ### **v4.0.0** — *Shop Global paginé + InvSee admin*
-- 45 items/page, recherche par mot-clé, tri prix ↑/↓
-- 4 monnaies : fer, or, diamant, émeraude
-- InvSee admin en lecture seule
+- 45 items/page, recherche par mot-clé, tri prix ↑/↓.
+- 4 monnaies : fer, or, diamant, émeraude.
 
 ### **v3.x** — *Banque, claims, troc, stats, classements, puissance*
 
