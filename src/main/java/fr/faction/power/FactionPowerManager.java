@@ -98,6 +98,26 @@ public class FactionPowerManager {
         }
     }
 
+    /** Purge complètement les entrées mises en cache pour cette faction (dissolution définitive) :
+     *  sans ça, elle continue d'apparaître fantôme dans le classement pour toujours, puisque
+     *  recalculateAll() ne fait que mettre à jour les factions existantes, jamais retirer les
+     *  entrées orphelines. */
+    public void removeFaction(String factionName) {
+        String key = factionName.toLowerCase();
+        powerCache.remove(key);
+        rankCache.remove(key);
+    }
+
+    /** Déplace les entrées en cache vers la nouvelle clé (renommage), pour éviter aussi une entrée fantôme. */
+    public void renameFaction(String oldName, String newName) {
+        String oldKey = oldName.toLowerCase();
+        String newKey = newName.toLowerCase();
+        Double power = powerCache.remove(oldKey);
+        if (power != null) powerCache.put(newKey, power);
+        FactionRank rank = rankCache.remove(oldKey);
+        if (rank != null) rankCache.put(newKey, rank);
+    }
+
     public void invalidate(String factionName) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Faction faction = factionManager.getFaction(factionName);

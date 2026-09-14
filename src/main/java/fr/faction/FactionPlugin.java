@@ -72,6 +72,7 @@ public class FactionPlugin extends JavaPlugin {
     private fr.faction.sort.SortMenuGUI sortMenuGUI;
     private fr.faction.web.WebLinkManager webLinkManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.managers.DisbandManager disbandManager;
 
     // v5.9 — villageois recrutés
     private fr.faction.villager.VillagerManager villagerManager;
@@ -167,6 +168,16 @@ public class FactionPlugin extends JavaPlugin {
         webMapSync.setClaimManager(claimManager);
         getServer().getPluginManager().registerEvents(webMapSync, this);
 
+        // ── Dissolution différée d'une heure (claims/coffres/banque/classement) ───
+        disbandManager = new fr.faction.managers.DisbandManager(
+                this, factionManager, claimManager, bankManager, powerManager, sharedInventoryManager);
+        disbandManager.setTabManager(tabManager);
+        disbandManager.setWebMapSync(webMapSync);
+        disbandManager.resumePendingDisbands();
+        int ghostsPurged = disbandManager.purgeGhostFactions();
+        if (ghostsPurged > 0) getLogger().info(ghostsPurged + " faction(s) fantôme(s) existante(s) (0 membre) nettoyée(s) au démarrage.");
+        disbandManager.startGhostFactionWatch();
+
         FactionCommand cmd = new FactionCommand(
                 this, factionManager, statsManager, sharedInventoryManager, teleportManager,
                 factionGUI, rankingGUI, powerManager,
@@ -187,6 +198,8 @@ public class FactionPlugin extends JavaPlugin {
         cmd.setVillagerGUI(villagerGUI);
         cmd.setVillageManager(villageManager);
         cmd.setCommerceManager(commerceManager);
+        cmd.setWebMapSync(webMapSync);
+        cmd.setDisbandManager(disbandManager);
         actionBarManager.setWarManager(warManager);
 
         getCommand("faction").setExecutor(cmd);

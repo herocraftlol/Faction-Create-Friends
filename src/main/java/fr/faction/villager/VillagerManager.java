@@ -854,7 +854,8 @@ public class VillagerManager implements Listener {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // SOIN EN DORMANT DANS UN LIT (polling isSleeping dans tickAll — pas d'event Bukkit en Paper 1.21+)
+    // SOIN EN DORMANT DANS UN LIT
+    // (désactivé : l'événement Bukkit EntitySleepEvent n'existe plus en Paper 1.21+)
     // ════════════════════════════════════════════════════════════════════════
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */

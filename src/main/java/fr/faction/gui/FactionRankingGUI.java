@@ -38,6 +38,8 @@ public class FactionRankingGUI implements Listener {
     private static final String TITLE_WEALTH  = ChatColor.GREEN + "" + ChatColor.BOLD + "Classement Richesse";
 
     private final Map<UUID, String> openGUI = new HashMap<>();
+    /** slot → nom de faction dans le classement actuellement affiché (partagé : le contenu est identique pour tous). */
+    private final Map<Integer, String> rankingSlotToFaction = new HashMap<>();
 
     // Matériaux correspondant aux rangs pour l'icone de l'item
     private static final Material[] RANK_MATERIALS = {
@@ -49,6 +51,12 @@ public class FactionRankingGUI implements Listener {
             Material.EMERALD,         // Emeraude
             Material.NETHER_STAR      // Légendaire
     };
+
+    // Slots utilisés par les entrées de faction dans le classement (doit rester identique
+    // à celui utilisé dans openRankingGUI). Utilisé pour la détection de clic — jamais par
+    // matériau, car le rang Légendaire partage justement son icône (NETHER_STAR) avec le
+    // bouton-titre décoratif du slot 4, ce qui provoquait un clic sans effet sur ces factions.
+    private static final int[] RANKING_ENTRY_SLOTS = {10,11,12,13,14,15,16, 19,20,21,22,23,24,25, 28,29,30,31,32,33,34};
 
     public FactionRankingGUI(JavaPlugin plugin, FactionManager factionManager, FactionPowerManager powerManager,
                               EmeraldBankManager bankManager) {
@@ -83,7 +91,8 @@ public class FactionRankingGUI implements Listener {
 
         // Classement (slots 10-43, 3 rangées centrales)
         List<Map.Entry<String, Double>> leaderboard = powerManager.getLeaderboard();
-        int[] slots = {10,11,12,13,14,15,16, 19,20,21,22,23,24,25, 28,29,30,31,32,33,34};
+        int[] slots = RANKING_ENTRY_SLOTS;
+        rankingSlotToFaction.clear();
 
         for (int i = 0; i < Math.min(leaderboard.size(), slots.length); i++) {
             Map.Entry<String, Double> entry = leaderboard.get(i);
@@ -125,6 +134,7 @@ public class FactionRankingGUI implements Listener {
                     ? makeItemGlowing(mat, positionLabel + " " + factionName.toUpperCase(), lore)
                     : makeItem(mat, positionLabel + " " + factionName.toUpperCase(), lore);
             inv.setItem(slots[i], item);
+            rankingSlotToFaction.put(slots[i], factionName);
         }
 
         // Votre faction (slot 49)
@@ -454,17 +464,11 @@ public class FactionRankingGUI implements Listener {
             if (itemName.contains("Classement Richesse")) {
                 player.closeInventory(); openWealthRankingGUI(player); return;
             }
-            // Clic sur une faction du classement — le nom de la faction est après le label de position
-            if (clicked.getType() != Material.BARRIER && clicked.getType() != Material.COMPASS
-                    && clicked.getType() != Material.BOOK && clicked.getType() != Material.NETHER_STAR) {
-                // Extraire le nom de faction depuis le titre de l'item
-                String rawName = itemName.replaceAll("^[#\\d]+\\s+[^\\s]+\\s+", "").trim();
-                // Chercher par correspondance dans les factions
-                for (String fname : factionManager.getAllFactions().keySet()) {
-                    if (fname.equalsIgnoreCase(rawName) || itemName.toUpperCase().contains(fname.toUpperCase())) {
-                        player.closeInventory(); openFactionDetail(player, fname); return;
-                    }
-                }
+            // Clic sur une faction du classement — identifié par son slot, jamais par son
+            // matériau (le rang Légendaire partage NETHER_STAR avec le bouton-titre décoratif).
+            String clickedFaction = rankingSlotToFaction.get(event.getSlot());
+            if (clickedFaction != null) {
+                player.closeInventory(); openFactionDetail(player, clickedFaction); return;
             }
         }
 

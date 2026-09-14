@@ -35,6 +35,11 @@ public class Faction {
     private Set<String> allies = new HashSet<>();
     /** Invitations d'alliance envoyées (en attente d'acceptation) */
     private Set<String> pendingAllianceInvites = new HashSet<>();
+    /** Timestamp (ms epoch) du dernier renommage, pour le cooldown d'une fois par jour. 0 = jamais renommée. */
+    private long lastRenameTime = 0L;
+    /** Timestamp (ms epoch) de la demande de dissolution, 0 = pas en cours de dissolution.
+     *  La suppression effective (claims, coffre partagé, banque, classement) a lieu 1h après. */
+    private long disbandScheduledAt = 0L;
 
     public Faction(String name, UUID chef) {
         this.name = name;
@@ -126,4 +131,9 @@ public class Faction {
     public void addPendingAlliance(String name)          { pendingAllianceInvites.add(name.toLowerCase()); }
     public void removePendingAlliance(String name)       { pendingAllianceInvites.remove(name.toLowerCase()); }
     public int getAllyCount()                             { return allies.size(); }
+    public long getLastRenameTime()                       { return lastRenameTime; }
+    public void setLastRenameTime(long t)                 { this.lastRenameTime = t; }
+    public long getDisbandScheduledAt()                    { return disbandScheduledAt; }
+    public void setDisbandScheduledAt(long t)               { this.disbandScheduledAt = t; }
+    public boolean isPendingDisband()                       { return disbandScheduledAt > 0; }
 }

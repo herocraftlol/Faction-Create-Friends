@@ -77,6 +77,16 @@ public class EmeraldBankManager {
         save();
     }
 
+    /** Appelé quand une faction est renommée : déplace le solde vers la nouvelle clé. */
+    public void renameFactionAccount(String oldName, String newName) {
+        String oldKey = oldName.toLowerCase();
+        String newKey = newName.toLowerCase();
+        if (!factionBalances.containsKey(oldKey)) return;
+        Long balance = factionBalances.remove(oldKey);
+        factionBalances.put(newKey, balance);
+        save();
+    }
+
     // ── Classements richesse ──────────────────────────────────────────────────
 
     /**

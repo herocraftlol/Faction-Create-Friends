@@ -217,14 +217,14 @@ public class MainMenuGUI implements Listener {
         inv.setItem(14, cmdItem(Material.IRON_DOOR,     "§e§l/fac perms",         "§7Gérer les permissions du chunk.", isChef));
 
         // Spawn faction
-        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]",   "§7Aller au spawn de ta faction.",
+        inv.setItem(19, cmdItem(Material.RESPAWN_ANCHOR,"§d§l/fac spawn [1|2]", faction != null && faction.hasSpawn(),
+                "§7Aller au spawn de ta faction.",
                 "§7Spawn 1 : " + (faction != null && faction.hasSpawn()  ? "§a✔ Défini" : "§c✘ Non défini"),
-                "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)"),
-                faction != null && faction.hasSpawn()));
-        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]","§7Définir un spawn de faction.",
+                "§7Spawn 2 : " + (faction != null && faction.hasSpawn2() ? "§a✔ Défini" : "§c✘ Non défini (rang ◆ Diamant)")));
+        inv.setItem(20, cmdItem(Material.LODESTONE,     "§d§l/fac setspawn [1|2]", canMng,
+                "§7Définir un spawn de faction.",
                 "§7/fac setspawn   → spawn principal",
-                "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)",
-                canMng));
+                "§7/fac setspawn 2 → spawn secondaire §c(rang ◆ Diamant+)"));
 
         // Homes
         String homeLore = "§7Homes : §e" + curHomes + "§7/§e" + maxHomes
@@ -1132,9 +1132,14 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Surcharge avec lignes de description supplémentaires */
-    private ItemStack cmdItem(Material mat, String name, String desc, String extra1, String extra2, boolean enabled) {
-        if (enabled) return make(mat, name, desc, extra1, extra2, "§7Clic pour info");
+    /** Variante avec plusieurs lignes de description (lore) */
+    private ItemStack cmdItem(Material mat, String name, boolean enabled, String... lore) {
+        if (enabled) {
+            String[] all = new String[lore.length + 1];
+            System.arraycopy(lore, 0, all, 0, lore.length);
+            all[lore.length] = "§7Clic pour info";
+            return make(mat, name, all);
+        }
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }

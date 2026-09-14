@@ -263,6 +263,13 @@ public class WebMapSync implements Listener {
         }
     }
 
+    /** Force un envoi immédiat de l'instantané des factions (au lieu d'attendre le cycle de 60s) —
+     *  utilisé après un recrutement, un renommage, ou tout autre changement qui doit apparaître
+     *  sans délai dans le tab/HeroTab et les autres systèmes alimentés par ce flux. */
+    public void pushSnapshotNow() {
+        pushSnapshot();
+    }
+
     private void pushSnapshot() {
         if (!enabled || factionManager == null) return;
         try {
