@@ -1132,9 +1132,9 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Item grisé si disabled, avec deux lignes de description personnalisées */
-    private ItemStack cmdItem(Material mat, String name, String desc, String extra1, String extra2, boolean enabled) {
-        if (enabled) return make(mat, name, desc, extra1, extra2);
+    /** Surcharge avec plusieurs lignes de description */
+    private ItemStack cmdItem(Material mat, String name, String desc1, String desc2, String desc3, boolean enabled) {
+        if (enabled) return make(mat, name, desc1, desc2, desc3, "§7Clic pour info");
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
@@ -1142,7 +1142,7 @@ public class MainMenuGUI implements Listener {
     private ItemStack glowing(ItemStack is) {
         ItemMeta meta = is.getItemMeta();
         if (meta == null) return is;
-        meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+        meta.addEnchant(Enchantment.LOOTING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         is.setItemMeta(meta);
         return is;

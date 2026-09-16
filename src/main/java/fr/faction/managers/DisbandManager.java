@@ -35,6 +35,7 @@ public class DisbandManager {
     private final SharedInventoryManager sharedInvManager;
     private FactionTabManager tabManager;
     private WebMapSync webMapSync;
+    private fr.faction.web.FactionTabSync factionTabSync;
 
     public DisbandManager(JavaPlugin plugin, FactionManager factionManager, ClaimManager claimManager,
                            EmeraldBankManager bankManager, FactionPowerManager powerManager,
@@ -49,6 +50,7 @@ public class DisbandManager {
 
     public void setTabManager(FactionTabManager tm) { this.tabManager = tm; }
     public void setWebMapSync(WebMapSync wms)       { this.webMapSync = wms; }
+    public void setFactionTabSync(fr.faction.web.FactionTabSync fts) { this.factionTabSync = fts; }
 
     /** Démarre le compte à rebours d'une heure pour une faction qui vient d'être dissoute. */
     public void scheduleDisband(Faction faction) {
@@ -104,6 +106,7 @@ public class DisbandManager {
             if (tabManager != null) tabManager.refresh(p);
         }
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
     }
 
     /** Supprime réellement toutes les données d'une faction : claims, coffre partagé, banque, classement, faction elle-même. */
@@ -138,6 +141,7 @@ public class DisbandManager {
             purgeFactionData(name);
         }
         if (!ghostNames.isEmpty() && webMapSync != null) webMapSync.pushSnapshotNow();
+        if (!ghostNames.isEmpty() && factionTabSync != null) factionTabSync.pushNow();
         return ghostNames.size();
     }
 

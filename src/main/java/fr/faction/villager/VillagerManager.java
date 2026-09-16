@@ -857,11 +857,33 @@ public class VillagerManager implements Listener {
     // SOIN EN DORMANT DANS UN LIT
     // ════════════════════════════════════════════════════════════════════════
 
-    // note: onSleep(EntitySleepEvent) handler removed in v5.14.x —
-    // the EntitySleepEvent class was removed by the Paper 1.21.4 API
-    // (the underlying event listener no longer exists). Sleeping
-    // villagers simply rest passively and heal via the existing per-tick
-    // self-care path.
+    // @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    // public void onSleep(org.bukkit.event.entity.EntitySleepEvent event) {
+    //     RecruitedVillager rv = villagers.get(event.getEntity().getUniqueId());
+    //     if (rv == null) return;
+    //     startSleepHealing(rv);
+    // }
+
+    /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
+    private void startSleepHealing(RecruitedVillager rv) {
+        double healAmount = plugin.getConfig().getDouble("villager.heal-per-sleep-tick", 2.0);
+        int maxTicks = plugin.getConfig().getInt("villager.sleep-heal-ticks", 8);
+        long period = plugin.getConfig().getLong("villager.sleep-heal-period", 60L);
+
+        new BukkitRunnable() {
+            int done = 0;
+            @Override public void run() {
+                Entity e = Bukkit.getEntity(rv.getEntityId());
+                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
+                double max = getMaxHealth(v);
+                if (v.getHealth() < max) {
+                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
+                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
+                }
+                if (++done >= maxTicks) cancel();
+            }
+        }.runTaskTimer(plugin, period, period);
+    }
 
     // ── Constructeur : traite le chantier en tête de file, récolte si besoin ──
     private void builderTick(RecruitedVillager rv, Villager v) {

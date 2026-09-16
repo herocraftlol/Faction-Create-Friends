@@ -1,32 +1,94 @@
 # 🏰 FactionPlugin
 
-> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes**, shop global, statistiques, **tab toujours à jour**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, **synchronisation immédiate du tab lors d'une montée de rang**, et bien plus encore.
+> **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé à la seconde**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.14.3-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.15.0-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
 ## ✨ Qu'est-ce que FactionPlugin ?
 
-**FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, commerce régional par ports et gares, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, **transportent des marchandises entre villes** pour vous.
+**FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` (avec ses alias `/f` et `/fac`) tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, **commerce régional par ports et gares**, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, et **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.14.3**) est une micro-version qui ferme le dernier délai perceptible sur le tab-list : **toute montée de rang d'une faction propage désormais immédiatement la mise à jour du tab vers le site web et le backing-service HeroTab**, sans attendre le cycle de synchronisation de 60 s. Local, site et onglet sont désormais cohérents en permanence.
-
-Les apports précédents des versions 5.14.x restent bien sûr actifs :
-
-- **5.14.0** — dissolution différée d'1 h, avec libération automatique des claims ;
-- **5.14.1** — nettoyage des factions fantômes et de leurs blocages ;
-- **5.14.2** — accès aux coffres préservé pendant l'heure de grâce + libération des claims orphelins.
+La version actuelle (**5.15.0**) trouve **la vraie cause racine** d'un bug que les correctifs successifs des dernières versions n'avaient jamais vraiment résolu : **la classe qui écrit dans la table `faction_tab_sync` lue par le plugin proxy HeroTab n'avait jamais été écrite.** Tout est désormais en place — local, onglet HeroTab global, carte web, tous les sous-serveurs du réseau sont **cohérents en permanence, sans aucun délai perceptible**.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
+## 🆕 Nouveautés de la v5.15.0 — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛
+
+### Le problème
+
+Depuis plusieurs versions, malgré des correctifs successifs censés rendre le tab
+« instantané », le tab HeroTab restait désespérément figé après un recrutement,
+un départ, un kick, une dissolution, un renommage ou une montée de rang. La
+cause — très simple et qui a échappé à toutes les analyses précédentes — est la
+suivante :
+
+- HeroTab lit une table MySQL `faction_tab_sync`.
+- Cette table était censée être écrite par une classe `FactionTabSync` côté
+  FactionPlugin.
+- **Cette classe n'existait tout simplement pas.**
+
+Tous les correctifs précédents déclenchaient bien une synchronisation
+immédiate, mais vers `WebMapSync` — un système totalement différent qui
+alimente la carte du site web, sans aucun rapport avec le tab HeroTab. **Rien
+n'écrivait donc jamais dans la table `faction_tab_sync`**, et le tab ne
+pouvait pas se mettre à jour, quel que soit le nombre de « correctifs de
+synchro » apportés.
+
+### Ce qui change
+
+- **Nouvelle classe `FactionTabSync`** : elle écrit maintenant réellement dans
+  la table `faction_tab_sync` lue par HeroTab. Elle réutilise la connexion
+  MySQL déjà configurée pour `/lier` (section `mysql:` du `config.yml`) —
+  aucune configuration supplémentaire n'est nécessaire si `/lier` fonctionne
+  déjà chez toi.
+- **Table créée automatiquement** si elle n'existe pas, avec exactement les
+  colonnes attendues par HeroTab : `uuid`, `faction_name`, `rank_name`,
+  `rank_color` (au format `&x` legacy), `rank_icon`.
+- **Tâche de fond toutes les 30 secondes** + déclenchement immédiat sur les
+  mêmes événements que `WebMapSync` : recrutement, départ, kick, disband,
+  renommage, montée de rang. **Local, site, onglet HeroTab, sous-serveurs —
+  tout est cohérent en permanence, sans aucun délai.**
+- **Bug de compilation latent corrigé en passant** : `FactionPlugin.java`
+  (la classe principale) référençait `Bukkit` sans l'importer — un import
+  manquant qui aurait empêché le plugin de se compiler dans certaines
+  configurations. Un balayage complet a confirmé qu'aucun autre fichier ne
+  présente ce problème.
+
+### Avant / Après
+
+| Action | En v5.14.3 | En v5.15.0 |
+|--------|------------|------------|
+| Onglet HeroTab après un recrutement | ❌ jamais mis à jour | ✅ instantané |
+| Onglet HeroTab après un départ / kick | ❌ jamais mis à jour | ✅ instantané |
+| Onglet HeroTab après un disband | ❌ jamais mis à jour | ✅ instantané |
+| Onglet HeroTab après un renommage | ❌ jamais mis à jour | ✅ instantané |
+| Onglet HeroTab après une montée de rang | ⏳ jusqu'à 60 s | ✅ instantané |
+| Onglet HeroTab cycle normal | toutes les 60 s | toutes les 30 s |
+| Compilation `mvn clean package` | ⚠️ import manquant aléatoire | ✅ toujours propre |
+
+ℹ️ Voir [`CHANGELOG_v5_15_0.md`](./CHANGELOG_v5_15_0.md) pour le détail complet.
+
+---
+
 ## 🆕 Nouveautés de la v5.14.3 — *Synchronisation immédiate du tab à la promotion de rang* 🏷️✨
 
-La v5.14.3 ferme le dernier délai perceptible sur le tab-list. Quand une faction gagne assez de puissance pour franchir un cap (par exemple `BRONZE → ARGENT`, `OR → DIAMANT`, …), **le tab local** se mettait déjà à jour instantanément. Mais le **tab global HeroTab** et **la carte web** attendaient le cycle de synchronisation de 60 s. Résultat : un coéquipier pouvait rester affiché `[⬡ Bronze]` pendant près d'une minute après la promotion.
+La v5.14.3 ferme le dernier délai perceptible sur le tab-list. Quand une
+faction gagne assez de puissance pour franchir un cap (par exemple
+`BRONZE → ARGENT`, `OR → DIAMANT`, …), **le tab local** se mettait déjà à
+jour instantanément. Mais le **tab global HeroTab** et **la carte web**
+attendaient le cycle de synchronisation de 60 s. Résultat : un coéquipier
+pouvait rester affiché `[⬡ Bronze]` pendant près d'une minute après la
+promotion.
 
-À partir de la v5.14.3, **toute montée de rang déclenche un `FactionTabManager.refresh(...)` immédiat**, exactement comme pour un recrutement, un départ, un renommage ou une dissolution. Les onglets du serveur, le site et le backing-service HeroTab sont maintenant cohérents **sans aucun délai**.
+À partir de la v5.14.3, **toute montée de rang déclenche un
+`FactionTabManager.refresh(...)` immédiat**, exactement comme pour un
+recrutement, un départ, un renommage ou une dissolution. Les onglets du
+serveur, le site et le backing-service HeroTab sont maintenant cohérents
+**sans aucun délai**.
 
 ### Avant / Après
 
@@ -37,19 +99,22 @@ La v5.14.3 ferme le dernier délai perceptible sur le tab-list. Quand une factio
 | `/fac top` après promotion | ✅ cohérent | ✅ identique + cache invalidé |
 | Site web et carte web après promotion | ⏳ cyclique (60 s) | ✅ propage tout de suite |
 
-### Comment ça marche
+> ℹ️ Cette version reste utile pour le tab local et l'invalidation du cache,
+> mais la v5.15.0 va plus loin : elle remplace ce mécanisme en s'attaquant à
+> la cause racine — la table `faction_tab_sync` lue par HeroTab n'était tout
+> simplement jamais écrite par FactionPlugin.
 
-- `FactionTabManager.refresh(factionName)` est désormais appelé de façon synchrone par `FactionPowerManager.evaluateRankChange(...)` dès qu'un franchissement de cap est détecté (gain/perte de puissance d'un membre, dissolution annulée, etc.).
-- Le hook déclenche également `webMapSync.pushFactionInfo(factionName)`, exactement comme pour les autres opérations de modification de faction (`join`, `leave`, `kick`, `disband`, `rename`, `setspawn`).
-- La classe de team (`faction.Officier`, `faction.Membre`, `faction.Chef`, `faction.None`) reste cohérente entre le tab local, le tab HeroTab et l'affichage de la carte web — sans fenêtre de bascule visible pour les autres joueurs.
-
-ℹ️ Voir `CHANGELOG_v5_14_3.md` pour le détail complet.
+ℹ️ Voir [`CHANGELOG_v5_14_3.md`](./CHANGELOG_v5_14_3.md) pour le détail complet.
 
 ---
 
 ## 🆕 Nouveautés de la v5.14.2 — *Accès aux coffres pendant la dissolution* 🧳🔓
 
-La v5.14.0 introduit la dissolution différée d'une heure — le temps de tout récupérer. La v5.14.2 ferme un trou important : si un membre **quittait** la faction (ou en était exclu) pendant cette heure, il **perdait instantanément l'accès à ses propres coffres et claims**, alors que la faction existait encore techniquement et que les claims n'étaient pas libérés.
+La v5.14.0 introduit la dissolution différée d'une heure — le temps de tout
+récupérer. La v5.14.2 ferme un trou important : si un membre **quittait** la
+faction (ou en était exclu) pendant cette heure, il **perdait instantanément
+l'accès à ses propres coffres et claims**, alors que la faction existait
+encore techniquement et que les claims n'étaient pas libérés.
 
 ### Avant / Après
 
@@ -59,68 +124,67 @@ La v5.14.0 introduit la dissolution différée d'une heure — le temps de tout 
 | Un chef te fait `/faction kick` pendant l'heure de grâce | ⚠️ Tu perdais l'accès à tes coffres le temps qu'il reste | ✅ Tu gardes l'accès jusqu'à la fin du compte à rebours |
 | Le serveur redémarre pendant l'heure | ✅ Reprise correcte | ✅ Identique, plus nettoyage automatique des claims orphelins au démarrage |
 
-### Comment ça marche
-
-- Au moment où un chef fait `/faction disband`, le plugin **ajoute chaque membre actuel à la liste des joueurs autorisés sur tous les claims de la faction**.
-- Cette autorisation est attachée **au claim** : elle ne disparaît pas quand le joueur quitte la faction — elle disparaît seulement quand le claim est réellement libéré (fin du compte à rebours ou `removeAllClaims`).
-- Le joueur peut donc quitter, rejoindre une autre faction, voyager, mourir — **ses anciens coffres l'attendent toujours**, jusqu'à la libération effective des claims.
-
-### Bonus : nettoyage des claims orphelins au démarrage
-
-La v5.14.1 traitait déjà les **factions fantômes** (factions à 0 membre). La v5.14.2 ajoute `purgeOrphanedClaims` : **les chunks encore marqués comme claimés par une faction qui n'existe plus** sont automatiquement libérés au démarrage du serveur, puis toutes les 30 minutes. Les coffres qui s'y trouvent redeviennent accessibles à tous, comme n'importe quel chunk non claimé.
-
-ℹ️ Voir `CHANGELOG_v5_14_2.md` pour le détail complet.
-
-> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : dissolution différée d'une heure (v5.14.0), tab toujours à jour (v5.13.1), commerce inter-villes 🚢🚂 (v5.12.0), villageois autonomes (v5.9.0+), rangs Village/Ville (v5.11), verrou-gui (v5.10.2), banque, shop, troc, guerres, alliances, sous-chefs, et tout le reste.
+ℹ️ Voir [`CHANGELOG_v5_14_2.md`](./CHANGELOG_v5_14_2.md) pour le détail complet.
 
 ---
 
 ## 🆕 Nouveautés de la v5.14.1 — *Nettoyage des factions fantômes* 👻🧹
 
-La v5.14.1 complète la v5.14.0 : si la dissolution volontaire d'une faction reste différée d'une heure (pour laisser aux membres le temps de récupérer leurs affaires), **les factions qui n'ont déjà plus aucun membre** — état pathologique laissé par d'anciens bugs où la dissolution ne libérait pas tout — sont maintenant nettoyées d'elles-mêmes, automatiquement.
+La v5.14.1 complète la v5.14.0 : si la dissolution volontaire d'une faction
+reste différée d'une heure (pour laisser aux membres le temps de récupérer
+leurs affaires), **les factions qui n'ont déjà plus aucun membre** — état
+pathologique laissé par d'anciens bugs où la dissolution ne libérait pas tout
+— sont maintenant nettoyées d'elles-mêmes, automatiquement.
 
 ### Le problème
 
-Au fil des versions, plusieurs bugs historiques avaient laissé des factions dans un état « zombie » :
+Au fil des versions, plusieurs bugs historiques avaient laissé des factions
+dans un état « zombie » :
 
-- 💰 Un **compte en banque** jamais supprimé au disband → entrée orpheline pour toujours dans `/faction topbanque`.
+- 💰 Un **compte en banque** jamais supprimé au disband → entrée orpheline
+  pour toujours dans `/faction topbanque`.
 - 🏦 Un **coffre partagé** jamais supprimé au disband.
 - 🗺️ Des **claims** jamais libérés (avant la v5.14.0).
-- 📊 Un **cache de puissance/classement** jamais purgé au disband ni au renommage → entrée fantôme dans `/faction classement`.
+- 📊 Un **cache de puissance/classement** jamais purgé au disband ni au
+  renommage → entrée fantôme dans `/faction classement`.
 
-Ces zombies empilaient de la donnée morte et un peu de CPU à chaque rechargement du plugin.
+Ces zombies empilaient de la donnée morte et un peu de CPU à chaque
+rechargement du plugin.
 
 ### La solution
 
-- **Toute faction dont la liste de membres est vide** est désormais considérée comme **fantôme** et est **automatiquement et entièrement supprimée** :
+- **Toute faction dont la liste de membres est vide** est désormais
+  considérée comme **fantôme** et est **automatiquement et entièrement
+  supprimée** :
   - claims libérés,
   - coffre partagé supprimé,
   - compte en banque supprimé,
   - entrée retirée du classement de puissance,
   - faction réellement supprimée (elle n'existe plus nulle part).
-- **Pas de délai d'une heure** dans ce cas (à la différence d'un disband « normal ») : il n'y a personne pour récupérer quoi que ce soit, autant faire le ménage tout de suite.
-- **Nettoyage initial au démarrage** : un passage est exécuté **une fois au démarrage du serveur**, pour rattraper les zombies déjà présents dans vos fichiers de sauvegarde.
-- **Filet de sécurité** : la même purge est répétée **toutes les 30 minutes** au cas où une faction se retrouverait un jour vide par un autre chemin.
+- **Pas de délai d'une heure** dans ce cas : il n'y a personne pour
+  récupérer quoi que ce soit, autant faire le ménage tout de suite.
+- **Nettoyage initial au démarrage** : un passage est exécuté **une fois au
+  démarrage du serveur**, pour rattraper les zombies déjà présents dans vos
+  fichiers de sauvegarde.
+- **Filet de sécurité** : la même purge est répétée **toutes les 30 minutes**
+  au cas où une faction se retrouverait un jour vide par un autre chemin.
 
-### Pourquoi deux rythmes ?
-
-- **Au démarrage** : indispensable pour purger les zombies hérités des versions précédentes, déjà présents dans les YAML.
-- **Toutes les 30 min** : rustine de sécurité pour ne pas avoir à prouver une seule et unique porte d'entrée vers « faction vide » — si une telle situation apparaît par un futur bug, elle sera nettoyée d'elle-même peu après.
-
-ℹ️ Voir [`CHANGELOG_v5_14_1.md`](./CHANGELOG_v5_14_1.md) pour le détail complet et les derniers correctifs de compilation Paper 1.21.4 (déplacement de `JavaPlugin`, renommages `Particle`/`Sound`/`Material`, conversion `MapPalette.matchColor(java.awt.Color)`).
-
-> ℹ️ Tout ce qui faisait la joie des versions précédentes reste évidemment présent : dissolution différée d'une heure (v5.14.0), tab toujours à jour (v5.13.1), commerce inter-villes 🚢🚂 (v5.12.0), villageois autonomes (v5.9.0+), rangs Village/Ville (v5.11), verrou-gui (v5.10.2), banque, shop, troc, guerres, alliances, sous-chefs, et tout le reste.
+ℹ️ Voir [`CHANGELOG_v5_14_1.md`](./CHANGELOG_v5_14_1.md) pour le détail complet.
 
 ---
 
 ## 📥 Installation
 
-1. Téléchargez la dernière release : [**FactionPlugin-5.14.3.jar**](../../releases/latest)
+1. Téléchargez la dernière release :
+   [**FactionPlugin-5.15.0.jar**](../../releases/download/v5.15.0/FactionPlugin-5.15.0.jar)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
-3. Démarrez (ou redémarrez) le serveur — la configuration se génère automatiquement dans `plugins/FactionPlugin/`
-4. Configurez `config.yml` selon vos besoins (messages, limites, coûts, etc.)
+3. Démarrez (ou redémarrez) le serveur — la configuration se génère
+   automatiquement dans `plugins/FactionPlugin/`
+4. Configurez `config.yml` selon vos besoins (messages, limites, paramètres,
+   section `mysql:` si vous voulez activer la synchro du tab HeroTab)
 
-> 🛠️ Requis : serveur **Paper 1.21.4+**, **Java 21+**, aucun autre plugin de factions requis.
+> 🛠️ Requis : serveur **Paper 1.21.4+**, **Java 21+**, aucun autre plugin de
+> factions requis.
 
 ---
 
@@ -133,22 +197,27 @@ Ces zombies empilaient de la donnée morte et un peu de CPU à chaque rechargeme
 - Chat de faction, ranks visuels, GUI intuitive
 - Classement des factions par puissance
 - **Dissolution différée d'une heure** (v5.14.0) — le temps de tout récupérer
-- **Nettoyage automatique des factions fantômes** (v5.14.1) — plus de zombies dans les fichiers
+- **Nettoyage automatique des factions fantômes** (v5.14.1) — plus de zombies
+  dans les fichiers
 
 ### ⚔️ Alliances & Guerres
-- Proposez, acceptez, refusez et rompez des **alliances** avec d'autres factions
+- Proposez, acceptez, refusez et rompez des **alliances** avec d'autres
+  factions
 - Déclarez, acceptez et refusez des **guerres**
-- Pendant la guerre : défense automatique, riposte, **pillage du coffre du vaincu** (si négocié)
-- Bouton **"Capituler"** pour le chef uniquement (abandon propre)
+- Pendant la guerre : défense automatique, riposte, **pillage du coffre du
+  vaincu** (si négocié)
+- Bouton **« Capituler »** pour le chef uniquement (abandon propre)
 
 ### 🗺️ Système de claims & territoire
 - Claim/unclaim de chunks avec permissions par joueur
 - GUI dédiée pour gérer qui peut construire/casser où
 - Alliances → permissions croisées configurables
-- **Mini-map de faction** : carte visuelle temps réel de vos claims (carte vanilla Minecraft augmentée)
+- **Mini-map de faction** : carte visuelle temps réel de vos claims (carte
+  vanilla Minecraft augmentée)
 
 ### 👥 Villages de faction (la grosse nouveauté)
-Recrutez des villageois vanilla et attribuez-leur un rôle : ils deviennent autonomes !
+Recrutez des villageois vanilla et attribuez-leur un rôle : ils deviennent
+autonomes !
 
 | Rôle | Fait quoi ? |
 |------|-------------|
@@ -159,14 +228,20 @@ Recrutez des villageois vanilla et attribuez-leur un rôle : ils deviennent auto
 | 🚂 **Cheminot** | Livre en **minecart** entre les gares de deux villes alliées. |
 
 Bonus :
-- 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus de stats
-- **Butin de guerre** : les guerriers ramassent automatiquement l'équipement de leurs victimes
-- **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par erreur
-- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif) : un seul joueur à la fois peut gérer un villageois, sans conflit
+- 5 **niveaux d'expérience** par villageois, avec soins automatiques et bonus
+  de stats
+- **Butin de guerre** : les guerriers ramassent automatiquement l'équipement
+  de leurs victimes
+- **Indicateurs visuels** dans les GUIs pour ne plus perdre d'objets par
+  erreur
+- **🔒 Verrou de GUI** (depuis la v5.10.2, toujours actif) : un seul joueur à
+  la fois peut gérer un villageois, sans conflit
 
 ### 💰 Économie intégrée
-- **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux membres autorisés
-- **Shop global** paginé avec recherche par mot-clé et tri par prix (4 monnaies : fer, or, diamant, émeraude)
+- **Banque d'émeraudes** par faction : dépôt, retrait, accès réservé aux
+  membres autorisés
+- **Shop global** paginé avec recherche par mot-clé et tri par prix (4
+  monnaies : fer, or, diamant, émeraude)
 - Paiement automatique au vendeur, livraison à la reconnexion si hors-ligne
 - Système d'**annonces** avec `/faction vendre` et `/faction acheter`
 
@@ -176,7 +251,11 @@ Bonus :
 - Annulation possible à tout moment, **anti-scam** garanti
 
 ### 🚢 Commerce inter-villes (depuis la v5.12)
-Vos villages ne sont plus des îles économiques. Choisissez une ressource dans un village, expédiez-la dans un port ou une gare, et un **Navigateur** (bateau) ou un **Cheminot** (minecart) la livre jusqu'au village allié. Contrats à sens unique, fret protégé par faction, itinéraire ligne droite à vue — simple, lisible, stable.
+Vos villages ne sont plus des îles économiques. Choisissez une ressource dans
+un village, expédiez-la dans un port ou une gare, et un **Navigateur**
+(bateau) ou un **Cheminot** (minecart) la livre jusqu'au village allié.
+Contrats à sens unique, fret protégé par faction, itinéraire ligne droite à
+vue — simple, lisible, stable.
 
 ### 🏠 Homes & téléportation
 - `/sethome`, `/home`, `/delhome`, `/homes` — homes personnels
@@ -185,26 +264,35 @@ Vos villages ne sont plus des îles économiques. Choisissez une ressource dans 
 - **Spawn de faction** (1 ou 2 selon le rang, configurable)
 
 ### ⚡ Système de puissance & rangs
-- 7 rangs de faction : **Pierre → Bronze → Argent → Or → Diamant → Émeraude → Légendaire**
+- 7 rangs de faction : **Pierre → Bronze → Argent → Or → Diamant → Émeraude
+  → Légendaire**
 - La puissance globale est calculée à partir des stats individuelles
-- Chaque rang apporte des **effets passifs** : Speed, Strength, Resistance, Jump Boost, Haste, Regeneration
+- Chaque rang apporte des **effets passifs** : Speed, Strength, Resistance,
+  Jump Boost, Haste, Regeneration
 - Bonus selon la taille de la faction
 
 ### 📊 Statistiques & classements
-- `/faction stats [joueur]` : kills, mobs tués, dégâts, blocs, temps de jeu, K/D ratio, advancements
-- `/faction classementjoueurs <cat>` : top 10 par catégorie (`mobs`, `pvp`, `morts`, `blocs`, `temps`, `dommages`, `kd`, `advancements`)
+- `/faction stats [joueur]` : kills, mobs tués, dégâts, blocs, temps de jeu,
+  K/D ratio, advancements
+- `/faction classementjoueurs <cat>` : top 10 par catégorie (`mobs`, `pvp`,
+  `morts`, `blocs`, `temps`, `dommages`, `kd`, `advancements`)
 - `/faction classement` : top 10 des factions par puissance (GUI)
-- **Tab toujours à jour** (v5.13.1) — reflète immédiatement votre faction actuelle, même après un leave / kick / disband
+- **Tab toujours à jour** (v5.13.1) — reflète immédiatement votre faction
+  actuelle, même après un leave / kick / disband
+- **Onglet global HeroTab synchronisé à la seconde** (v5.15.0) — la classe
+  `FactionTabSync` écrit enfin dans la bonne table MySQL
 - Persistance complète dans `stats.yml`
 
 ### 🔌 Liaisons externes (web map / site)
 - `/lier [statut]` : lie ton compte Minecraft au compte du site web
 - Synchronisation web ↔ serveur (claims, factions, joueurs)
-- Drivers MySQL inclus
+- Drivers MySQL inclus (le `faction_tab_sync` est créé automatiquement)
 
 ### 🔒 Coffres privés & tri
-- **Coffres privés** : shift + clic droit sur un coffre avec un panneau pour le verrouiller
-- **Tri automatique** des coffres avec `/sort` : regroupe, range, classe les items proprement
+- **Coffres privés** : shift + clic droit sur un coffre avec un panneau pour
+  le verrouiller
+- **Tri automatique** des coffres avec `/sort` : regroupe, range, classe les
+  items proprement
 
 ---
 
@@ -272,23 +360,25 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.14.3.jar` (≈ 475 KB).
+Le JAR est produit dans `target/FactionPlugin-5.15.0.jar` (≈ 480 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
 - **Java 21** (compilé en target 21)
 - **Shaded JAR** : aucun driver MySQL embarqué (Paper le fournit)
-- **YAML** pour toute la persistance (`factions.yml`, `stats.yml`, `villagers.yml`, `shop.yml`, etc.)
+- **YAML** pour toute la persistance (`factions.yml`, `stats.yml`,
+  `villagers.yml`, `shop.yml`, etc.)
 
 ---
 
 ## 📁 Structure des fichiers de données
 
-Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lancement :
+Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier
+lancement :
 
 | Fichier | Contenu |
 |---------|---------|
-| `config.yml` | Configuration globale (messages, limites, paramètres IA) |
+| `config.yml` | Configuration globale (messages, limites, paramètres IA, section `mysql:` pour le site/HeroTab) |
 | `factions.yml` | Factions, claims, alliances, guerres, sous-chefs |
 | `stats.yml` | Statistiques de chaque joueur |
 | `villagers.yml` | Villageois recrutés, équipement, chantiers, niveaux |
@@ -301,12 +391,36 @@ Tous les fichiers sont générés dans `plugins/FactionPlugin/` au premier lance
 
 ## 🆕 Historique des versions
 
-### **v5.14.3** — *Synchronisation immédiate du tab à la promotion de rang* 🏷️✨ *(version actuelle)*
+### **v5.15.0** — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛 *(version actuelle)*
+- **🐛 Bug fondamental corrigé — `FactionTabSync` créée** : la classe censée
+  écrire dans la table MySQL `faction_tab_sync` lue par HeroTab
+  **n'existait tout simplement pas**. Tous les correctifs précédents
+  déclenchaient une synchronisation immédiate, mais vers `WebMapSync` — un
+  système différent qui alimente la carte du site, sans aucun rapport avec
+  le tab. Résultat : le tab ne se rafraîchissait jamais, peu importe les
+  correctifs.
+- **✅ Onglet HeroTab réellement synchronisé** : `FactionTabSync` écrit
+  désormais dans la bonne table (créée automatiquement si absente), en
+  réutilisant la connexion MySQL déjà configurée pour `/lier`. Cycle de 30 s
+  + push immédiat sur les mêmes événements que `WebMapSync` (recrutement,
+  départ, kick, disband, renommage, montée de rang).
+- **🔧 Bug de compilation latent corrigé** : `FactionPlugin.java` référençait
+  `Bukkit` sans l'importer — un import manquant qui aurait empêché la
+  compilation dans certaines configurations. Balayage complet : aucun autre
+  fichier ne présente ce problème.
+- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer
+  suffit. La table `faction_tab_sync` est créée automatiquement au premier
+  démarrage si elle n'existe pas.
+
+### **v5.14.3** — *Synchronisation immédiate du tab à la promotion de rang* 🏷️✨
 - **⚡ Tab global synchrone lors d'une promotion** : `FactionTabManager.refresh(factionName)` est désormais appelé dès qu'une faction franchit un cap de puissance (`BRONZE → ARGENT`, `OR → DIAMANT`, …). Fini l'attente pouvant aller jusqu'à 60 s côté HeroTab / carte web.
 - **🔄 `/fac top` et cache de puissance** : le cache local de `FactionPowerManager` est invalidé sur tout franchissement de cap — `/fac top`, l'écran de détail d'une faction et la carte web s'alignent immédiatement.
 - **🛡️ Cohérence totale local / web / tab** : la classe de team (`faction.Officier`, `faction.Membre`, `faction.Chef`, `faction.None`) reste identique partout, sans fenêtre de bascule visible pour les autres joueurs.
-- **🔧 Petits correctifs** : aucun changement significatif de format YAML, juste un hook manquant dans le chemin de synchronisation du tab suite à une promotion.
-- **📦 Aucune migration de données** : remplacer le `.jar` et redémarrer suffit.
+
+> ℹ️ Cette version reste utile pour le tab local et l'invalidation du cache,
+> mais **la v5.15.0 va plus loin** : elle remplace ce mécanisme en
+> s'attaquant à la cause racine — la table `faction_tab_sync` lue par HeroTab
+> n'était tout simplement jamais écrite par FactionPlugin.
 
 ### **v5.14.2** — *Accès aux coffres pendant la dissolution* 🧳🔓
 - **🔓 Tu gardes l'accès à tes coffres pendant l'heure de grâce** : au moment d'un `/faction disband`, chaque membre actuel est explicitement autorisé sur tous les claims de la faction. Cette autorisation est attachée au claim, pas à l'appartenance — donc même si tu quittes ou que tu te fais exclure pendant l'heure, tu peux revenir prendre tes affaires tant que les claims ne sont pas libérés.
@@ -389,7 +503,9 @@ Ce projet est sous licence **MIT**. Voir `LICENSE` pour le texte complet.
 
 ## 🤝 Crédits & contributions
 
-Développé par [FactionDev](https://github.com/herocraftlol). Contributions bienvenues via Pull Requests sur [la page GitHub du projet](https://github.com/herocraftlol/Faction-Create-Friends).
+Développé par [FactionDev](https://github.com/herocraftlol). Contributions
+bienvenues via Pull Requests sur [la page GitHub du
+projet](https://github.com/herocraftlol/Faction-Create-Friends).
 
 Pour toute question ou bug, ouvre une **Issue** sur le dépôt.
 

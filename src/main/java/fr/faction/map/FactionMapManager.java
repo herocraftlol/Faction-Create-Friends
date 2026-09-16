@@ -98,14 +98,14 @@ public class FactionMapManager {
         }
 
         // Retirer les renderers par défaut (fond vanilla gris)
-        final MapView vw = view;
-        view.getRenderers().forEach(vw::removeRenderer);
+        final MapView finalView = view;
+        finalView.getRenderers().forEach(finalView::removeRenderer);
 
         // Créer et attacher notre renderer
         FactionMapRenderer renderer = new FactionMapRenderer(
                 factionManager, this, player.getUniqueId(), world.getName());
         renderers.put(player.getUniqueId(), renderer);
-        view.addRenderer(renderer);
+        finalView.addRenderer(renderer);
 
         // Construire l'item carte
         @SuppressWarnings("deprecation")

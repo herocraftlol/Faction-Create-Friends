@@ -408,7 +408,7 @@ public class FactionGUI implements Listener {
         ItemStack item = makeItem(mat, name, lore);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+            meta.addEnchant(Enchantment.LOOTING, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
         }

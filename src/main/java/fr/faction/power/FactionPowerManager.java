@@ -27,6 +27,7 @@ public class FactionPowerManager {
     private AllianceManager allianceManager;
     private FactionTabManager tabManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.web.FactionTabSync factionTabSync;
 
     private final Map<String, Double>      powerCache = new HashMap<>();
     private final Map<String, FactionRank> rankCache  = new HashMap<>();
@@ -49,6 +50,7 @@ public class FactionPowerManager {
     public void setAllianceManager(AllianceManager am) { this.allianceManager = am; }
     public void setTabManager(FactionTabManager tm)     { this.tabManager = tm; }
     public void setWebMapSync(fr.faction.web.WebMapSync wms) { this.webMapSync = wms; }
+    public void setFactionTabSync(fr.faction.web.FactionTabSync fts) { this.factionTabSync = fts; }
 
     // ── Démarrage / Arrêt ────────────────────────────────────────────────────────
 
@@ -98,6 +100,7 @@ public class FactionPowerManager {
                     // Synchro immédiate vers le site/HeroTab : sans ça, le nouveau rang met
                     // jusqu'à 60s à apparaître ailleurs que sur le tab local de ce serveur.
                     if (webMapSync != null) webMapSync.pushSnapshotNow();
+                    if (factionTabSync != null) factionTabSync.pushNow();
                 });
             }
         }

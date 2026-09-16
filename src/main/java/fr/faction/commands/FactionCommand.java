@@ -85,6 +85,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     private fr.faction.village.VillageManager villageManager;
     private fr.faction.commerce.CommerceManager commerceManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.web.FactionTabSync factionTabSync;
     private fr.faction.managers.DisbandManager disbandManager;
     private final BankGUI bankGUI;
     private final EmeraldBankManager bankManager;
@@ -149,6 +150,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public void setVillageManager(fr.faction.village.VillageManager vm) { this.villageManager = vm; }
     public void setCommerceManager(fr.faction.commerce.CommerceManager cm) { this.commerceManager = cm; }
     public void setWebMapSync(fr.faction.web.WebMapSync wms) { this.webMapSync = wms; }
+    public void setFactionTabSync(fr.faction.web.FactionTabSync fts) { this.factionTabSync = fts; }
     public void setDisbandManager(fr.faction.managers.DisbandManager dm) { this.disbandManager = dm; }
     public void setTabManager(fr.faction.power.FactionTabManager tm) { this.tabManager = tm; }
     public void setMapManager(fr.faction.map.FactionMapManager mm) { this.mapManager = mm; }
@@ -308,6 +310,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 + ChatColor.YELLOW + " lancée : suppression définitive dans 1 heure.");
 
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
     }
 
     private void handleInvite(Player player, String[] args) {
@@ -336,6 +339,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(prefix() + msg("joined-faction").replace("%name%", faction.getName()));
         if (tabManager != null) tabManager.refresh(player);
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
         notifyMembers(faction, player, ChatColor.GREEN + player.getName() + " a rejoint la faction !");
     }
 
@@ -396,6 +400,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
 
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
 
         player.sendMessage(prefix() + ChatColor.GREEN + "✔ Faction renommée : §e" + oldName
                 + ChatColor.GREEN + " → §e" + newName + ChatColor.GREEN + ".");
@@ -414,6 +419,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(prefix() + msg("left-faction").replace("%name%", name));
         if (tabManager != null) tabManager.refresh(player);
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
     }
 
     private void handleSetChef(Player player, String[] args) {
@@ -538,6 +544,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
         notifyMembers(faction, player, ChatColor.RED + tName + " a été expulsé de la faction.");
         if (webMapSync != null) webMapSync.pushSnapshotNow();
+        if (factionTabSync != null) factionTabSync.pushNow();
     }
 
     private void handleTp(Player player, String[] args) {

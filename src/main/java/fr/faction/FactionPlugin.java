@@ -26,8 +26,8 @@ import fr.faction.shop.ShopGUI;
 import fr.faction.shop.ShopManager;
 import fr.faction.trade.TradeGUI;
 import fr.faction.trade.TradeManager;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public class FactionPlugin extends JavaPlugin {
 
@@ -72,6 +72,7 @@ public class FactionPlugin extends JavaPlugin {
     private fr.faction.sort.SortMenuGUI sortMenuGUI;
     private fr.faction.web.WebLinkManager webLinkManager;
     private fr.faction.web.WebMapSync webMapSync;
+    private fr.faction.web.FactionTabSync factionTabSync;
     private fr.faction.managers.DisbandManager disbandManager;
 
     // v5.9 — villageois recrutés
@@ -169,11 +170,17 @@ public class FactionPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(webMapSync, this);
         powerManager.setWebMapSync(webMapSync);
 
+        // ── Synchro tab HeroTab (table faction_tab_sync) ──────────────────────────
+        factionTabSync = new fr.faction.web.FactionTabSync(this, factionManager, powerManager);
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, factionTabSync::pushNow, 100L, 600L); // 5s puis toutes les 30s
+        powerManager.setFactionTabSync(factionTabSync);
+
         // ── Dissolution différée d'une heure (claims/coffres/banque/classement) ───
         disbandManager = new fr.faction.managers.DisbandManager(
                 this, factionManager, claimManager, bankManager, powerManager, sharedInventoryManager);
         disbandManager.setTabManager(tabManager);
         disbandManager.setWebMapSync(webMapSync);
+        disbandManager.setFactionTabSync(factionTabSync);
         disbandManager.resumePendingDisbands();
         int ghostsPurged = disbandManager.purgeGhostFactions();
         if (ghostsPurged > 0) getLogger().info(ghostsPurged + " faction(s) fantôme(s) existante(s) (0 membre) nettoyée(s) au démarrage.");
@@ -202,6 +209,7 @@ public class FactionPlugin extends JavaPlugin {
         cmd.setVillageManager(villageManager);
         cmd.setCommerceManager(commerceManager);
         cmd.setWebMapSync(webMapSync);
+        cmd.setFactionTabSync(factionTabSync);
         cmd.setDisbandManager(disbandManager);
         actionBarManager.setWarManager(warManager);
 
@@ -371,6 +379,7 @@ public class FactionPlugin extends JavaPlugin {
         if (tradeManager != null)           tradeManager.save();
         if (commerceManager != null)        commerceManager.save();
         if (webLinkManager != null)         webLinkManager.close();
+        if (factionTabSync != null)         factionTabSync.close();
         getLogger().info("FactionPlugin désactivé. Données sauvegardées.");
     }
 
@@ -403,5 +412,6 @@ public class FactionPlugin extends JavaPlugin {
     public fr.faction.villager.VillagerManager getVillagerManager() { return villagerManager; }
     public fr.faction.village.VillageManager getVillageManager() { return villageManager; }
     public fr.faction.commerce.CommerceManager getCommerceManager() { return commerceManager; }
+    public fr.faction.web.FactionTabSync getFactionTabSync() { return factionTabSync; }
     public fr.faction.villager.VillagerGUI getVillagerGUI() { return villagerGUI; }
 }
