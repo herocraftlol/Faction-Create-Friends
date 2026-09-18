@@ -1,9 +1,9 @@
 package fr.faction.commerce;
 
+import fr.faction.village.PostType;
 import org.bukkit.Material;
 
 import java.util.UUID;
-import fr.faction.village.PostType;
 
 /**
  * Contrat commercial : une livraison à sens unique d'une ressource depuis le

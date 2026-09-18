@@ -1542,6 +1542,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     case 2 -> "§7Atteins le rang §eOr §7ou §eDiamant §7(→ 3 homes)";
                     case 3 -> "§7Atteins le rang §eÉmeraude §7(→ 4 homes)";
                     case 4 -> "§7Atteins le rang §dLégendaire §7(→ 5 homes)";
+                    case 5 -> "§7Atteins le rang §5Mythique §7(→ 6 homes)";
                     default -> "";
                 };
                 player.sendMessage(pf + "§cLimite de §e" + max + " §chome(s) atteinte. " + progressHint);
@@ -1580,12 +1581,13 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         + ", " + (int)h.location.getZ() + ")");
             }
         }
-        if (max < 5) {
+        if (max < 6) {
             String hint = switch (max) {
                 case 1 -> "Rejoins une faction (rang §eBronze§7 → 2 homes)";
                 case 2 -> "Atteins le rang §eOr §7ou §bDiamant §7(→ 3 homes)";
                 case 3 -> "Atteins le rang §aÉmeraude §7(→ 4 homes)";
                 case 4 -> "Atteins le rang §dLégendaire §7(→ 5 homes)";
+                case 5 -> "Atteins le rang §5Mythique §7(→ 6 homes)";
                 default -> "";
             };
             if (!hint.isEmpty())
@@ -2131,7 +2133,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                     yield slots.stream().filter(s -> s.startsWith(args[1])).collect(Collectors.toList());
                 }
                 case "sethome" -> {
-                    // Suggérer home, home2…home5 selon la limite du rang
+                    // Suggérer home, home2…home6 selon la limite du rang
                     int max = homeManager.getMaxHomes(player.getUniqueId());
                     List<String> allNames = new ArrayList<>();
                     for (int i = 1; i <= max; i++) allNames.add(i == 1 ? "home" : "home" + i);

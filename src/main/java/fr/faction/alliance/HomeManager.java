@@ -28,6 +28,7 @@ import java.util.*;
  *   Or/Diamant     → 3 homes
  *   Émeraude       → 4 homes
  *   Légendaire     → 5 homes
+ *   Mythique       → 6 homes
  *
  * Contrainte de distance :
  *   Impossible de poser un home à moins de 10 chunks d'un home d'un autre joueur,

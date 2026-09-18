@@ -275,7 +275,8 @@ public class FactionMapRenderer extends MapRenderer {
         return x < 0 || x >= MAP_SIZE || z < 0 || z >= MAP_SIZE;
     }
 
-    /** Convertit une couleur Bukkit Color en index de palette MapPalette (RGB explicite). */
+    /** Convertit une couleur Bukkit Color en index de palette MapPalette */
+    @SuppressWarnings("deprecation")
     private static byte mapColor(Color color) {
         return MapPalette.matchColor(color.getRed(), color.getGreen(), color.getBlue());
     }

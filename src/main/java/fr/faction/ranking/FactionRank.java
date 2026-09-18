@@ -3,7 +3,7 @@ package fr.faction.ranking;
 import org.bukkit.ChatColor;
 
 /**
- * Les 7 rangs de faction — Paper 1.21
+ * Les 8 rangs de faction — Paper 1.21
  *
  * Effets passifs réels (sans fly, sans speed, sans feather falling, sans jump boost) :
  *
@@ -15,6 +15,8 @@ import org.bukkit.ChatColor;
  *  ÉMERAUDE  → Hâte III + Regen II + Force I + double drop minerai
  *  LÉGENDAIRE→ Hâte III + Regen II + Force I + Résistance II + aura alliés
  *              + particules + prefix [LÉGENDAIRE] chat/tab
+ *  MYTHIQUE   → Hâte IV + Regen II + Force II + Résistance III + Absorption I
+ *              + aura renforcée + particules exclusives + 2 spawns / 6 homes
  */
 public enum FactionRank {
 
@@ -56,7 +58,16 @@ public enum FactionRank {
             "Halo de particules dorées distinctif",
             "§d2 spawns de faction",
             "§d5 homes personnels",
-            "§5Prefix §d[LÉGENDAIRE] §7en violet dans le chat & tab");
+            "§5Prefix §d[LÉGENDAIRE] §7en violet dans le chat & tab"),
+
+    MYTHIQUE(1_000_000, "Mythique", "☄", ChatColor.DARK_PURPLE,
+            "Hâte IV + Regen II + Force II + Résistance III passifs",
+            "Absorption I permanente (♥♥ supplémentaires)",
+            "Aura de Regen II + Résistance I sur les alliés à ≤20 blocs",
+            "Particules violettes célestes exclusives",
+            "§52 spawns de faction",
+            "§56 homes personnels",
+            "§5Prefix §5[MYTHIQUE] §7exclusif dans le chat & tab");
 
     // ─────────────────────────────────────────────────────────────────────────
     public final double puissanceMin;
@@ -95,6 +106,7 @@ public enum FactionRank {
             case DIAMANT    -> ChatColor.AQUA  + "" + ChatColor.BOLD + "[◆] " + ChatColor.RESET;
             case EMERAUDE   -> ChatColor.GREEN + "" + ChatColor.BOLD + "[❋] " + ChatColor.RESET;
             case LEGENDAIRE -> ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[⚜] " + ChatColor.RESET;
+            case MYTHIQUE   -> ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "[☄] " + ChatColor.RESET;
         };
     }
 
@@ -109,12 +121,12 @@ public enum FactionRank {
     /**
      * Nombre de spawns de faction autorisés selon le rang.
      *  Pierre / Bronze / Argent / Or → 1 spawn
-     *  Diamant / Émeraude / Légendaire → 2 spawns
+     *  Diamant / Émeraude / Légendaire / Mythique → 2 spawns
      */
     public int getMaxSpawns() {
         return switch (this) {
             case PIERRE, BRONZE, ARGENT, OR -> 1;
-            case DIAMANT, EMERAUDE, LEGENDAIRE -> 2;
+            case DIAMANT, EMERAUDE, LEGENDAIRE, MYTHIQUE -> 2;
         };
     }
 
@@ -136,6 +148,7 @@ public enum FactionRank {
             case OR, DIAMANT    -> 3;
             case EMERAUDE       -> 4;
             case LEGENDAIRE     -> 5;
+            case MYTHIQUE       -> 6;
         };
     }
 

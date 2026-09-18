@@ -91,6 +91,7 @@ public class VillagerManager implements Listener {
         new BukkitRunnable() {
             @Override public void run() { tickAll(); }
         }.runTaskTimer(plugin, 60L, interval);
+        startSleepWatcher();
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -750,12 +751,8 @@ public class VillagerManager implements Listener {
     private void tickAll() {
         for (RecruitedVillager rv : new ArrayList<>(villagers.values())) {
             Entity e = Bukkit.getEntity(rv.getEntityId());
-            if (!(e instanceof Villager v) || v.isDead()) {
-                wasSleeping.remove(rv.getEntityId());
-                continue;
-            }
+            if (!(e instanceof Villager v) || v.isDead()) continue;
             feedTick(rv, v);
-            checkSleepTransition(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
@@ -876,17 +873,36 @@ public class VillagerManager implements Listener {
 
     // ════════════════════════════════════════════════════════════════════════
     // SOIN EN DORMANT DANS UN LIT
-    // (L'événement Bukkit EntitySleepEvent a été retiré en Paper 1.21 ;
-    //  on détecte l'endormissement via isSleeping() dans le tick périodique.)
+    // (EntitySleepEvent a été supprimé côté Bukkit/Paper 1.21 ; on remplace
+    //  l'event par un polling périodique de Villager#isSleeping().)
     // ════════════════════════════════════════════════════════════════════════
 
-    private final Map<UUID, Boolean> wasSleeping = new HashMap<>();
+    /** Map des villageois actuellement en train de dormir : rv.getEntityId() → tick auquel on a détecté le sommeil. */
+    private final java.util.Map<java.util.UUID, Long> sleepingVillagers = new java.util.HashMap<>();
 
-    /** Détecte le passage éveillé → endormi pour démarrer la régénération. */
-    private void checkSleepTransition(RecruitedVillager rv, Villager v) {
-        boolean sleeping = v.isSleeping();
-        Boolean prev = wasSleeping.put(rv.getEntityId(), sleeping);
-        if (sleeping && (prev == null || !prev)) startSleepHealing(rv);
+    /** Détection périodique de l'endormissement (l'event Bukkit n'existe plus en 1.21). */
+    public void startSleepWatcher() {
+        long period = plugin.getConfig().getLong("villager.sleep-poll-period", 20L);
+        new BukkitRunnable() {
+            @Override public void run() {
+                long now = System.currentTimeMillis();
+                for (RecruitedVillager rv : villagers.values()) {
+                    Entity e = Bukkit.getEntity(rv.getEntityId());
+                    if (!(e instanceof Villager v) || v.isDead()) continue;
+                    boolean sleeping = v.isSleeping();
+                    java.util.UUID id = rv.getEntityId();
+                    if (sleeping) {
+                        // Démarre le soin si on vient de le détecter endormi
+                        if (!sleepingVillagers.containsKey(id)) {
+                            sleepingVillagers.put(id, now);
+                            startSleepHealing(rv);
+                        }
+                    } else {
+                        sleepingVillagers.remove(id);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, period, period);
     }
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
