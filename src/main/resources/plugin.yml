@@ -1,17 +1,11 @@
 name: FactionPlugin
-version: 5.15.0
+version: 5.15.1
 main: fr.faction.FactionPlugin
 api-version: "1.21"
 author: FactionDev
 description: >
-  Plugin de factions tout-en-un pour Paper 1.21.x — claims, alliances,
-  guerres, banque d'émeraudes, troc sécurisé, commerce inter-villes →
-  (ports 🚢 et gares 🚂), villages autonomes avec villageois recrutés
-  (Constructeur, Guerrier, Récolteur, Navigateur, Cheminot), rangs
-  Pierre→Légendaire, dissolution différée d'1h, accès aux coffres préservé
-  pendant la dissolution, nettoyage automatique des factions fantômes,
-  tab global HeroTab synchronisé à la seconde, stats joueurs, InvSee, TPA,
-  liaison site web. v5.15.0 : la vraie cause du tab HeroTab est corrigée.
+  Plugin de factions complet — Paper 1.21. Claims, alliances, guerre,
+  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, liaison site web.
 
 commands:
   faction:

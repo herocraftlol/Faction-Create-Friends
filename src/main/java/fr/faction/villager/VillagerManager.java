@@ -97,7 +97,7 @@ public class VillagerManager implements Listener {
     // RECRUTEMENT
     // ════════════════════════════════════════════════════════════════════════
 
-    public enum RecruitResult { SUCCESS, NOT_IN_FACTION, NO_PERMISSION, NO_TARGET, ALREADY_RECRUITED, FACTION_FULL }
+    public enum RecruitResult { SUCCESS, NOT_IN_FACTION, NO_PERMISSION, NO_TARGET, ALREADY_RECRUITED }
 
     public RecruitResult recruit(Player player) {
         Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
@@ -107,9 +107,6 @@ public class VillagerManager implements Listener {
         RayTraceResult rt = player.rayTraceEntities(8);
         if (rt == null || !(rt.getHitEntity() instanceof Villager villager)) return RecruitResult.NO_TARGET;
         if (villagers.containsKey(villager.getUniqueId())) return RecruitResult.ALREADY_RECRUITED;
-
-        int max = plugin.getConfig().getInt("villager.max-per-faction", 5);
-        if (countForFaction(faction.getName()) >= max) return RecruitResult.FACTION_FULL;
 
         RecruitedVillager rv = new RecruitedVillager(villager.getUniqueId(), faction.getName());
         rv.setPostLocation(villager.getLocation());
@@ -169,12 +166,15 @@ public class VillagerManager implements Listener {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // NIVEAUX & EXPÉRIENCE (5 niveaux, de plus en plus durs à atteindre)
+    // NIVEAUX & EXPÉRIENCE (jusqu'au niveau 100)
     // ════════════════════════════════════════════════════════════════════════
 
-    private static final int MAX_LEVEL = 5;
-    /** XP total cumulé requis pour être au niveau (index + 1). */
-    private static final int[] XP_THRESHOLDS = {0, 50, 150, 350, 700};
+    private static final int MAX_LEVEL = 100;
+    /**
+     * Seuils historiques conservés pour les niveaux 1 à 5.
+     * À partir du niveau 6, le coût en XP continue d'augmenter progressivement.
+     */
+    private static final int[] EARLY_XP_THRESHOLDS = {0, 50, 150, 350, 700};
     /** Blocs posés/récoltés par passage d'IA selon le niveau (index = niveau - 1). */
     private static final int[] BLOCKS_PER_ACTION = {1, 1, 2, 2, 3};
 
@@ -191,9 +191,26 @@ public class VillagerManager implements Listener {
     }
 
     private int computeLevelForXp(int xp) {
-        int lvl = 1;
-        for (int i = 1; i < XP_THRESHOLDS.length; i++) if (xp >= XP_THRESHOLDS[i]) lvl = i + 1;
-        return Math.min(lvl, MAX_LEVEL);
+        int level = 1;
+        for (int candidate = 2; candidate <= MAX_LEVEL; candidate++) {
+            if (xp < xpThresholdForLevel(candidate)) break;
+            level = candidate;
+        }
+        return level;
+    }
+
+    /** XP total cumulé requis pour atteindre un niveau donné. */
+    private int xpThresholdForLevel(int level) {
+        int clamped = Math.max(1, Math.min(level, MAX_LEVEL));
+        if (clamped <= EARLY_XP_THRESHOLDS.length) return EARLY_XP_THRESHOLDS[clamped - 1];
+
+        long threshold = EARLY_XP_THRESHOLDS[EARLY_XP_THRESHOLDS.length - 1];
+        for (int candidate = EARLY_XP_THRESHOLDS.length + 1; candidate <= clamped; candidate++) {
+            // Chaque niveau supplémentaire demande 50 XP de plus que le précédent.
+            int xpCost = 350 + (candidate - EARLY_XP_THRESHOLDS.length) * 50;
+            threshold += xpCost;
+        }
+        return (int) Math.min(Integer.MAX_VALUE, threshold);
     }
 
     private void onLevelUp(RecruitedVillager rv) {
@@ -733,8 +750,12 @@ public class VillagerManager implements Listener {
     private void tickAll() {
         for (RecruitedVillager rv : new ArrayList<>(villagers.values())) {
             Entity e = Bukkit.getEntity(rv.getEntityId());
-            if (!(e instanceof Villager v) || v.isDead()) continue;
+            if (!(e instanceof Villager v) || v.isDead()) {
+                wasSleeping.remove(rv.getEntityId());
+                continue;
+            }
             feedTick(rv, v);
+            checkSleepTransition(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
                 case GUERRIER -> warriorTick(rv, v);
@@ -855,14 +876,18 @@ public class VillagerManager implements Listener {
 
     // ════════════════════════════════════════════════════════════════════════
     // SOIN EN DORMANT DANS UN LIT
+    // (L'événement Bukkit EntitySleepEvent a été retiré en Paper 1.21 ;
+    //  on détecte l'endormissement via isSleeping() dans le tick périodique.)
     // ════════════════════════════════════════════════════════════════════════
 
-    // @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    // public void onSleep(org.bukkit.event.entity.EntitySleepEvent event) {
-    //     RecruitedVillager rv = villagers.get(event.getEntity().getUniqueId());
-    //     if (rv == null) return;
-    //     startSleepHealing(rv);
-    // }
+    private final Map<UUID, Boolean> wasSleeping = new HashMap<>();
+
+    /** Détecte le passage éveillé → endormi pour démarrer la régénération. */
+    private void checkSleepTransition(RecruitedVillager rv, Villager v) {
+        boolean sleeping = v.isSleeping();
+        Boolean prev = wasSleeping.put(rv.getEntityId(), sleeping);
+        if (sleeping && (prev == null || !prev)) startSleepHealing(rv);
+    }
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */
     private void startSleepHealing(RecruitedVillager rv) {

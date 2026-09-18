@@ -307,7 +307,7 @@ public class VillagerGUI implements Listener {
         infoLore.add("§7Faction : §e" + rv.getFactionName());
         infoLore.add("§7Village : " + (rv.getVillageName() != null ? "§b" + rv.getVillageName() : "§8Aucun"));
         infoLore.add("§7Rôle : " + roleColor(rv.getRole()) + rv.getRole().displayName());
-        infoLore.add("§7Niveau : §e" + rv.getLevel() + "§7/5 §8(" + rv.getXp() + " XP)");
+        infoLore.add("§7Niveau : §e" + rv.getLevel() + "§7/100 §8(" + rv.getXp() + " XP)");
         if (rv.getRole() == VillagerRole.GUERRIER) infoLore.add("§7Ennemis tués : §c" + rv.getKillCount());
         if (e instanceof Villager v && !v.isDead()) infoLore.add("§7Vie : §c" + (int) v.getHealth() + " ❤");
         else infoLore.add("§8Chunk non chargé");

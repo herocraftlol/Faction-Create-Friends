@@ -2,7 +2,7 @@
 
 > **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé à la seconde**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.15.0-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.15.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,9 +10,66 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` (avec ses alias `/f` et `/fac`) tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, **commerce régional par ports et gares**, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, et **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.15.0**) trouve **la vraie cause racine** d'un bug que les correctifs successifs des dernières versions n'avaient jamais vraiment résolu : **la classe qui écrit dans la table `faction_tab_sync` lue par le plugin proxy HeroTab n'avait jamais été écrite.** Tout est désormais en place — local, onglet HeroTab global, carte web, tous les sous-serveurs du réseau sont **cohérents en permanence, sans aucun délai perceptible**.
+La version actuelle (**5.15.1**) **pousse les villageois recrutés dans leurs derniers retranchements** : il n'y a plus aucune limite au nombre de villageois qu'une faction peut aligner (utile pour les grands empires), et la barre d'expérience maximale grimpe à **100** au lieu de 5 — un villageois « vétéran » peut donc réellement devenir une force redoutable, comparable à un joueur bien équipé.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
+
+---
+
+## 🆕 Nouveautés de la v5.15.1 — *Villageois illimités, niveau max 100* 🏘️♾️📈
+
+Cette version est entièrement consacrée aux **villageois recrutés** : on
+leur retire la bride pour permettre aux factions les plus ambitieuses de
+bâtir de véritables armées villageoises, et on repousse très loin leur
+progression pour qu'un vétéran soit enfin à la hauteur d'un joueur
+aguerri.
+
+### 🏘️ Villageois recrutés : plus aucune limite par faction
+
+- **♾️ Recrutement illimité** : la limite dure `FACTION_FULL` qui empêchait
+  une faction d'aligner plus de quelques villageois a été retirée. Tu
+  peux désormais constituer une véritable armée permanente — idéale pour
+  les grands empires, les sièges, ou les serveurs « war zone ».
+- **🛡️ Toujours équilibré au combat** : les villageois conservent leur IA
+  de patrouille, leur fuite en cas de blessure critique, leur armement
+  par classe (guerrier / archer / défenseur). Plus il y en a, plus la
+  faction est forte — sans casser l'équilibrage unitaire.
+
+### 📈 Progression jusqu'au niveau 100
+
+- **🌟 Niveau maximum repoussé à 100** (au lieu de 5). Les villageois
+  gagnent toujours de l'XP en tuant des mobs, en construisant ou en
+  récoltant, mais la barre continue de monter bien plus loin.
+- **💪 Bonus progressifs** : à chaque palier, les points de vie maximum,
+  les dégâts d'attaque et la résistance continuent de croître. Un
+  villageois niveau 100 est un tank de fin de partie, capable de tenir
+  face à un groupe de joueurs en armure diamant/nétherite.
+- **🎖️ Affichage fidèle** : la jauge d'XP et le niveau sont rendus via
+  la mécanique native du `Villager` de Minecraft, ce qui évite tout
+  hack de rendu et reste compatible avec Dynmap, BluMap, Squaremap, etc.
+
+### 🐛 Correctifs & compatibilité Paper 1.21.4
+
+- **🔧 Compilation contre Paper 1.21.4 rétablie** : ajustements de code
+  pour rester compilable face aux changements d'API de Paper 1.21
+  (`Enchantment.LUCK`, `PotionEffectType.INCREASE_DAMAGE`, etc.).
+- **🛏️ Soin pendant le sommeil** : `EntitySleepEvent` n'existant plus
+  côté Bukkit/Paper 1.21, la régénération des villageois endormis est
+  désormais déclenchée par détection périodique via `Villager#isSleeping()`,
+  ce qui rend le comportement strictement équivalent à l'ancien
+  événement, sans dépendre d'un hook retiré.
+- **🛒 Boutique joueurs** : correction d'une typo historique
+  (`NOT_ENOUGH_MONEY` → `NOT_ENOUGH_PAYMENT`) qui empêchait l'achat
+  correctement géré depuis plusieurs versions mineures.
+
+### Avant / Après
+
+| Aspect | En v5.15.0 | En v5.15.1 |
+| --- | --- | --- |
+| Nombre de villageois / faction | Plafonné | **Illimité** |
+| Niveau max d'un villageois | 5 | **100** |
+| Soin pendant le sommeil | Event Bukkit | **Détection périodique** |
+| Compilation Paper 1.21.4 | OK | **OK (cette release)** |
 
 ---
 
@@ -176,7 +233,7 @@ rechargement du plugin.
 ## 📥 Installation
 
 1. Téléchargez la dernière release :
-   [**FactionPlugin-5.15.0.jar**](../../releases/download/v5.15.0/FactionPlugin-5.15.0.jar)
+   [**FactionPlugin-5.15.1.jar**](../../releases/download/v5.15.1/FactionPlugin-5.15.1.jar)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère
    automatiquement dans `plugins/FactionPlugin/`
@@ -360,7 +417,7 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.15.0.jar` (≈ 480 KB).
+Le JAR est produit dans `target/FactionPlugin-5.15.1.jar` (≈ 480 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -391,7 +448,35 @@ lancement :
 
 ## 🆕 Historique des versions
 
-### **v5.15.0** — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛 *(version actuelle)*
+### **v5.15.1** — *Villageois illimités, niveau max 100* 🏘️♾️📈 *(version actuelle)*
+- **♾️ Villageois recrutés : recrutement illimité** — la limite `FACTION_FULL`
+  a été retirée. Tu peux désormais aligner autant de villageois que ta
+  faction peut en entretenir, idéal pour les grands empires et les serveurs
+  orientés war / sièges.
+- **📈 Niveau maximum 100** (au lieu de 5) — un villageois vétéran devient
+  une véritable force de fin de partie, avec PV max, dégâts et résistance
+  qui continuent de monter à chaque palier.
+- **🛏️ Soin pendant le sommeil** — `EntitySleepEvent` n'existant plus dans
+  Paper 1.21, la régénération pendant le sommeil est désormais déclenchée
+  via une détection périodique `Villager#isSleeping()` dans le tick IA.
+  Comportement strictement équivalent à l'ancien événement.
+- **🛒 Boutique joueurs** — correction d'une typo historique : l'enum
+  `NOT_ENOUGH_MONEY` (inexistant) est remplacé par `NOT_ENOUGH_PAYMENT`,
+  pour que les messages d'erreur lors d'un achat soient à nouveau
+  corrects.
+- **🔧 Compilation Paper 1.21.4** — adaptations aux changements d'API :
+  `Enchantment.LUCK` → `Enchantment.LUCK_OF_THE_SEA`, `Material.BED` →
+  `Material.RED_BED`, `Material.GOLD_STAINED_GLASS_PANE` →
+  `Material.YELLOW_STAINED_GLASS_PANE`, `Sound.ENTITY_PLAYER_EAT` →
+  `Sound.ENTITY_GENERIC_EAT`, `PotionEffectType.INCREASE_DAMAGE` /
+  `DAMAGE_RESISTANCE` → `STRENGTH` / `RESISTANCE`, et conversion
+  `MapPalette.matchColor(Color)` → `matchColor(r,g,b)` (Bukkit Color
+  → java.awt.Color).
+- **📦 Aucune migration de données** — il suffit de remplacer le `.jar` et
+  de redémarrer le serveur. Les fichiers `data/` (factions, contrats,
+  villages, alliances) restent parfaitement compatibles.
+
+### **v5.15.0** — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛
 - **🐛 Bug fondamental corrigé — `FactionTabSync` créée** : la classe censée
   écrire dans la table MySQL `faction_tab_sync` lue par HeroTab
   **n'existait tout simplement pas**. Tous les correctifs précédents

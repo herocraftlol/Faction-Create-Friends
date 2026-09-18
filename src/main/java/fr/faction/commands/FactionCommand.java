@@ -1750,7 +1750,6 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case NO_PERMISSION  -> player.sendMessage(prefix() + ChatColor.RED + "Seul le chef ou un sous-chef peut recruter un villageois.");
             case NO_TARGET      -> player.sendMessage(prefix() + ChatColor.RED + "Vise un villageois (8 blocs max) et réessaie.");
             case ALREADY_RECRUITED -> player.sendMessage(prefix() + ChatColor.RED + "Ce villageois est déjà recruté.");
-            case FACTION_FULL   -> player.sendMessage(prefix() + ChatColor.RED + "Ta faction a atteint sa limite de villageois recrutés.");
         }
     }
 
