@@ -105,6 +105,8 @@ public class PlayerListener implements Listener {
             String rankPrefix;
             if (rank == FactionRank.LEGENDAIRE) {
                 rankPrefix = "" + ChatColor.LIGHT_PURPLE + ChatColor.BOLD + "[⚜] " + ChatColor.RESET;
+            } else if (rank == FactionRank.MYTHIQUE) {
+                rankPrefix = "" + ChatColor.DARK_PURPLE + ChatColor.BOLD + "[☄] " + ChatColor.RESET;
             } else {
                 rankPrefix = rank.getChatPrefix();
             }

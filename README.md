@@ -2,7 +2,7 @@
 
 > **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé à la seconde**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.15.1-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.15.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,9 +10,92 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` (avec ses alias `/f` et `/fac`) tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, **commerce régional par ports et gares**, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, et **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.15.1**) **pousse les villageois recrutés dans leurs derniers retranchements** : il n'y a plus aucune limite au nombre de villageois qu'une faction peut aligner (utile pour les grands empires), et la barre d'expérience maximale grimpe à **100** au lieu de 5 — un villageois « vétéran » peut donc réellement devenir une force redoutable, comparable à un joueur bien équipé.
+La version actuelle (**5.15.2**) introduit le **rang MYTHIQUE ☄ — un rang de prestige réservé aux factions ayant accumulé 1 000 000 points de puissance**, et apporte les corrections de compatibilité Paper 1.21.4 héritées de la v5.15.1 : il n'y a plus aucune limite au nombre de villageois qu'une faction peut aligner (utile pour les grands empires), et la barre d'expérience maximale grimpe à **100** au lieu de 5 — un villageois « vétéran » peut donc réellement devenir une force redoutable, comparable à un joueur bien équipé.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
+
+---
+
+## 🆕 Nouveautés de la v5.15.2 — *Rang MYTHIQUE — 1 000 000 de puissance* ☄💎🌌
+
+Cette version ajoute **un nouveau rang de prestige ultime** au-dessus du rang
+Légendaire, et consolide le passage à Paper 1.21.4 avec plusieurs corrections
+critiques héritées du travail de la v5.15.1.
+
+### ☄ Nouveau rang MYTHIQUE
+
+- **🌌 1 000 000 de puissance requise** : la faction doit totaliser
+  **1 000 000 points de puissance globale** pour accéder au rang
+  `MYTHIQUE` (contre 250 000 pour le rang `LÉGENDAIRE` précédent).
+- **🎖️ Préfixe de chat exclusif** : préfixe `[☄]` violet sombre gras
+  visible dans le chat et dans le tab — pour signaler aux autres factions
+  qu'elles ont affaire à une « race supérieure ».
+- **🛡️ Buffs passifs maximaux** :
+  - **Hâte IV** (vitesse +40 %)
+  - **Régénération II**
+  - **Force II**
+  - **Résistance III**
+  - **Absorption I**
+- **🌫️ Aura renforcée** : portée portée à **20 blocs** autour du chef
+  de faction, ce qui couvre une base entière en activité.
+- **💠 Icône d'interface AMETHYST_SHARD** : nouveau matériau dans la
+  GUI des classements, pour bien distinguer MYTHIQUE des autres rangs.
+- **📌 Avantages débloqués** :
+  - **6 homes** de faction (vs 5 pour LÉGENDAIRE)
+  - **2 spawns** de faction supplémentaires
+  - **Bonus de guerre** supplémentaires dans `FactionPowerManager`
+
+### 🌌 Détails techniques MYTHIQUE
+
+- Le rang est implémenté comme un nouvel enum
+  `FactionRank.MYTHIQUE` avec un seuil
+  d'accès (`requiredPower = 1_000_000`).
+- Le rendu du préfixe utilise `ChatColor.DARK_PURPLE + ChatColor.BOLD`.
+- Les effets de potion sont appliqués via `PotionEffectType.STRENGTH` et
+  `PotionEffectType.RESISTANCE` (noms modernes de l'API Paper 1.21).
+- La particule autour des joueurs MYTHIQUE utilise `Particle.WITCH`
+  et `Particle.HAPPY_VILLAGER`.
+
+### 🔧 Corrections héritées de la v5.15.1 (Paper 1.21.4)
+
+- **🛏️ Soin pendant le sommeil** : `EntitySleepEvent` n'existant plus
+  côté Bukkit/Paper 1.21, la régénération des villageois endormis est
+  désormais déclenchée par un polling périodique via
+  `Villager#isSleeping()` (toutes les 20 ticks par défaut).
+- **🛒 Boutique joueurs** : `ShopGUI.NOT_ENOUGH_MONEY` renommé en
+  `NOT_ENOUGH_PAYMENT` (cohérence avec le reste du code).
+- **🛏️ GUI menu principal** : `Material.BED` → `RED_BED`,
+  `GOLD_STAINED_GLASS_PANE` → `YELLOW_STAINED_GLASS_PANE` (couleurs
+  modernes 1.21).
+- **🔊 Sons / particules** : `ENTITY_PLAYER_EAT` → `ENTITY_GENERIC_EAT`,
+  `BED` → `ENTITY_FOX_SLEEP`,
+  `VILLAGER_HAPPY` → `HAPPY_VILLAGER`.
+- **🗺️ Carte de faction** : `MapPalette.matchColor(Color)` →
+  `matchColor(r, g, b)` (Bukkit `Color` → entiers RGB).
+- **🪛 Imports JavaPlugin** : certains fichiers GUI utilisaient
+  `org.bukkit.plugin.JavaPlugin` (faute de frappe historique), corrigé
+  en `org.bukkit.plugin.java.JavaPlugin`.
+- **🪛 Import `PostType`** : `commerce.Contract` référençait
+  `PostType` sans l'importer — corrigé.
+- **🪛 Import `Location`** : `PlayerTeleportManager` utilise désormais
+  `org.bukkit.Location` correctement importé.
+- **🪛 `view` lambda** : `FactionMapManager` copiait `view` en variable
+  `final` avant le `forEach` pour respecter la règle
+  « effectively final » des lambdas.
+- **🪛 `cmdItem(...)` overload** : nouvelle surcharge
+  `cmdItem(Material, name, l1, l2, l3, enabled)` pour gérer les
+  descriptions sur trois lignes avec état activé/désactivé.
+
+### Avant / Après
+
+| Aspect | En v5.15.1 | En v5.15.2 |
+| --- | --- | --- |
+| Nombre de rangs | 7 (Pierre → Légendaire) | **8 (Pierre → MYTHIQUE)** |
+| Seuil du rang suprême | 250 000 (Légendaire) | **1 000 000 (MYTHIQUE)** |
+| Homes max au rang suprême | 5 | **6** |
+| Aura passive | 8 blocs | **20 blocs (MYTHIQUE)** |
+| Préfixe de chat au rang suprême | `[☄]` (en commun) | **`[☄]` violet sombre gras (exclusif)** |
+| Soin pendant le sommeil | Polling 20 ticks | **Polling 20 ticks (conservé)** |
 
 ---
 
@@ -233,7 +316,7 @@ rechargement du plugin.
 ## 📥 Installation
 
 1. Téléchargez la dernière release :
-   [**FactionPlugin-5.15.1.jar**](../../releases/download/v5.15.1/FactionPlugin-5.15.1.jar)
+   [**FactionPlugin-5.15.2.jar**](../../releases/download/v5.15.2/FactionPlugin-5.15.2.jar)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère
    automatiquement dans `plugins/FactionPlugin/`
@@ -417,7 +500,7 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.15.1.jar` (≈ 480 KB).
+Le JAR est produit dans `target/FactionPlugin-5.15.2.jar` (≈ 480 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -448,7 +531,21 @@ lancement :
 
 ## 🆕 Historique des versions
 
-### **v5.15.1** — *Villageois illimités, niveau max 100* 🏘️♾️📈 *(version actuelle)*
+### **v5.15.2** — *Rang MYTHIQUE — 1 000 000 de puissance* ☄💎🌌 *(version actuelle)*
+
+- **☄ Nouveau rang MYTHIQUE** au-dessus de LÉGENDAIRE, débloqué à **1 000 000 points de puissance**.
+- **🛡️ Buffs passifs ultimes** : Hâte IV + Régénération II + Force II + Résistance III + Absorption I.
+- **🌫️ Aura renforcée** portée à **20 blocs**.
+- **📌 Avantages** : 6 homes, 2 spawns supplémentaires, préfixe de chat exclusif `[☄]` violet gras.
+- **🔧 Corrections Paper 1.21.4** : imports JavaPlugin / Location / PostType, `cmdItem(...)` overload, `view` effectively-final, `MapPalette.matchColor(r,g,b)`, etc.
+
+### **v5.15.1** — *Villageois illimités, niveau max 100* 🏘️♾️📈
+
+- **♾️ Villageois recrutés : plus aucune limite par faction.**
+- **📈 Niveau max repoussé à 100** (au lieu de 5) — un vétéran peut devenir un tank de fin de partie.
+- **🛏️ Soin pendant le sommeil** : `EntitySleepEvent` remplacé par polling `Villager#isSleeping()` (Paper 1.21).
+- **🔧 Compat Paper 1.21.4** : `Enchantment.LUCK` → `LUCK_OF_THE_SEA`, `INCREASE_DAMAGE` → `STRENGTH`, etc.
+
 - **♾️ Villageois recrutés : recrutement illimité** — la limite `FACTION_FULL`
   a été retirée. Tu peux désormais aligner autant de villageois que ta
   faction peut en entretenir, idéal pour les grands empires et les serveurs

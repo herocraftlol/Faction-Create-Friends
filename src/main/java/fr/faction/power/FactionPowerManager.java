@@ -61,9 +61,9 @@ public class FactionPowerManager {
         // Effets passifs toutes les 3 secondes (60 ticks)
         effectTask   = Bukkit.getScheduler().runTaskTimer(
                 plugin, this::applyPassiveEffects, 60L, 60L);
-        // Particules LÉGENDAIRE toutes les secondes
+        // Particules de rang supérieur toutes les secondes
         particleTask = Bukkit.getScheduler().runTaskTimer(
-                plugin, this::applyLegendaryParticles, 20L, 20L);
+                plugin, this::applyRankParticles, 20L, 20L);
         // Premier calcul asynchrone après 2 ticks
         Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::recalculateAll, 40L);
     }
@@ -185,6 +185,7 @@ public class FactionPowerManager {
      * DIAMANT    → Hâte II + Regen I + Slow Falling + Résistance I
      * ÉMERAUDE   → Hâte III + Regen II + Force I + Résistance II
      * LÉGENDAIRE → Hâte III + Regen II + Force I + Résistance II + aura alliés
+     * MYTHIQUE   → Hâte IV + Regen II + Force II + Résistance III + Absorption I + aura renforcée
      *
      * Pas de Speed, pas de Jump Boost, pas de Fly.
      * PotionEffectType utilise les noms 1.21.
@@ -219,6 +220,14 @@ public class FactionPowerManager {
         final boolean ambient = true, particles = false;
 
         switch (rank) {
+            case MYTHIQUE -> {
+                effect(player, PotionEffectType.HASTE,             3, ambient, particles);
+                effect(player, PotionEffectType.REGENERATION,      1, ambient, particles);
+                effect(player, PotionEffectType.STRENGTH,   1, ambient, particles);
+                effect(player, PotionEffectType.RESISTANCE, 2, ambient, particles);
+                effect(player, PotionEffectType.ABSORPTION,        0, ambient, particles);
+                applyMythicAllyAura(player, faction);
+            }
             case LEGENDAIRE -> {
                 effect(player, PotionEffectType.HASTE,             2, ambient, particles);
                 effect(player, PotionEffectType.REGENERATION,      1, ambient, particles);
@@ -266,27 +275,51 @@ public class FactionPowerManager {
         }
     }
 
-    // ── Particules LÉGENDAIRE ────────────────────────────────────────────────────
+    /** Aura renforcée du rang MYTHIQUE : Regen II + Résistance I jusqu'à 20 blocs. */
+    private void applyMythicAllyAura(Player source, Faction faction) {
+        for (UUID uuid : faction.getMembers()) {
+            if (uuid.equals(source.getUniqueId())) continue;
+            Player ally = Bukkit.getPlayer(uuid);
+            if (ally == null || !ally.getWorld().equals(source.getWorld())) continue;
+            if (ally.getLocation().distanceSquared(source.getLocation()) <= 400) {
+                effect(ally, PotionEffectType.REGENERATION, 1, true, false);
+                effect(ally, PotionEffectType.RESISTANCE, 0, true, false);
+            }
+        }
+    }
 
-    private void applyLegendaryParticles(  ) {
+    // ── Particules LÉGENDAIRE / MYTHIQUE ─────────────────────────────────────────
+
+    private void applyRankParticles() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
             if (faction == null) continue;
-            if (getFactionRank(faction.getName()) != FactionRank.LEGENDAIRE) continue;
+            FactionRank rank = getFactionRank(faction.getName());
+            if (rank != FactionRank.LEGENDAIRE && rank != FactionRank.MYTHIQUE) continue;
 
-            // Halo doré tournant autour du joueur
-            double angle = (System.currentTimeMillis() % 4000) / 4000.0 * 2 * Math.PI;
-            for (int i = 0; i < 6; i++) {
-                double a = angle + i * Math.PI / 3;
+            // Halo tournant : doré pour Légendaire, violet céleste pour Mythique.
+            double angle = (System.currentTimeMillis() % (rank == FactionRank.MYTHIQUE ? 2800 : 4000))
+                    / (double) (rank == FactionRank.MYTHIQUE ? 2800 : 4000) * 2 * Math.PI;
+            int particleCount = rank == FactionRank.MYTHIQUE ? 8 : 6;
+            for (int i = 0; i < particleCount; i++) {
+                double a = angle + i * (2 * Math.PI / particleCount);
                 double px = player.getLocation().getX() + 0.9 * Math.cos(a);
                 double pz = player.getLocation().getZ() + 0.9 * Math.sin(a);
                 double py = player.getLocation().getY() + 1.1;
-                player.getWorld().spawnParticle(
-                        Particle.DUST,
-                        new Location(player.getWorld(), px, py, pz),
-                        1, 0, 0, 0, 0,
-                        new Particle.DustOptions(Color.fromRGB(0xFF, 0xD7, 0x00), 1.2f)
-                );
+                if (rank == FactionRank.MYTHIQUE) {
+                    player.getWorld().spawnParticle(Particle.END_ROD,
+                            new Location(player.getWorld(), px, py, pz),
+                            1, 0, 0, 0, 0);
+                    player.getWorld().spawnParticle(
+                            Particle.DUST, new Location(player.getWorld(), px, py, pz),
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(0x9B, 0x59, 0xFF), 1.4f));
+                } else {
+                    player.getWorld().spawnParticle(
+                            Particle.DUST, new Location(player.getWorld(), px, py, pz),
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(0xFF, 0xD7, 0x00), 1.2f));
+                }
             }
         }
     }

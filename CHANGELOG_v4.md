@@ -1,5 +1,131 @@
 # CHANGELOG — FactionPlugin v4.0.0
 
+## v5.15.0 — La vraie cause du tab HeroTab qui ne s'actualisait jamais
+
+- **Cause racine trouvée** : HeroTab lit une table MySQL `faction_tab_sync`
+  censée être écrite par une classe `FactionTabSync` côté FactionPlugin —
+  cette classe **n'existait tout simplement pas**. Tous mes correctifs
+  précédents (recrutement, renommage, disband, montée de rang) déclenchaient
+  bien une synchronisation immédiate, mais vers `WebMapSync` — un système
+  totalement différent qui alimente la carte du site, sans aucun rapport
+  avec le tab HeroTab. Rien n'avait donc jamais réellement pu mettre à jour
+  ce tab, peu importe le nombre de correctifs "de synchro" apportés.
+- **`FactionTabSync` créée** : écrit désormais réellement dans la table
+  `faction_tab_sync` (créée automatiquement si absente), en réutilisant la
+  connexion MySQL déjà configurée pour `/lier` (section `mysql:` du
+  config.yml — aucune configuration supplémentaire nécessaire si `/lier`
+  fonctionne déjà chez toi). Tourne en tâche de fond toutes les 30s, et est
+  déclenchée immédiatement sur les mêmes événements que `WebMapSync`
+  (recrutement, départ, kick, disband, renommage, montée de rang).
+- **Bug de compilation latent corrigé en passant** : `FactionPlugin.java`
+  utilisait la classe `Bukkit` à plusieurs endroits sans jamais l'importer —
+  un import manquant qui aurait empêché toute compilation propre du plugin.
+  Balayage fait sur l'ensemble du projet : aucun autre fichier n'a ce
+  problème (tous les autres utilisent un import `org.bukkit.*`).
+
+## v5.14.3 — Rang de faction : synchro immédiate vers le tab
+
+- Le tab **local** (ce serveur) était déjà rafraîchi immédiatement quand une
+  faction montait de rang. Manquait la synchro immédiate vers le site/
+  HeroTab (même famille de correctif que le recrutement, le renommage, le
+  disband...) : une montée de rang met maintenant à jour le tab partout
+  sans attendre le cycle normal de 60s.
+
+## v5.14.2 — Correctif d'accès aux coffres pendant la période de grâce
+
+- **Bug corrigé** : un joueur qui quitte une faction, en fonde/rejoint une
+  autre, claim des coffres, dissout cette faction puis retourne dans son
+  ancienne faction se retrouvait bloqué hors de ses propres coffres pendant
+  l'heure de grâce — puisqu'il n'était plus membre de la faction en cours de
+  dissolution au moment de la vérification d'accès.
+- Chaque membre présent au moment de la demande de dissolution est
+  maintenant explicitement autorisé sur tous les claims de sa faction pour
+  toute la durée de l'heure de grâce, quelle que soit la faction qu'il
+  rejoint entre-temps. Cette autorisation disparaît naturellement avec le
+  claim lorsqu'il est libéré à la fin du délai.
+- **Nettoyage des claims orphelins** : les claims encore marqués comme
+  appartenant à une faction dissoute *avant* l'existence de la libération
+  automatique (v5.14.0) restaient protégés indéfiniment, sans qu'aucune
+  faction existante ne puisse plus les gérer. Ils sont désormais libérés
+  automatiquement au démarrage du serveur, puis en filet de sécurité toutes
+  les 30 minutes (même mécanisme que le nettoyage des factions fantômes).
+
+## v5.14.1 — Nettoyage des factions fantômes existantes
+
+- Toute faction qui n'a **plus aucun membre** (héritée de bugs précédents où
+  la dissolution ne libérait jamais claims/coffre/banque/classement) est
+  désormais supprimée automatiquement, sans le délai d'une heure d'une
+  dissolution normale — personne n'est là pour venir récupérer quoi que ce
+  soit. Ses claims et coffres protégés sont libérés, son compte en banque et
+  son entrée de classement supprimés.
+- Nettoyage exécuté une première fois **au démarrage du serveur** (pour les
+  factions fantômes déjà existantes), puis en **filet de sécurité toutes les
+  30 minutes** au cas où une faction se retrouverait un jour sans membre par
+  un autre chemin que `/faction disband`.
+
+## v5.14.0 — Dissolution différée d'une heure
+
+- **`/faction disband` ne supprime plus rien instantanément.** La faction
+  continue d'exister normalement pendant **1 heure** (les membres gardent
+  l'accès à leurs claims et coffres protégés) — le temps de tout récupérer
+  et déplacer. Chaque membre en ligne reçoit un message l'en informant au
+  moment de la demande.
+- **Après 1h, suppression définitive et complète** :
+  - claims libérés (`ClaimManager.removeAllClaims`)
+  - coffre partagé de faction supprimé
+  - compte en banque de faction supprimé
+  - entrée retirée du classement de puissance
+  - faction réellement supprimée (elle n'existe plus nulle part)
+- **Bugs corrigés au passage** — la faction ne disparaissait en fait jamais
+  complètement, ni en dissolution immédiate ni en renommage :
+  - le compte en banque de faction n'était jamais supprimé au disband ni
+    déplacé au renommage → entrée fantôme éternelle dans `/faction
+    topbanque` (déjà en partie corrigé pour le renommage en v5.13.0 ; le
+    disband ne l'avait jamais fait du tout)
+  - les claims n'étaient jamais libérés au disband
+  - le cache de puissance/classement n'était jamais nettoyé, ni au disband
+    ni au renommage → entrée fantôme éternelle dans `/faction classement`
+  - résiste à un redémarrage serveur pendant le délai d'une heure (reprise
+    automatique de la suppression au démarrage suivant)
+
+## v5.13.1 — Correctif : tab non rafraîchi en quittant une faction
+
+- `/faction leave`, `/faction kick` et `/faction disband` ne rafraîchissaient
+  jamais le tab du/des joueur(s) concerné(s), contrairement à `/faction
+  create` et `/faction join` qui le faisaient déjà. Résultat : après avoir
+  quitté (ou été expulsé, ou vu sa faction dissoute), le tab pouvait garder
+  l'ancienne faction affichée jusqu'à ce qu'un autre événement déclenche un
+  rafraîchissement — notamment trompeur en rejoignant/fondant une nouvelle
+  faction juste après. Les trois appellent maintenant `tabManager.refresh(...)`
+  pour chaque joueur concerné, en plus de la synchronisation immédiate déjà
+  ajoutée en v5.13.0.
+
+## v5.13.0 — Correctifs classement, renommage, synchronisation
+
+- **Bug corrigé — la faction Légendaire ne s'ouvrait pas dans `/faction
+  classement`** : son icône (`NETHER_STAR`) était exactement le même
+  matériau que le bouton-titre décoratif du menu, et le code excluait ce
+  matériau de la détection de clic pour ne pas déclencher sur le titre — ce
+  qui bloquait aussi, par erreur, le clic sur n'importe quelle faction
+  légendaire. La détection se base maintenant sur l'emplacement (slot)
+  plutôt que sur le matériau : ça ne peut plus jamais se reproduire, quelle
+  que soit l'icône utilisée par un rang.
+- **Seuil du rang Légendaire** : passé de 60 000 à 100 000 de puissance.
+- **Renommage de faction** :
+  - Le cooldown "une fois par jour" n'existait en fait pas du tout — il est
+    maintenant réellement appliqué et persisté.
+  - Le changement de nom est désormais annoncé à **tout le serveur** (et
+    plus seulement aux membres de la faction).
+  - `/faction topbanque` affichait l'ancien nom après un renommage : le
+    solde de la banque de faction restait indexé sous l'ancienne clé. Il
+    est maintenant déplacé automatiquement vers le nouveau nom.
+- **Recrutement / kick / départ → tab qui ne s'actualisait pas
+  immédiatement.** Cause : `WebMapSync` (qui alimente le site, la base
+  partagée, et donc HeroTab) n'envoyait un instantané des factions que
+  toutes les 60 secondes. Un rejoin/kick/renommage déclenche maintenant un
+  envoi immédiat en plus du cycle normal, donc c'est visible sans délai
+  côté site/HeroTab au lieu d'attendre jusqu'à une minute.
+
 ## v5.12.0 — Commerce inter-villes (ports, gares, contrats)
 
 - **Nouveaux rôles Navigateur et Cheminot.** Un navigateur livre des

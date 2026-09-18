@@ -49,7 +49,8 @@ public class FactionRankingGUI implements Listener {
             Material.GOLD_INGOT,      // Or
             Material.DIAMOND,         // Diamant
             Material.EMERALD,         // Emeraude
-            Material.NETHER_STAR      // Légendaire
+            Material.NETHER_STAR,      // Légendaire
+            Material.AMETHYST_SHARD     // Mythique
     };
 
     // Slots utilisés par les entrées de faction dans le classement (doit rester identique
@@ -379,7 +380,7 @@ public class FactionRankingGUI implements Listener {
                 ChatColor.DARK_GRAY + "puissances individuelles + bonus membres"));
 
         FactionRank[] ranks = FactionRank.values();
-        int[] rankSlots = {19, 21, 23, 25, 29, 31, 33};
+        int[] rankSlots = {19, 21, 23, 25, 29, 31, 33, 35};
 
         for (int i = 0; i < ranks.length && i < rankSlots.length; i++) {
             FactionRank rank = ranks[i];

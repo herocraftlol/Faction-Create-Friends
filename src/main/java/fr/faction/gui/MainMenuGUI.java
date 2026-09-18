@@ -367,7 +367,7 @@ public class MainMenuGUI implements Listener {
 
         // Rangs visuels
         FactionRank[] ranks = FactionRank.values();
-        for (int i = 0; i < Math.min(ranks.length, 7); i++) {
+        for (int i = 0; i < Math.min(ranks.length, 8); i++) {
             FactionRank r = ranks[i];
             inv.setItem(27 + i, make(Material.PAPER, r.getLabel(),
                     "§7Puissance min : §e" + (int) r.puissanceMin,
@@ -419,7 +419,7 @@ public class MainMenuGUI implements Listener {
                 "§e/homes                  §7Lister ses homes",
                 "§e/fac setspawn           §7Spawn faction (chef)",
                 "§e/fac spawn              §7Aller au spawn faction",
-                "§7Homes selon le rang : 1→2→3→4→5",
+                "§7Homes selon le rang : 1→2→3→4→5→6",
                 "§8Distance min : 10 chunks (sauf faction/alliés)"));
 
         inv.setItem(16, make(Material.ENDER_PEARL, "§b§lTéléportation",
@@ -910,7 +910,7 @@ public class MainMenuGUI implements Listener {
 
     // ── Sous-GUI homes ──────────────────────────────────────────────────────────
 
-    /** Distribue jusqu'à 5 homes dans un inventaire 9×N. */
+    /** Distribue jusqu'à 6 homes dans un inventaire 9×N. */
     private int[] homeSlots(int count) {
         // Inventaire 27 slots (3 rangées) : on centre les items
         return switch (count) {
@@ -918,7 +918,8 @@ public class MainMenuGUI implements Listener {
             case 2 -> new int[]{11, 15};
             case 3 -> new int[]{10, 13, 16};
             case 4 -> new int[]{10, 12, 14, 16};
-            default -> new int[]{9, 11, 13, 15, 17}; // 5 homes
+            case 5 -> new int[]{9, 11, 13, 15, 17};
+            default -> new int[]{8, 10, 12, 14, 16, 18}; // 6 homes (Mythique)
         };
     }
 
@@ -1132,9 +1133,9 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Variante à 3 lignes de description + état activé/désactivé (lore + "Clic pour info" + grisé sinon). */
+    /** Variante avec 3 lignes de description (lore) + état activé/désactivé. */
     private ItemStack cmdItem(Material mat, String name, String l1, String l2, String l3, boolean enabled) {
-        if (enabled) return make(mat, name, l1, l2, l3, "", "§7Clic pour info");
+        if (enabled) return make(mat, name, l1, l2, l3);
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
