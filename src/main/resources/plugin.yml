@@ -1,11 +1,10 @@
 name: FactionPlugin
-version: 5.15.3
+version: 5.15.4
 main: fr.faction.FactionPlugin
 api-version: "1.21"
 author: FactionDev
 description: >
-  Plugin de factions complet — Paper 1.21. Claims, alliances, guerre,
-  shop global, banque, troc, homes, coffres privés, TPA, InvSee, stats, liaison site web.
+  Plugin de factions complet pour Paper 1.21.x — factions, alliances, guerres, claims, villages autonomes avec villageois recrutés, banque d'émeraudes, troc sécurisé, commerce inter-villes, shop global, statistiques, liaison site web (sans SQL), et synchronisation HeroTab. v5.15.4.
 
 commands:
   faction:

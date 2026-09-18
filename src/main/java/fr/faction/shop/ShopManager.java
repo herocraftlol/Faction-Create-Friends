@@ -66,10 +66,10 @@ public class ShopManager {
         } else {
             // Mode troc : l'acheteur doit avoir l'item de prix en quantité suffisante
             ItemStack need = listing.getPriceItem();
-            if (countMaterial(buyer, need.getType()) < need.getAmount())
+            if (countItemSimilar(buyer, need) < need.getAmount())
                 return BuyResult.NOT_ENOUGH_PAYMENT;
-            // Retirer le prix de l'acheteur
-            removeItemSimilar(buyer, need.getType(), need.getAmount());
+            // Retirer exactement l'item demandé (type + méta) de l'acheteur.
+            removeItemSimilar(buyer, need, need.getAmount());
             giveOrDrop(buyer, listing.getItemForSale().clone());
             // Donner le prix au vendeur
             paySellerItem(listing, buyer.getName(), need.clone());
@@ -168,9 +168,27 @@ public class ShopManager {
         player.getInventory().setContents(contents);
     }
 
-    /** Retire count items du type mat (peu importe enchantements/meta) */
-    private void removeItemSimilar(Player player, Material mat, int amount) {
-        removeMaterial(player, mat, amount);
+    private int countItemSimilar(Player player, ItemStack target) {
+        int total = 0;
+        for (ItemStack is : player.getInventory().getContents()) {
+            if (is != null && is.getType() != Material.AIR && is.isSimilar(target)) total += is.getAmount();
+        }
+        return total;
+    }
+
+    /** Retire exactement une référence d'ItemStack, quantité comprise. */
+    private void removeItemSimilar(Player player, ItemStack target, int amount) {
+        int rem = amount;
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int i = 0; i < contents.length && rem > 0; i++) {
+            ItemStack is = contents[i];
+            if (is == null || is.getType() == Material.AIR || !is.isSimilar(target)) continue;
+            int take = Math.min(is.getAmount(), rem);
+            is.setAmount(is.getAmount() - take);
+            if (is.getAmount() <= 0) contents[i] = null;
+            rem -= take;
+        }
+        player.getInventory().setContents(contents);
     }
 
     private void paySellerCurrency(ShopListing listing, String buyerName, ItemStack payment) {

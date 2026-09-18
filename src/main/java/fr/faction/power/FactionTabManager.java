@@ -88,9 +88,6 @@ public class FactionTabManager {
             if (rank == FactionRank.LEGENDAIRE) {
                 prefix = ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "[⚜] "
                         + ChatColor.RESET + ChatColor.LIGHT_PURPLE + "[" + faction.getName() + "] ";
-            } else if (rank == FactionRank.MYTHIQUE) {
-                prefix = ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "[☄] "
-                        + ChatColor.RESET + ChatColor.DARK_PURPLE + "[" + faction.getName() + "] ";
             } else {
                 prefix    = rank.getChatPrefix() + factionTag;
             }

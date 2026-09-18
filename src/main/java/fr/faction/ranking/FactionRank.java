@@ -15,7 +15,7 @@ import org.bukkit.ChatColor;
  *  ÉMERAUDE  → Hâte III + Regen II + Force I + double drop minerai
  *  LÉGENDAIRE→ Hâte III + Regen II + Force I + Résistance II + aura alliés
  *              + particules + prefix [LÉGENDAIRE] chat/tab
- *  MYTHIQUE   → Hâte IV + Regen II + Force II + Résistance III + Absorption I
+ *  MYTHIQUE  → Hâte IV + Regen II + Force II + Résistance III + Absorption I
  *              + aura renforcée + particules exclusives + 2 spawns / 6 homes
  */
 public enum FactionRank {
@@ -62,12 +62,12 @@ public enum FactionRank {
 
     MYTHIQUE(1_000_000, "Mythique", "☄", ChatColor.DARK_PURPLE,
             "Hâte IV + Regen II + Force II + Résistance III passifs",
-            "Absorption I permanente (♥♥ supplémentaires)",
+            "Absorption I permanente",
             "Aura de Regen II + Résistance I sur les alliés à ≤20 blocs",
-            "Particules violettes célestes exclusives",
-            "§52 spawns de faction",
-            "§56 homes personnels",
-            "§5Prefix §5[MYTHIQUE] §7exclusif dans le chat & tab");
+            "Particules célestes violettes exclusives",
+            "§5Respawn faction : 2 spawns",
+            "§5Jusqu'à 6 homes personnels",
+            "§5Préfixe [☄] Mythique exclusif dans le chat & tab");
 
     // ─────────────────────────────────────────────────────────────────────────
     public final double puissanceMin;
@@ -138,6 +138,7 @@ public enum FactionRank {
      *  Diamant         → 3 homes  (+1 vs avant)
      *  Émeraude        → 4 homes
      *  Légendaire      → 5 homes
+     *  Mythique        → 6 homes
      *
      * Note : sans faction → 1 home (géré dans HomeManager).
      */

@@ -91,7 +91,11 @@ public class VillagerManager implements Listener {
         new BukkitRunnable() {
             @Override public void run() { tickAll(); }
         }.runTaskTimer(plugin, 60L, interval);
-        startSleepWatcher();
+        // Polling de sommeil (remplace EntitySleepEvent supprimé en Paper 1.21.4)
+        long sleepPoll = plugin.getConfig().getLong("villager.sleep-poll-period", 20L);
+        new BukkitRunnable() {
+            @Override public void run() { sleepTickAll(); }
+        }.runTaskTimer(plugin, 60L, sleepPoll);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -171,12 +175,9 @@ public class VillagerManager implements Listener {
     // ════════════════════════════════════════════════════════════════════════
 
     private static final int MAX_LEVEL = 100;
-    /**
-     * Seuils historiques conservés pour les niveaux 1 à 5.
-     * À partir du niveau 6, le coût en XP continue d'augmenter progressivement.
-     */
+    /** Seuils historiques conservés pour les niveaux 1 à 5. */
     private static final int[] EARLY_XP_THRESHOLDS = {0, 50, 150, 350, 700};
-    /** Blocs posés/récoltés par passage d'IA selon le niveau (index = niveau - 1). */
+    /** Les niveaux 6+ gardent au minimum la cadence d'action du niveau 5. */
     private static final int[] BLOCKS_PER_ACTION = {1, 1, 2, 2, 3};
 
     private void addXp(RecruitedVillager rv, int amount) {
@@ -192,6 +193,7 @@ public class VillagerManager implements Listener {
     }
 
     private int computeLevelForXp(int xp) {
+        if (xp <= 0) return 1;
         int level = 1;
         for (int candidate = 2; candidate <= MAX_LEVEL; candidate++) {
             if (xp < xpThresholdForLevel(candidate)) break;
@@ -202,16 +204,17 @@ public class VillagerManager implements Listener {
 
     /** XP total cumulé requis pour atteindre un niveau donné. */
     private int xpThresholdForLevel(int level) {
-        int clamped = Math.max(1, Math.min(level, MAX_LEVEL));
-        if (clamped <= EARLY_XP_THRESHOLDS.length) return EARLY_XP_THRESHOLDS[clamped - 1];
-
-        long threshold = EARLY_XP_THRESHOLDS[EARLY_XP_THRESHOLDS.length - 1];
-        for (int candidate = EARLY_XP_THRESHOLDS.length + 1; candidate <= clamped; candidate++) {
-            // Chaque niveau supplémentaire demande 50 XP de plus que le précédent.
-            int xpCost = 350 + (candidate - EARLY_XP_THRESHOLDS.length) * 50;
-            threshold += xpCost;
+        int target = Math.max(1, Math.min(level, MAX_LEVEL));
+        if (target <= EARLY_XP_THRESHOLDS.length) {
+            return EARLY_XP_THRESHOLDS[target - 1];
         }
-        return (int) Math.min(Integer.MAX_VALUE, threshold);
+
+        // Niveau 6 = +400 XP, puis +50 XP supplémentaires par niveau.
+        long extraLevels = target - 5L;
+        long firstCost = 400L;
+        long lastCost = firstCost + (extraLevels - 1L) * 50L;
+        long extraXp = extraLevels * (firstCost + lastCost) / 2L;
+        return (int) Math.min(Integer.MAX_VALUE, 700L + extraXp);
     }
 
     private void onLevelUp(RecruitedVillager rv) {
@@ -255,7 +258,7 @@ public class VillagerManager implements Listener {
     }
 
     private int blocksPerAction(RecruitedVillager rv) {
-        int idx = Math.max(1, Math.min(rv.getLevel(), MAX_LEVEL)) - 1;
+        int idx = Math.max(1, Math.min(rv.getLevel(), BLOCKS_PER_ACTION.length)) - 1;
         return BLOCKS_PER_ACTION[idx];
     }
 
@@ -873,36 +876,27 @@ public class VillagerManager implements Listener {
 
     // ════════════════════════════════════════════════════════════════════════
     // SOIN EN DORMANT DANS UN LIT
-    // (EntitySleepEvent a été supprimé côté Bukkit/Paper 1.21 ; on remplace
-    //  l'event par un polling périodique de Villager#isSleeping().)
+    // EntitySleepEvent a été supprimé en Paper 1.21.4 — on détecte le sommeil
+    // par polling de Villager#isSleeping() et on déclenche la régénération
+    // uniquement à la transition endormi→éveillé pour ne pas soigner en boucle.
     // ════════════════════════════════════════════════════════════════════════
 
-    /** Map des villageois actuellement en train de dormir : rv.getEntityId() → tick auquel on a détecté le sommeil. */
-    private final java.util.Map<java.util.UUID, Long> sleepingVillagers = new java.util.HashMap<>();
+    private final java.util.Map<UUID, Boolean> wasSleeping = new java.util.HashMap<>();
 
-    /** Détection périodique de l'endormissement (l'event Bukkit n'existe plus en 1.21). */
-    public void startSleepWatcher() {
-        long period = plugin.getConfig().getLong("villager.sleep-poll-period", 20L);
-        new BukkitRunnable() {
-            @Override public void run() {
-                long now = System.currentTimeMillis();
-                for (RecruitedVillager rv : villagers.values()) {
-                    Entity e = Bukkit.getEntity(rv.getEntityId());
-                    if (!(e instanceof Villager v) || v.isDead()) continue;
-                    boolean sleeping = v.isSleeping();
-                    java.util.UUID id = rv.getEntityId();
-                    if (sleeping) {
-                        // Démarre le soin si on vient de le détecter endormi
-                        if (!sleepingVillagers.containsKey(id)) {
-                            sleepingVillagers.put(id, now);
-                            startSleepHealing(rv);
-                        }
-                    } else {
-                        sleepingVillagers.remove(id);
-                    }
-                }
+    private void sleepTickAll() {
+        for (RecruitedVillager rv : new ArrayList<>(villagers.values())) {
+            Entity e = Bukkit.getEntity(rv.getEntityId());
+            if (!(e instanceof Villager v) || v.isDead()) {
+                wasSleeping.remove(rv.getEntityId());
+                continue;
             }
-        }.runTaskTimer(plugin, period, period);
+            boolean sleeping = v.isSleeping();
+            Boolean prev = wasSleeping.put(rv.getEntityId(), sleeping);
+            // Transition éveillé → endormi : on lance la régénération
+            if (sleeping && (prev == null || !prev)) {
+                startSleepHealing(rv);
+            }
+        }
     }
 
     /** Petit soin périodique pendant quelques dizaines de secondes après qu'il se soit couché. */

@@ -1,16 +1,25 @@
 # 🏰 FactionPlugin
 
-> **Le plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé à la seconde**, et plus encore.
+> **Le plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes avec villageois recrutés, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé**, et **liaison au site web sans SQL**.
 
-![Version](https://img.shields.io/badge/version-5.15.0-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.15.4-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green) ![SQL](https://img.shields.io/badge/liaison_web-sans_SQL-success)
 
 ---
 
 ## ✨ Qu'est-ce que FactionPlugin ?
 
-**FactionPlugin** est un plugin Minecraft complet pensé pour transformer votre serveur Paper en un véritable univers de factions. Conçu pour les serveurs survie PvP, il réunit dans une seule commande `/faction` (et ses alias `/f`, `/fac`) tout ce qu'il faut pour faire vivre un mode factions riche et moderne : **territoires**, **diplomatie**, **économie**, **villageois recrutés autonomes**, **commerce régional entre villes** par ports et gares, **statistiques**, et même la **synchronisation de l'onglet HeroTab** avec votre site web.
+**FactionPlugin** est un plugin Minecraft complet pensé pour transformer votre serveur Paper en un véritable univers de factions. Conçu pour les serveurs survie PvP, il réunit dans une seule commande `/faction` (et ses alias `/f`, `/fac`) tout ce qu'il faut pour faire vivre un mode factions riche et moderne :
 
-Une seule commande pour piloter une faction, ses villages, ses alliances, ses guerres, son économie, ses contrats, ses villageois, ses homes, sa boutique, ses stats et son onglet global. **Pas une demi-douzaine de plugins à installer, configurer et faire cohabiter** — un seul `.jar`, une seule base de données YAML, et c'est parti.
+- 🏰 **Territoires** revendiqués et protégés par chunk
+- 🤝 **Diplomatie** complète : alliances, guerres, traités, pillage
+- 💰 **Économie** intégrée : banque d'émeraudes, shop global, troc sécurisé
+- 👥 **Villages autonomes** avec villageois vanilla **recrutés**, qui construisent, combattent, récoltent et livrent
+- 🚢 **Commerce inter-villes** par contrats, ports et gares
+- 📊 **Statistiques** et classements détaillés
+- 🔌 **Liaison site web** simplifiée — plus besoin de base MySQL !
+- 🏷️ **Tab HeroTab synchronisé** à la seconde sur tout votre réseau
+
+**Une seule commande** pour piloter une faction, ses villages, ses alliances, ses guerres, son économie, ses contrats, ses villageois, ses homes, sa boutique, ses stats et son onglet global. **Pas une demi-douzaine de plugins à installer, configurer et faire cohabiter** — un seul `.jar`, une seule base YAML, et c'est parti.
 
 Conçu pour **Paper 1.21.4** (API Bukkit + Paper), **Java 21**, prêt à l'emploi : posez le `.jar` dans `plugins/`, redémarrez, et tout est en place.
 
@@ -21,38 +30,71 @@ Conçu pour **Paper 1.21.4** (API Bukkit + Paper), **Java 21**, prêt à l'emplo
 - 🎮 **Petits serveurs survie PvP** qui veulent un mode factions riche sans empiler 5 plugins incompatibles.
 - 🏰 **Serveurs « war zone »** qui ont besoin d'alliances, de guerres, de territoires protégés et de grandes armées de villageois.
 - 💰 **Serveurs économie** avec shop global paginé, banque de faction, troc sécurisé, et commerce inter-villes par contrats.
-- 🌐 **Réseaux avec site web** qui veulent synchroniser factions, rangs et carte en direct avec un back-office (HeroTab, WebMap).
+- 🌐 **Réseaux avec site web** qui veulent synchroniser factions, rangs et carte en direct avec un back-office — **sans avoir à monter une base MySQL**.
 
 ---
 
-## 🆕 Nouveautés de la v5.15.0 — *La vraie cause du tab HeroTab enfin corrigée* 🏷️✨🐛
+## 🆕 Nouveautés de la v5.15.4 — *Liaison site web sans SQL* 🔌🌐✨
 
-Cette version s'attaque **à la vraie cause racine** d'un bug que toutes les versions précédentes tentaient de corriger — sans y parvenir, parce qu'elles visaient la mauvaise cible.
+Cette version supprime la dépendance à MySQL pour la commande **`/lier`**. Vous n'avez plus besoin de configurer une base de données partagée entre le plugin et votre site web : tout passe maintenant par une simple **API HTTP** entre FactionPlugin et le backend du site.
 
 ### 🎯 En deux mots
 
-HeroTab (le plugin proxy qui affiche votre faction et votre rang dans l'onglet global du serveur) lit une table MySQL `faction_tab_sync` qui était censée être alimentée par une classe `FactionTabSync` côté FactionPlugin — **et cette classe n'avait tout simplement jamais été écrite**. Résultat : le tab restait figé, peu importe les correctifs de « synchro » apportés.
+Avant la v5.15.4, `/lier` exigeait que vous installiez, configuriez et mainteniez une **base MySQL** partagée entre le plugin et le backend Node.js du site (table `web_link_codes`). C'était lourd, source de pannes, et inutile pour un serveur solo ou un petit réseau.
 
-Cette version **crée enfin la classe manquante**. Onglet HeroTab, carte web, sous-serveurs du réseau : tout est désormais cohérent en permanence, sans aucun délai perceptible.
+Avec la v5.15.4, **tout passe par HTTP** : le plugin génère le code, l'envoie au site via `POST /api/faction/push/link-code` avec une clé d'API, et le site stocke le code dans son propre `data/local-game.json`. Plus de base à synchroniser, plus de droits à授, plus de migration à prévoir.
 
 ### ✨ Ce que ça change concrètement
 
-| Événement | Avant v5.15.0 | Depuis v5.15.0 |
+| Aspect | Avant v5.15.4 | Depuis v5.15.4 |
 |---|---|---|
-| Onglet HeroTab après un **recrutement** | ❌ jamais | ✅ instantané |
-| Onglet HeroTab après un **départ / kick** | ❌ jamais | ✅ instantané |
-| Onglet HeroTab après un **disband** | ❌ jamais | ✅ instantané |
-| Onglet HeroTab après un **renommage** | ❌ jamais | ✅ instantané |
-| Onglet HeroTab après une **montée de rang** | ⏳ jusqu'à 60 s | ✅ instantané |
-| Onglet HeroTab cycle normal | toutes les 60 s | toutes les 30 s |
-| `mvn clean package` | ⚠️ import manquant aléatoire | ✅ toujours propre |
+| Base MySQL pour `/lier` | ✅ obligatoire | ❌ plus nécessaire |
+| Configuration plugin | Section `mysql:` complète | Juste `site-url` + `faction-api-key` |
+| Synchronisation plugin ↔ site | Via SQL partagé | Via HTTP + clé d'API |
+| Stockage du code de liaison | Table `web_link_codes` | `data/local-game.json` côté site |
+| Mode « solo /单机 » | ⚠️ cassé sans MySQL | ✅ fonctionne out-of-the-box |
 
-### 📜 Détails du correctif
+### 📜 Détails techniques
 
-- 🐛 **Cause racine identifiée et corrigée** : la classe `FactionTabSync` est créée. Elle écrit dans la table `faction_tab_sync` lue par HeroTab, en réutilisant la connexion MySQL déjà configurée pour `/lier` (section `mysql:` du `config.yml`) — **aucune configuration supplémentaire n'est nécessaire si `/lier` fonctionne déjà chez toi**.
-- 🛡️ **Table créée automatiquement** si elle n'existe pas, avec exactement les colonnes attendues par HeroTab : `uuid`, `faction_name`, `rank_name`, `rank_color` (au format `&x` legacy), `rank_icon`.
-- ⚡ **Tâche de fond toutes les 30 s** + push immédiat sur les mêmes événements que `WebMapSync` : recrutement, départ, kick, disband, renommage, montée de rang. L'onglet est synchronisé **sans aucun délai**, où que soit le joueur sur le réseau.
-- 🔧 **Bug de compilation latent corrigé en passant** : `FactionPlugin.java` référençait la classe `Bukkit` sans l'importer — un import manquant qui aurait empêché toute compilation propre dans certaines configurations. Un balayage complet du projet a confirmé qu'aucun autre fichier ne présente ce problème. `mvn clean package` produit désormais un `.jar` valide du premier coup.
+- 🌐 **Flux HTTP complet** : le plugin POST le code au site via l'endpoint `/api/faction/push/link-code`.
+- 🔑 **Authentification simple** par clé d'API partagée (header `X-Faction-Key`) — déjà configurée côté site dans `.env`.
+- 🪶 **Zéro SQL** pour `/lier` : la section `mysql:` du `config.yml` est purement optionnelle.
+- 🛡️ **FactionTabSync** reste optionnel : si vous avez déjà configuré la section `mysql:` pour le tab HeroTab, elle fonctionne comme avant. Sinon, `/lier` marche quand même.
+- 🔁 **Rétro-compatible** : la commande `/lier` garde exactement la même interface pour les joueurs (code à 6 chiffres, expiration 10 min, etc.).
+
+### 🛠️ Configuration minimale
+
+```yaml
+# config.yml — minimal pour /lier
+site-url: "http://192.168.1.196:3000"
+faction-api-key: "la-même-clé-que-dans-le-.env-du-site"
+
+# Section mysql: OPTIONNELLE — uniquement si vous utilisez FactionTabSync
+# mysql:
+#   host: 127.0.0.1
+#   port: 3306
+#   database: herocraft
+#   user: herocraft_user
+#   password: mot-de-passe
+```
+
+Et côté site, dans `.env` :
+
+```env
+FACTION_API_KEY=la-même-clé-que-dans-le-config.yml-du-plugin
+GAME_PUSH_PATH=/api/faction/push/link-code
+```
+
+### 🔧 Autres changements de la v5.15.4
+
+- 🛠️ **Compilation Paper 1.21.4 propre** : import `org.bukkit.plugin.java.JavaPlugin` corrigé dans `ShopCreateGUI` et `SortMenuGUI`.
+- 📦 **Imports manquants ajoutés** : `Location`, `PostType`, `Material`, etc.
+- 🌙 **Soin en dormant** : `EntitySleepEvent` (supprimé en 1.21.4) remplacé par un **polling de `Villager#isSleeping()`** — la régénération se déclenche toujours à la transition éveillé → endormi.
+- 🗺️ **Carte de faction** : `MapPalette.matchColor(Color)` corrigé pour la signature `matchColor(r, g, b)` de Paper 1.21.4.
+- 🛏️ **Matériaux renommés** : `Material.BED` → `RED_BED`, `GOLD_STAINED_GLASS_PANE` → `YELLOW_STAINED_GLASS_PANE`.
+- ✨ **Enchantements renommés** : `LUCK` → `LUCK_OF_THE_SEA`, `INCREASE_DAMAGE` → `STRENGTH`, `DAMAGE_RESISTANCE` → `RESISTANCE`.
+- 🎵 **Sons/Particules mis à jour** : `ENTITY_PLAYER_EAT` → `ENTITY_GENERIC_EAT`, `SPELL_WITCH` → `WITCH`, `VILLAGER_HAPPY` → `HAPPY_VILLAGER`.
+- 🧱 **`cmdItem` enrichi** : nouvelle surcharge `(Material, name, l1, l2, l3, enabled)` pour les tooltips à plusieurs lignes.
 
 ---
 
@@ -65,10 +107,10 @@ Crée ta faction (`/faction create <nom>`), invite des joueurs, désigne un sous
 Réclame des chunks (`/faction claim`), configure des **permissions fines par joueur** sur chaque claim, visualise tes territoires en direct avec la **mini-map de faction** (`/faction claimmap`), protège l'accès aux non-membres et aux alliés.
 
 ### 🤝 Alliances & guerres
-Propose une alliance à une autre faction, accepte ou refuse, romps quand tu veux. Déclare la guerre, combats avec buffs de faction, capitule ou pille le coffre du vaincu (si négocié). Le chat et le tag de guerre (⚔) sont automatiquement appliqués aux combatants.
+Propose une alliance à une autre faction, accepte ou refuse, romps quand tu veux. Déclare la guerre, combats avec buffs de faction, capitule ou pille le coffre du vaincu (si négocié). Le chat et le tag de guerre (⚔) sont automatiquement appliqués aux combattants.
 
-### 👥 Villages autonomes
-Recrute des villageois vanilla et attribue-leur un rôle : **Constructeur** 🏗️, **Guerrier** ⚔️, **Archer** 🏹, **Défenseur** 🛡️, **Récolteur** 🌾, **Navigateur** 🚢 ou **Cheminot** 🚂. Ils construisent, combattent, récoltent, transportent — tout seuls. Ils montent de niveau, s'équipent, se reposent et partagent la nourriture entre eux. Aucun plugin d'IA à part : c'est **dans FactionPlugin**.
+### 👥 Villages autonomes avec villageois recrutés
+Recrute des villageois vanilla et attribue-leur un rôle : **Constructeur** 🏗️, **Guerrier** ⚔️, **Archer** 🏹, **Défenseur** 🛡️, **Récolteur** 🌾, **Navigateur** 🚢 ou **Cheminot** 🚂. Ils construisent, combattent, récoltent, transportent — tout seuls. Ils montent de niveau (jusqu'à 100), s'équipent, se reposent et partagent la nourriture entre eux. Aucun plugin d'IA à part : c'est **dans FactionPlugin**.
 
 ### 🚢 Commerce inter-villes
 Définis un **port** ou une **gare** dans chaque village, crée un **contrat de livraison** entre deux villes, assigne-le à un villageois **Navigateur** (bateau) ou **Cheminot** (minecart) — il livrera la marchandise automatiquement, fret protégé par alliance.
@@ -77,7 +119,7 @@ Définis un **port** ou une **gare** dans chaque village, crée un **contrat de 
 **Banque d'émeraudes** par faction (dépôt, retrait, historique), **shop global paginé** avec recherche par mot-clé et tri prix ↑/↓, 4 monnaies (fer, or, diamant, émeraude), **troc sécurisé joueur↔joueur** avec confirmation des deux parties et anti-scam.
 
 ### ⚡ Système de puissance & rangs
-Chaque joueur génère de la **Puissance Individuelle** basée sur ses kills, ses blocs cassés, ses avancements, son temps de jeu, etc. La somme forme la **Puissance Globale** de la faction. **8 rangs** de Pierre à **Mythique ☄** (1 000 000 pts), avec **effets passifs** (Speed, Strength, Resistance, Regeneration, Haste) qui augmentent à mesure que tu montes.
+Chaque joueur génère de la **Puissance Individuelle** basée sur ses kills, ses blocs cassés, ses avancements, son temps de jeu, etc. La somme forme la **Puissance Globale** de la faction. **8 rangs** de Pierre à **Mythique ☄** (1 000 000 pts), avec **effets passifs** (Speed, Strength, Resistance, Regeneration, Haste) qui augmentent à mesure que tu montes. Aura de 20 blocs au rang Mythique, préfixe exclusif `[☄]`, 6 homes personnels, 2 spawns supplémentaires.
 
 ### 📊 Statistiques & classements
 `/faction stats [joueur]` : kills, morts, mobs tués, dégâts, blocs, temps de jeu, K/D, advancements, dates de connexion. `/faction classementjoueurs <categorie>` : top 10 joueurs par catégorie (mobs, pvp, morts, blocs, temps, dégâts, kd, advancements).
@@ -85,8 +127,14 @@ Chaque joueur génère de la **Puissance Individuelle** basée sur ses kills, se
 ### 🏠 Homes & TPA
 Homes personnels (jusqu'à 6 au rang Mythique), `/sethome`, `/home`, `/delhome`. Téléportation entre joueurs avec `/tpa`, `/tpaccept`, `/tpdeny`, warmup et cooldown.
 
-### 🔌 Liaison site web
-`/lier` synchronise ton compte Minecraft avec le site web. Depuis la v5.15.0, **l'onglet HeroTab est lui aussi synchronisé** via la classe `FactionTabSync` — finies les déconnexions entre l'onglet, la carte et le site.
+### 🔌 Liaison site web (sans SQL !)
+`/lier` synchronise ton compte Minecraft avec le site web. **Depuis la v5.15.4, plus besoin de MySQL** — le plugin parle directement au backend Node.js via une API HTTP simple. La commande est compatible avec les versions antérieures du site (qui utilisaient MySQL) tant que le backend expose les bons endpoints.
+
+### 🛡️ Coffres privés
+Sneak + clic droit avec un panneau sur un coffre pour le verrouiller. Seul le propriétaire (et les admins `faction.admin`) peut l'ouvrir. Protection contre la casse du bloc.
+
+### 🛠️ Outils admin
+`/faction invsee <joueur>` : consultation de l'inventaire d'un joueur en lecture seule (admin). `/faction sort` : tri automatique de coffres et d'inventaires par catégorie.
 
 ---
 
@@ -97,7 +145,7 @@ Homes personnels (jusqu'à 6 au rang Mythique), `/sethome`, `/home`, `/delhome`.
 3. Redémarrez le serveur.
 4. Le fichier `config.yml` est généré automatiquement dans `plugins/FactionPlugin/`.
 
-> 📌 **Aucun changement de format de données** : vos fichiers `factions.yml`, `claims.yml`, `bank.yml`, `ranking.yml`, `map.yml`, etc. restent compatibles. La table MySQL `faction_tab_sync` est créée automatiquement au premier démarrage si elle n'existe pas encore.
+> 📌 **Aucun changement de format de données** : vos fichiers `factions.yml`, `claims.yml`, `bank.yml`, `ranking.yml`, `map.yml`, etc. restent compatibles. La table MySQL `faction_tab_sync` n'est créée que si vous configurez explicitement la section `mysql:` (optionnelle depuis la v5.15.4).
 
 ### 🔧 Configuration
 
@@ -107,7 +155,8 @@ Le fichier `config.yml` vous permet de personnaliser :
 - les permissions par rôle
 - les paramètres de faction (coûts, limites, taille de faction max)
 - les seuils de rangs et les buffs passifs
-- la **section `mysql:`** pour `/lier` et la synchro `FactionTabSync` (optionnel)
+- la **section `mysql:`** (optionnelle depuis la v5.15.4) pour `/lier` et `FactionTabSync`
+- **`site-url` + `faction-api-key`** : suffisant pour activer `/lier` sans MySQL
 
 ---
 
@@ -142,9 +191,10 @@ Le fichier `config.yml` vous permet de personnaliser :
 | `/faction sethome [nom]`, `/faction home [nom]`, `/faction delhome <nom>` | `/sethome`, `/home`, `/delhome` | Gestion des homes |
 | `/faction tpa <joueur>`, `tpaccept`, `tpdeny` | `/tpa`, `/tpaccept`, `/tpdeny` | Téléportation entre joueurs |
 | `/faction invsee <joueur>` | — | Ouvre l'inventaire d'un joueur (admin) |
-| `/faction lier [statut]` | `/lier` | Lie le compte Minecraft au compte site web |
+| `/faction lier [statut]` | `/lier` | Lie le compte Minecraft au compte site web (**sans SQL**) |
 | `/faction rename <nom>` | — | Renomme la faction |
 | `/faction setspawn [1\|2]` | — | Définit un spawn de faction |
+| `/faction sort` | — | Tri automatique d'un coffre ou inventaire |
 
 ---
 
@@ -172,13 +222,14 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.15.0.jar` (≈ 480 KB).
+Le JAR est produit dans `target/FactionPlugin-5.15.4.jar` (≈ 480 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
 - **Java 21** (compilé en target 21)
 - **Shaded JAR** : aucun driver MySQL embarqué (Paper le fournit)
 - **YAML** pour toute la persistance locale
+- **HTTP** pour `/lier` (pas de SQL côté plugin)
 
 ---
 
@@ -188,7 +239,7 @@ Tous les fichiers sont créés dans `plugins/FactionPlugin/` au premier lancemen
 
 | Fichier | Contenu |
 |---|---|
-| `config.yml` | Configuration globale (messages, limites, paramètres IA, section `mysql:`) |
+| `config.yml` | Configuration globale (messages, limites, paramètres IA, section `mysql:` optionnelle) |
 | `factions.yml` | Factions, claims, alliances, guerres, sous-chefs |
 | `stats.yml` | Statistiques de chaque joueur |
 | `villagers.yml` | Villageois recrutés, équipement, niveaux, chantiers |
@@ -201,11 +252,36 @@ Tous les fichiers sont créés dans `plugins/FactionPlugin/` au premier lancemen
 
 ## 🆕 Historique des versions
 
-### **v5.15.0** — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛 *(version actuelle)*
-- 🐛 **Cause racine identifiée et corrigée** : la classe `FactionTabSync` est créée. Elle écrit dans la table MySQL `faction_tab_sync` lue par HeroTab, en réutilisant la connexion MySQL déjà configurée pour `/lier`. **Aucune configuration supplémentaire n'est nécessaire** si `/lier` fonctionne déjà chez toi.
-- 🛡️ **Table créée automatiquement** si elle n'existe pas, avec exactement les colonnes attendues par HeroTab : `uuid`, `faction_name`, `rank_name`, `rank_color`, `rank_icon`.
-- ⚡ **Tâche de fond toutes les 30 s** + push immédiat sur recrutement, départ, kick, disband, renommage, montée de rang. **L'onglet est synchronisé sans aucun délai**, où que soit le joueur sur le réseau.
-- 🔧 **Bug de compilation latent corrigé en passant** : `FactionPlugin.java` référençait `Bukkit` sans l'importer — un balayage complet du projet a confirmé qu'aucun autre fichier ne présente ce problème. `mvn clean package` produit un `.jar` valide du premier coup.
+### **v5.15.4** — *Liaison site web sans SQL* 🔌🌐 *(version actuelle)*
+- 🌐 **Plus de MySQL pour `/lier`** : la commande parle désormais directement au backend du site via HTTP (`POST /api/faction/push/link-code` avec clé d'API).
+- 🔑 **Authentification simple** par header `X-Faction-Key` — plus de table `web_link_codes` à synchroniser.
+- 🪶 **Configuration minimale** : juste `site-url` + `faction-api-key` dans `config.yml`. La section `mysql:` reste **optionnelle** pour `FactionTabSync`.
+- 🛠️ **Compilation Paper 1.21.4 propre** : import `org.bukkit.plugin.java.JavaPlugin` corrigé, imports manquants ajoutés.
+- 🌙 **Soin en dormant** : `EntitySleepEvent` (supprimé) remplacé par polling de `Villager#isSleeping()`.
+- 🗺️ **Carte de faction** : `MapPalette.matchColor(Color)` corrigé pour Paper 1.21.4.
+- 🛏️ **Matériaux / Enchantements / Sons / Particules** mis à jour pour les nouvelles API 1.21.4.
+- 🧱 **`cmdItem` enrichi** : nouvelle surcharge pour les tooltips à plusieurs lignes.
+
+### **v5.15.3** — *Correctif boutique + WebMapSync JSON* 🛒🛠️
+- 🛒 **Bug critique de duplication** dans `/faction shop create` corrigé (items fantômes).
+- 🪛 **WebMapSync** : échappement JSON complet (`{\"cx\":...}` au lieu de `{"cx":...}`).
+
+### **v5.15.2** — *Rang MYTHIQUE — 1 000 000 de puissance* ☄💎🌌
+- 🆕 **Nouveau rang MYTHIQUE** débloqué à 1 000 000 pts de puissance.
+- 🛡️ **Buffs passifs** : Hâte IV + Régénération II + Force II + Résistance III + Absorption I.
+- 🌫️ **Aura renforcée** portée à 20 blocs.
+- 🎖️ **Préfixe de chat exclusif** `[☄]` violet sombre gras.
+- 📌 **6 homes** et **2 spawns supplémentaires**.
+
+### **v5.15.1** — *Villageois illimités, niveau max 100* 🏘️♾️📈
+- ♾️ **Recrutement de villageois illimité** par faction.
+- 📈 **Villageois jusqu'au niveau 100** avec seuils d'XP rétrocompatibles.
+
+### **v5.15.0** — *La vraie cause du tab HeroTab corrigée* 🏷️✨🐛
+- 🐛 **Cause racine identifiée et corrigée** : la classe `FactionTabSync` est créée. Elle écrit dans la table MySQL `faction_tab_sync` lue par HeroTab.
+- 🛡️ **Table créée automatiquement** si elle n'existe pas.
+- ⚡ **Tâche de fond toutes les 30 s** + push immédiat sur recrutement, départ, kick, disband, renommage, montée de rang.
+- 🔧 **Bug de compilation latent corrigé en passant** : `FactionPlugin.java` référençait `Bukkit` sans l'importer.
 
 > ℹ️ Cette version remplace tous les correctifs précédents de synchro tab en s'attaquant à la vraie cause racine.
 
@@ -219,7 +295,7 @@ Tous les fichiers sont créés dans `plugins/FactionPlugin/` au premier lancemen
 - Bug corrigé : `/faction leave`, `/faction kick` et `/faction disband` rafraîchissent maintenant l'onglet correctement.
 - Compat Paper API 1.21.4 (renommages `Material`, `Enchantment`, `PotionEffectType`, `Sound`, `Particle`).
 
-### **v5.12.0** — *Commerce inter-villes 🚢🚂📦*
+### **v5.12.0** — *Commerce inter-villes* 🚢🚂📦
 - Rôles **Navigateur** (bateau entre ports) et **Cheminot** (minecart entre gares).
 - Définition de ports/gares, contrats de livraison (`/faction contrat …`), fret protégé par alliance.
 

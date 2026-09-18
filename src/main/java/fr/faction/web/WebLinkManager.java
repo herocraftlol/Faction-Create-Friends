@@ -2,207 +2,165 @@ package fr.faction.web;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.sql.*;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Random;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.logging.Logger;
 
 /**
- * Gère la liaison compte-en-jeu ↔ compte site web.
+ * Liaison compte Minecraft ↔ compte site web sans SQL.
  *
- * Flux complet :
- *  1. Joueur tape /lier en jeu
- *  2. FactionPlugin génère un code à 6 chiffres et l'insère dans `web_link_codes`
- *     (avec expiration dans 10 minutes)
- *  3. Joueur va sur le site, se connecte avec son compte web, entre le code
- *  4. Le site lit `web_link_codes`, vérifie le code, insère dans `account_links`
- *     et supprime le code
+ * Flux :
+ *  1. /lier génère un code à 6 chiffres.
+ *  2. Le plugin POST le code au backend du site (/api/faction/push/link-code).
+ *  3. Le site stocke le code dans data/local-game.json.
+ *  4. Le joueur saisit le code sur le site.
+ *  5. Le site crée la liaison accountLinks dans le même fichier JSON.
  *
- * Configuration dans config.yml du plugin (section mysql:) :
- *   mysql:
- *     host: 127.0.0.1
- *     port: 3306
- *     database: herocraft          ← MÊME base que le site (GAME_DB_NAME dans .env)
- *     user: herocraft_user
- *     password: mot-de-passe
- *
- * La table web_link_codes est créée automatiquement si elle n'existe pas.
- * Elle est identique à celle attendue par le backend Node.js.
+ * Configuration :
+ *   site-url: "http://192.168.1.196:3000"
+ *   faction-api-key: "la-même-clé-que-dans-le-.env-du-site"
  */
 public class WebLinkManager {
 
     private final JavaPlugin plugin;
     private final Logger log;
-    private Connection connection;
-    private boolean enabled = false;
+    private final String siteUrl;
+    private final String apiKey;
+    private final boolean enabled;
 
-    // Durée de validité d'un code en minutes
     private static final int CODE_EXPIRY_MINUTES = 10;
+    private static final int CONNECT_TIMEOUT_MS = 5000;
+    private static final int READ_TIMEOUT_MS = 5000;
+
+    private static final Pattern PSEUDO_PATTERN =
+            Pattern.compile("\\\"pseudo\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\\\\\"])*)\\\"");
+    private static final Random RNG = new Random();
 
     public WebLinkManager(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.log    = plugin.getLogger();
-        connect();
-    }
+        this.log = plugin.getLogger();
+        this.siteUrl = plugin.getConfig().getString("site-url", "").replaceAll("/$", "");
+        this.apiKey = plugin.getConfig().getString("faction-api-key", "");
+        this.enabled = !siteUrl.isBlank() && !apiKey.isBlank();
 
-    // ── Connexion MySQL ───────────────────────────────────────────────────────────
-
-    private void connect() {
-        String host = plugin.getConfig().getString("mysql.host", "");
-        if (host.isBlank()) {
-            log.warning("[WebLink] Section 'mysql' absente du config.yml — /lier désactivé.");
-            return;
-        }
-
-        String port     = plugin.getConfig().getString("mysql.port", "3306");
-        String database = plugin.getConfig().getString("mysql.database", "herocraft");
-        String user     = plugin.getConfig().getString("mysql.user",     "root");
-        String password = plugin.getConfig().getString("mysql.password", "");
-
-        String url = "jdbc:mysql://" + host + ":" + port + "/" + database
-                + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8";
-        try {
-            // Essayer le nouveau driver d'abord (mysql-connector-j 8+), puis l'ancien
-            try { Class.forName("com.mysql.cj.jdbc.Driver"); }
-            catch (ClassNotFoundException e1) {
-                try { Class.forName("com.mysql.jdbc.Driver"); }
-                catch (ClassNotFoundException e2) {
-                    log.severe("[WebLink] Driver MySQL introuvable. Assure-toi que mysql-connector-j"
-                            + " est dans le classpath ou que Paper 1.21 l'inclut.");
-                    return;
-                }
-            }
-            connection = DriverManager.getConnection(url, user, password);
-            ensureTable();
-            enabled = true;
-            log.info("[WebLink] Connecté à MySQL (" + host + ":" + port + "/" + database + "). /lier activé.");
-        } catch (Exception e) {
-            log.severe("[WebLink] Impossible de se connecter à MySQL : " + e.getMessage());
-            log.severe("[WebLink] Vérifie mysql.host/user/password/database dans config.yml.");
+        if (enabled) {
+            log.info("[WebLink] Liaison web sans SQL activée → " + siteUrl);
+        } else {
+            log.warning("[WebLink] site-url ou faction-api-key absent du config.yml — /lier désactivé.");
         }
     }
 
-    private void ensureTable() throws SQLException {
-        try (Statement st = connection.createStatement()) {
-            // Table identique à celle que le plugin LoyaltyMobs / le site Node attend
-            st.execute("""
-                CREATE TABLE IF NOT EXISTS web_link_codes (
-                    code       CHAR(6)     NOT NULL PRIMARY KEY,
-                    uuid       VARCHAR(36) NOT NULL,
-                    pseudo     VARCHAR(16) NOT NULL,
-                    expires_at DATETIME    NOT NULL,
-                    INDEX idx_uuid (uuid)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
-            // Table des comptes web (créée par le site, on la crée aussi par sécurité)
-            st.execute("""
-                CREATE TABLE IF NOT EXISTS web_accounts (
-                    id            INT AUTO_INCREMENT PRIMARY KEY,
-                    pseudo        VARCHAR(32) NOT NULL UNIQUE,
-                    password_hash VARCHAR(100) NOT NULL,
-                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
-            // Table des liaisons
-            st.execute("""
-                CREATE TABLE IF NOT EXISTS account_links (
-                    account_id INT PRIMARY KEY,
-                    mc_uuid    VARCHAR(36) NOT NULL UNIQUE,
-                    mc_pseudo  VARCHAR(16) NOT NULL,
-                    linked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (account_id) REFERENCES web_accounts(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
-        }
+    public boolean isEnabled() {
+        return enabled;
     }
-
-    // ── API publique ──────────────────────────────────────────────────────────────
-
-    public boolean isEnabled() { return enabled; }
 
     /**
-     * Génère un code à 6 chiffres pour ce joueur, valable {@link #CODE_EXPIRY_MINUTES} minutes.
-     * Supprime d'abord tout code existant pour ce UUID.
-     *
-     * @return le code généré (ex. "482951"), ou null si la connexion est indisponible
+     * Génère un code à 6 chiffres valable 10 minutes et l'enregistre sur le site.
+     * Cette méthode est appelée depuis un thread async par LierCommand.
      */
     public String generateCode(UUID uuid, String pseudo) {
         if (!enabled) return null;
-        try {
-            ensureConnected();
-            // Supprimer les anciens codes pour ce joueur
-            try (PreparedStatement del = connection.prepareStatement(
-                    "DELETE FROM web_link_codes WHERE uuid = ?")) {
-                del.setString(1, uuid.toString());
-                del.executeUpdate();
-            }
-            // Générer un code unique
-            String code;
-            Random rng = new Random();
-            do {
-                code = String.format("%06d", rng.nextInt(1_000_000));
-            } while (codeExists(code));
 
-            // Insérer
-            try (PreparedStatement ins = connection.prepareStatement(
-                    "INSERT INTO web_link_codes (code, uuid, pseudo, expires_at) " +
-                    "VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))")) {
-                ins.setString(1, code);
-                ins.setString(2, uuid.toString());
-                ins.setString(3, pseudo);
-                ins.setInt(4, CODE_EXPIRY_MINUTES);
-                ins.executeUpdate();
-            }
-            return code;
+        String code = String.format("%06d", RNG.nextInt(1_000_000));
+        long expiresAt = System.currentTimeMillis() + Duration.ofMinutes(CODE_EXPIRY_MINUTES).toMillis();
+        String json = "{\"uuid\":\"" + esc(uuid.toString()) + "\","
+                + "\"pseudo\":\"" + esc(pseudo) + "\","
+                + "\"code\":\"" + code + "\","
+                + "\"expiresAt\":" + expiresAt + "}";
+
+        try {
+            int status = request("POST", "/api/faction/push/link-code", json, null);
+            if (status >= 200 && status < 300) return code;
+            log.warning("[WebLink] Le site a refusé l'enregistrement du code (HTTP " + status + ").");
+            return null;
         } catch (Exception e) {
-            log.warning("[WebLink] Erreur generateCode : " + e.getMessage());
+            log.warning("[WebLink] Site inaccessible pour /lier : " + e.getMessage());
             return null;
         }
     }
 
     /**
-     * Vérifie si le compte est déjà lié et retourne le pseudo web, ou null.
+     * Retourne le pseudo du compte site lié à cet UUID, ou null si non lié.
+     * Appel HTTP court ; LierCommand l'exécute en async.
      */
     public String getLinkedWebPseudo(UUID uuid) {
         if (!enabled) return null;
         try {
-            ensureConnected();
-            String sql = "SELECT wa.pseudo FROM account_links al " +
-                         "JOIN web_accounts wa ON wa.id = al.account_id " +
-                         "WHERE al.mc_uuid = ?";
-            try (PreparedStatement ps = connection.prepareStatement(sql)) {
-                ps.setString(1, uuid.toString());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) return rs.getString("pseudo");
-                }
+            String query = "?uuid=" + URLEncoder.encode(uuid.toString(), StandardCharsets.UTF_8);
+            HttpResult result = requestWithBody("GET", "/api/faction/plugin/link-status" + query, null);
+            if (result.status < 200 || result.status >= 300) {
+                log.warning("[WebLink] Statut de liaison refusé par le site (HTTP " + result.status + ").");
+                return null;
             }
+            if (!result.body.contains("\"linked\":true")) return null;
+            Matcher m = PSEUDO_PATTERN.matcher(result.body);
+            if (!m.find()) return null;
+            return unescapeJson(m.group(1));
         } catch (Exception e) {
             log.warning("[WebLink] Erreur getLinkedWebPseudo : " + e.getMessage());
+            return null;
         }
-        return null;
     }
 
-    /** Ferme la connexion proprement. */
+    /** Ferme proprement le gestionnaire. Aucun stockage réseau persistant à fermer. */
     public void close() {
-        try { if (connection != null && !connection.isClosed()) connection.close(); }
-        catch (Exception ignored) {}
+        // Rien à fermer : chaque requête HTTP est courte et indépendante.
     }
 
-    // ── Helpers privés ────────────────────────────────────────────────────────────
+    private int request(String method, String path, String json, String ignored) throws Exception {
+        return requestWithBody(method, path, json).status;
+    }
 
-    private boolean codeExists(String code) throws SQLException {
-        try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT 1 FROM web_link_codes WHERE code = ?")) {
-            ps.setString(1, code);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+    private HttpResult requestWithBody(String method, String path, String json) throws Exception {
+        HttpURLConnection con = (HttpURLConnection) URI.create(siteUrl + path).toURL().openConnection();
+        con.setRequestMethod(method);
+        con.setRequestProperty("Accept", "application/json");
+        con.setRequestProperty("X-Faction-Key", apiKey);
+        con.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        con.setReadTimeout(READ_TIMEOUT_MS);
+
+        if (json != null) {
+            con.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            con.setDoOutput(true);
+            try (OutputStream os = con.getOutputStream()) {
+                os.write(json.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        int status = con.getResponseCode();
+        InputStream stream = status >= 400 ? con.getErrorStream() : con.getInputStream();
+        String body = stream == null ? "" : readAll(stream);
+        con.disconnect();
+        return new HttpResult(status, body);
+    }
+
+    private static String readAll(InputStream in) throws Exception {
+        try (InputStream input = in; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int n;
+            while ((n = input.read(buffer)) != -1) out.write(buffer, 0, n);
+            return out.toString(StandardCharsets.UTF_8);
         }
     }
 
-    private void ensureConnected() throws SQLException {
-        if (connection == null || connection.isClosed() || !connection.isValid(2)) {
-            connection = null; enabled = false;
-            connect();
-            if (!enabled) throw new SQLException("Connexion MySQL perdue.");
-        }
+    private static String esc(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
+
+    private static String unescapeJson(String s) {
+        if (s == null) return null;
+        return s.replace("\\\"", "\"").replace("\\\\", "\\");
+    }
+
+    private record HttpResult(int status, String body) {}
 }

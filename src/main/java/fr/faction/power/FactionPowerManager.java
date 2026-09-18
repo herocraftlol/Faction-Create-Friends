@@ -61,7 +61,7 @@ public class FactionPowerManager {
         // Effets passifs toutes les 3 secondes (60 ticks)
         effectTask   = Bukkit.getScheduler().runTaskTimer(
                 plugin, this::applyPassiveEffects, 60L, 60L);
-        // Particules de rang supérieur toutes les secondes
+        // Particules LÉGENDAIRE / MYTHIQUE toutes les secondes
         particleTask = Bukkit.getScheduler().runTaskTimer(
                 plugin, this::applyRankParticles, 20L, 20L);
         // Premier calcul asynchrone après 2 ticks
@@ -275,14 +275,14 @@ public class FactionPowerManager {
         }
     }
 
-    /** Aura renforcée du rang MYTHIQUE : Regen II + Résistance I jusqu'à 20 blocs. */
+    /** Aura renforcée du rang Mythique : Regen II + Résistance I jusqu'à 20 blocs. */
     private void applyMythicAllyAura(Player source, Faction faction) {
         for (UUID uuid : faction.getMembers()) {
             if (uuid.equals(source.getUniqueId())) continue;
             Player ally = Bukkit.getPlayer(uuid);
             if (ally == null || !ally.getWorld().equals(source.getWorld())) continue;
-            if (ally.getLocation().distanceSquared(source.getLocation()) <= 400) {
-                effect(ally, PotionEffectType.REGENERATION, 1, true, false);
+            if (ally.getLocation().distanceSquared(source.getLocation()) <= 400.0) {
+                effect(ally, PotionEffectType.REGENERATION,      1, true, false);
                 effect(ally, PotionEffectType.RESISTANCE, 0, true, false);
             }
         }
@@ -297,27 +297,25 @@ public class FactionPowerManager {
             FactionRank rank = getFactionRank(faction.getName());
             if (rank != FactionRank.LEGENDAIRE && rank != FactionRank.MYTHIQUE) continue;
 
-            // Halo tournant : doré pour Légendaire, violet céleste pour Mythique.
-            double angle = (System.currentTimeMillis() % (rank == FactionRank.MYTHIQUE ? 2800 : 4000))
-                    / (double) (rank == FactionRank.MYTHIQUE ? 2800 : 4000) * 2 * Math.PI;
-            int particleCount = rank == FactionRank.MYTHIQUE ? 8 : 6;
-            for (int i = 0; i < particleCount; i++) {
-                double a = angle + i * (2 * Math.PI / particleCount);
-                double px = player.getLocation().getX() + 0.9 * Math.cos(a);
-                double pz = player.getLocation().getZ() + 0.9 * Math.sin(a);
-                double py = player.getLocation().getY() + 1.1;
+            double period = rank == FactionRank.MYTHIQUE ? 2800.0 : 4000.0;
+            double angle = (System.currentTimeMillis() % (long) period) / period * 2.0 * Math.PI;
+            int count = rank == FactionRank.MYTHIQUE ? 8 : 6;
+            for (int i = 0; i < count; i++) {
+                double a = angle + i * (2.0 * Math.PI / count);
+                Location loc = player.getLocation();
+                double px = loc.getX() + 0.9 * Math.cos(a);
+                double pz = loc.getZ() + 0.9 * Math.sin(a);
+                double py = loc.getY() + 1.1;
+                Location particleLoc = new Location(loc.getWorld(), px, py, pz);
+
                 if (rank == FactionRank.MYTHIQUE) {
-                    player.getWorld().spawnParticle(Particle.END_ROD,
-                            new Location(player.getWorld(), px, py, pz),
-                            1, 0, 0, 0, 0);
+                    player.getWorld().spawnParticle(Particle.END_ROD, particleLoc, 1, 0, 0, 0, 0);
                     player.getWorld().spawnParticle(
-                            Particle.DUST, new Location(player.getWorld(), px, py, pz),
-                            1, 0, 0, 0, 0,
+                            Particle.DUST, particleLoc, 1, 0, 0, 0, 0,
                             new Particle.DustOptions(Color.fromRGB(0x9B, 0x59, 0xFF), 1.4f));
                 } else {
                     player.getWorld().spawnParticle(
-                            Particle.DUST, new Location(player.getWorld(), px, py, pz),
-                            1, 0, 0, 0, 0,
+                            Particle.DUST, particleLoc, 1, 0, 0, 0, 0,
                             new Particle.DustOptions(Color.fromRGB(0xFF, 0xD7, 0x00), 1.2f));
                 }
             }

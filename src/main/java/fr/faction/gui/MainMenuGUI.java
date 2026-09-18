@@ -919,7 +919,7 @@ public class MainMenuGUI implements Listener {
             case 3 -> new int[]{10, 13, 16};
             case 4 -> new int[]{10, 12, 14, 16};
             case 5 -> new int[]{9, 11, 13, 15, 17};
-            default -> new int[]{8, 10, 12, 14, 16, 18}; // 6 homes (Mythique)
+            default -> new int[]{8, 10, 12, 14, 16, 18}; // 6 homes Mythique
         };
     }
 
@@ -1133,9 +1133,9 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Variante avec 3 lignes de description (lore) + état activé/désactivé. */
+    /** Surcharge avec plusieurs lignes de description pour cmdItem */
     private ItemStack cmdItem(Material mat, String name, String l1, String l2, String l3, boolean enabled) {
-        if (enabled) return make(mat, name, l1, l2, l3);
+        if (enabled) return make(mat, name, l1, l2, l3, "", "§7Clic pour info");
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }

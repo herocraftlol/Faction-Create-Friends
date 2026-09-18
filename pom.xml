@@ -6,7 +6,7 @@
 
     <groupId>fr.faction</groupId>
     <artifactId>FactionPlugin</artifactId>
-    <version>5.15.3</version>
+    <version>5.15.4</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -31,7 +31,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- MySQL Connector — nécessaire pour /lier (WebLinkManager) -->
+        <!-- MySQL Connector — utilisé uniquement par la synchro HeroTab historique si mysql: est configuré. -->
         <!-- Scope "provided" car Paper inclut déjà le driver MySQL en 1.21 -->
         <!-- Si ce n'est pas le cas sur ta version, passe en "compile" + shade -->
         <dependency>

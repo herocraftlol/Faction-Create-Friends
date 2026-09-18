@@ -50,7 +50,7 @@ public class FactionRankingGUI implements Listener {
             Material.DIAMOND,         // Diamant
             Material.EMERALD,         // Emeraude
             Material.NETHER_STAR,      // Légendaire
-            Material.AMETHYST_SHARD     // Mythique
+            Material.AMETHYST_SHARD    // Mythique
     };
 
     // Slots utilisés par les entrées de faction dans le classement (doit rester identique

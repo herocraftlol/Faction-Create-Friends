@@ -8,15 +8,10 @@ faction:
 
 # ── Liaison compte web (/lier) ────────────────────────────────────────────────
 # URL du site web — affichée dans le message /lier
-site-url: "http://localhost:3000"
+site-url: "http://192.168.1.196:3000"
 
-# Connexion MySQL — DOIT être la MÊME base que celle du site (variables GAME_DB_* dans .env)
-mysql:
-  host: "127.0.0.1"
-  port: 3306
-  database: "herocraft"
-  user: "herocraft_user"
-  password: "mot-de-passe"
+# Le site utilise maintenant un stockage local JSON : aucune base SQL n'est requise pour /lier.
+# La section mysql peut rester absente. FactionTabSync sera désactivé si aucun mysql n'est configuré.
 
 # ── Messages ──────────────────────────────────────────────────────────────────
 messages:
@@ -43,7 +38,7 @@ messages:
 
 # ── Synchronisation carte web ─────────────────────────────────────────────────
 # Clé API partagée avec le site (FACTION_API_KEY dans le .env du site)
-faction-api-key: "change-moi"
+faction-api-key: "sucemabitestpfdpsalopepdpute6767"
 
 webmap:
   # Noms des mondes à tracker (dossiers dans le répertoire du serveur)

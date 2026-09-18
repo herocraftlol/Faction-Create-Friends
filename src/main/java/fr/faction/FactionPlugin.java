@@ -324,7 +324,7 @@ public class FactionPlugin extends JavaPlugin {
             getLogger().info("Purge des effets legacy effectuée.");
         }, 40L);
 
-        getLogger().info("FactionPlugin v5.5.1 — purge effets legacy, fixes bank/troc/shop/home");
+        getLogger().info("FactionPlugin v5.15.4 — liaison site web sans SQL, fixes Paper 1.21.4 (Material/Enchantment/PotionEffectType/Sound/Particle)");
     }
 
     private void handleSetHome(org.bukkit.entity.Player player, String name) {
