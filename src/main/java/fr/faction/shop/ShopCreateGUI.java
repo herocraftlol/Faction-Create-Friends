@@ -6,6 +6,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -74,6 +75,15 @@ public class ShopCreateGUI implements Listener {
     private static class State {
         ItemStack sellItem;
         int sellQty = 1;
+
+        // Si l'item à vendre a été pris depuis le curseur, il est réellement
+        // retiré du curseur pendant l'édition. On conserve la pile exacte afin
+        // de pouvoir la rendre sans jamais créer d'item supplémentaire.
+        ItemStack sellHeldFromCursor;
+
+        // priceItem n'est qu'un modèle du prix demandé. Il ne doit JAMAIS être
+        // retiré de l'inventaire du vendeur (sinon une fermeture du GUI pouvait
+        // en restituer une quantité différente et provoquer une duplication).
         ItemStack priceItem; // null si mode monnaie
         int priceQty = 1;
         ShopListing.PriceMode mode = ShopListing.PriceMode.CURRENCY;
@@ -133,8 +143,9 @@ public class ShopCreateGUI implements Listener {
                 "§73. §fChoisis le prix §7(monnaie ou troc)",
                 "§74. §fClique §a§l✔ CONFIRMER §7pour mettre en vente",
                 "",
-                "§8L'item est retiré de ton inventaire.",
-                "§8Tu peux le récupérer avec §7/fac recuperer <ID>§8."));
+                "§8L'item à vendre est retiré lors de la confirmation.",
+                "§8Le prix en troc est seulement une référence.",
+                "§8Tu peux récupérer une annonce avec §7/fac recuperer <ID>§8."));
 
         inv.setItem(4, label(Material.GOLD_INGOT, "§6§l⬡ Annonce en cours",
                 s.sellItem == null ? "§cAucun item sélectionné" :
@@ -268,14 +279,20 @@ public class ShopCreateGUI implements Listener {
         int invSize = e.getView().getTopInventory().getSize(); // 45
 
         // ── Shift-clic depuis l'inventaire du joueur ─────────────────────────────
+        // IMPORTANT : le clic est annulé volontairement, mais l'item d'origine
+        // reste dans l'inventaire. On ne le rend donc jamais à la fermeture.
         if (raw >= invSize && e.isShiftClick()) {
             e.setCancelled(true);
             ItemStack clicked = e.getCurrentItem();
             if (clicked == null || clicked.getType() == Material.AIR) return;
+
             if (s.sellItem == null) {
                 s.sellItem = stripToType(clicked);
                 s.sellQty  = clicked.getAmount();
+                s.sellHeldFromCursor = null;
             } else if (s.mode == ShopListing.PriceMode.BARTER && s.priceItem == null) {
+                // Le prix demandé est une simple référence : surtout ne pas
+                // retirer/rendre l'item du vendeur.
                 s.priceItem = stripToType(clicked);
                 s.priceQty  = clicked.getAmount();
             } else {
@@ -293,16 +310,23 @@ public class ShopCreateGUI implements Listener {
         // ── Slot item en vente ────────────────────────────────────────────────────
         if (raw == SLOT_ITEM) {
             if (s.sellItem != null) {
-                // Rendre l'item
-                giveBack(player, s.sellItem, s.sellQty);
+                // Un item venant de l'inventaire n'a jamais été retiré : rien à rendre.
+                // Un item venant du curseur, lui, doit être rendu avec sa quantité
+                // EXACTE d'origine pour empêcher toute duplication via les boutons +/-.
+                if (s.sellHeldFromCursor != null) {
+                    giveBack(player, s.sellHeldFromCursor.clone(), s.sellHeldFromCursor.getAmount());
+                    s.sellHeldFromCursor = null;
+                }
                 s.sellItem = null; s.sellQty = 1;
                 refresh(player);
             } else {
-                // Essayer de prendre depuis le curseur
+                // Sélection depuis le curseur : on retire la pile et on la conserve
+                // exactement en mémoire jusqu'à confirmation/annulation.
                 ItemStack cursor = player.getItemOnCursor();
                 if (cursor != null && cursor.getType() != Material.AIR) {
                     s.sellItem = stripToType(cursor);
                     s.sellQty  = cursor.getAmount();
+                    s.sellHeldFromCursor = cursor.clone();
                     player.setItemOnCursor(new ItemStack(Material.AIR));
                     refresh(player);
                 } else {
@@ -315,15 +339,16 @@ public class ShopCreateGUI implements Listener {
         // ── Slot prix (troc) ──────────────────────────────────────────────────────
         if (raw == SLOT_PRICE && s.mode == ShopListing.PriceMode.BARTER) {
             if (s.priceItem != null) {
-                giveBack(player, s.priceItem, s.priceQty);
+                // Le prix n'est qu'un modèle : il n'a jamais été retiré au joueur.
+                // Ne rien lui rendre ici.
                 s.priceItem = null; s.priceQty = 1;
                 refresh(player);
             } else {
                 ItemStack cursor = player.getItemOnCursor();
                 if (cursor != null && cursor.getType() != Material.AIR) {
+                    // Copie de référence uniquement : le curseur reste intact.
                     s.priceItem = stripToType(cursor);
                     s.priceQty  = cursor.getAmount();
-                    player.setItemOnCursor(new ItemStack(Material.AIR));
                     refresh(player);
                 }
             }
@@ -354,7 +379,9 @@ public class ShopCreateGUI implements Listener {
         // ── Modes ─────────────────────────────────────────────────────────────────
         if (raw == 29) { // Monnaie
             s.mode = ShopListing.PriceMode.CURRENCY;
-            if (s.priceItem != null) { giveBack(player, s.priceItem, s.priceQty); s.priceItem = null; }
+            // priceItem n'est qu'une référence et n'a jamais été retiré.
+            s.priceItem = null;
+            s.priceQty = 1;
             refresh(player); return;
         }
         if (raw == 34) { // Troc
@@ -368,16 +395,36 @@ public class ShopCreateGUI implements Listener {
                 player.sendMessage("§c[Shop] Dépose d'abord un item à vendre !");
                 return;
             }
-            // Vérifier que le joueur possède l'item
-            int inInv = countInInv(player, s.sellItem);
-            if (inInv < s.sellQty) {
-                player.sendMessage("§c[Shop] Tu n'as que §e" + inInv + "× " + ShopListing.displayName(s.sellItem)
-                        + " §cdans ton inventaire (besoin : §e" + s.sellQty + "§c).");
-                return;
-            }
-            removeFromInv(player, s.sellItem, s.sellQty);
+
             ItemStack forSale = s.sellItem.clone();
             forSale.setAmount(s.sellQty);
+
+            // Deux sources possibles pour l'item vendu :
+            // - inventaire : l'item est resté dans l'inventaire → on le retire maintenant
+            // - curseur   : l'item a été réservé dans sellHeldFromCursor → pas de double retrait
+            if (s.sellHeldFromCursor == null) {
+                int inInv = countInInv(player, s.sellItem);
+                if (inInv < s.sellQty) {
+                    player.sendMessage("§c[Shop] Tu n'as que §e" + inInv + "× " + ShopListing.displayName(s.sellItem)
+                            + " §cdans ton inventaire (besoin : §e" + s.sellQty + "§c).");
+                    return;
+                }
+                removeFromInv(player, s.sellItem, s.sellQty);
+            } else {
+                int held = s.sellHeldFromCursor.getAmount();
+                if (s.sellQty > held) {
+                    player.sendMessage("§c[Shop] Impossible de vendre plus que la quantité prise : §e" + held + "§c.");
+                    return;
+                }
+                // Si la quantité a été réduite, rendre uniquement le surplus réel.
+                int remainder = held - s.sellQty;
+                if (remainder > 0) {
+                    ItemStack rest = s.sellHeldFromCursor.clone();
+                    rest.setAmount(remainder);
+                    giveBack(player, rest, remainder);
+                }
+            }
+
             ShopListing listing;
             if (s.mode == ShopListing.PriceMode.CURRENCY) {
                 listing = shopManager.createCurrencyListing(player, forSale, s.currency, s.priceQty);
@@ -412,10 +459,27 @@ public class ShopCreateGUI implements Listener {
         if (!e.getView().getTitle().equals(TITLE)) return;
         State s = states.remove(player.getUniqueId());
         openInvs.remove(player.getUniqueId());
-        if (s != null) {
-            // Rendre les items déposés
-            if (s.sellItem != null)  giveBack(player, s.sellItem, s.sellQty);
-            if (s.priceItem != null) giveBack(player, s.priceItem, s.priceQty);
+        if (s != null && s.sellHeldFromCursor != null) {
+            // Retourne la pile EXACTE détenue par le GUI. Le prix demandé n'est jamais
+            // restitué car c'est seulement une référence, pas un item prélevé au joueur.
+            giveBack(player, s.sellHeldFromCursor.clone(), s.sellHeldFromCursor.getAmount());
+        }
+    }
+
+    /**
+     * Empêche les drag/drop dans le GUI. Les sélections passent par les boutons
+     * prévus (Shift-clic ou clic avec le curseur), ce qui évite tout état partiellement
+     * présent dans l'inventaire du menu.
+     */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent e) {
+        if (!e.getView().getTitle().equals(TITLE)) return;
+        int topSize = e.getView().getTopInventory().getSize();
+        for (int rawSlot : e.getRawSlots()) {
+            if (rawSlot < topSize) {
+                e.setCancelled(true);
+                return;
+            }
         }
     }
 
@@ -527,8 +591,8 @@ public class ShopCreateGUI implements Listener {
     }
 
     private void cancelAndClose(Player player, State s) {
-        states.remove(player.getUniqueId());
-        openInvs.remove(player.getUniqueId());
+        // Laisser InventoryCloseEvent effectuer le nettoyage et restituer, le cas
+        // échéant, l'unique pile réellement retirée du curseur.
         player.closeInventory();
     }
 }

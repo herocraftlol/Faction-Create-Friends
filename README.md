@@ -2,7 +2,7 @@
 
 > **Plugin Minecraft tout-en-un pour Paper 1.21.x** — Factions, alliances, guerres, claims, villages autonomes, banque d'émeraudes, troc sécurisé, **commerce inter-villes** 🚢🚂, shop global, statistiques, **tab HeroTab synchronisé à la seconde**, **nettoyage automatique des factions fantômes**, **accès aux coffres préservé pendant la dissolution différée**, et bien plus encore.
 
-![Version](https://img.shields.io/badge/version-5.15.2-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.15.3-brightgreen) ![Paper](https://img.shields.io/badge/Paper-1.21.x-blue) ![Java](https://img.shields.io/badge/Java-21-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -10,19 +10,30 @@
 
 **FactionPlugin** est un plugin Minecraft complet qui transforme votre serveur Paper en un véritable univers de factions. Pensé pour les serveurs survie PvP, il rassemble dans une seule commande `/faction` (avec ses alias `/f` et `/fac`) tout ce qu'il faut pour gérer un mode factions riche : territoires, diplomatie, économie, **commerce régional par ports et gares**, statistiques, et même des **villageois recrutés** autonomes qui construisent, combattent, récoltent, et **transportent des marchandises entre villes** pour vous.
 
-La version actuelle (**5.15.2**) introduit le **rang MYTHIQUE ☄ — un rang de prestige réservé aux factions ayant accumulé 1 000 000 points de puissance**, et apporte les corrections de compatibilité Paper 1.21.4 héritées de la v5.15.1 : il n'y a plus aucune limite au nombre de villageois qu'une faction peut aligner (utile pour les grands empires), et la barre d'expérience maximale grimpe à **100** au lieu de 5 — un villageois « vétéran » peut donc réellement devenir une force redoutable, comparable à un joueur bien équipé.
+La version actuelle (**5.15.3**) consolide la boutique en éliminant un bug critique de duplication d'items dans `ShopCreateGUI` (les boutons `+`/`-` et la sélection depuis le curseur ne créent plus de piles fantômes), corrige l'échappement JSON de `WebMapSync`, et conserve le **rang MYTHIQUE ☄** (hérité de la v5.15.2) débloqué à **1 000 000 points de puissance**. Toujours **aucune limite au nombre de villageois recrutés** par faction, et la barre d'expérience maximale grimpe à **100** au lieu de 5 — un villageois « vétéran » peut donc réellement devenir une force redoutable, comparable à un joueur bien équipé.
 
 Conçu pour Paper **1.21.4** (API Bukkit + Paper), Java **21**, et prêt à l'emploi : il suffit de poser le `.jar` dans `plugins/`.
 
 ---
 
-## 🆕 Nouveautés de la v5.15.2 — *Rang MYTHIQUE — 1 000 000 de puissance* ☄💎🌌
+## 🆕 Nouveautés de la v5.15.3 — *Correctif boutique + rang MYTHIQUE* 🛒🛠️☄
 
-Cette version ajoute **un nouveau rang de prestige ultime** au-dessus du rang
-Légendaire, et consolide le passage à Paper 1.21.4 avec plusieurs corrections
-critiques héritées du travail de la v5.15.1.
+Cette version **élimine un bug de duplication d'items** dans la boutique (`/faction shop create`), corrige l'échappement JSON de la carte web, et conserve le **rang MYTHIQUE ☄** introduit en v5.15.2.
 
-### ☄ Nouveau rang MYTHIQUE
+### 🛒 Correctif critique de la boutique (`ShopCreateGUI`)
+
+Avant la 5.15.3, créer une annonce avec un item provenant du curseur ou manipuler les boutons `+` / `-` pouvait **dupliquer la pile**. La cause : `giveBack` rendait la quantité courante, pas la quantité d'origine. La correction retire désormais l'item **uniquement à la confirmation**, en stockant la pile exacte d'origine en mémoire, et **jamais** pour l'item servant de prix (qui n'est qu'un modèle).
+
+- ✅ Plus de duplication d'items en `/faction shop create`.
+- ✅ La pile rendue à l'annulation correspond strictement à la pile saisie.
+- ✅ Les boutons `+` / `-` ne peuvent plus faire apparaître de quantité fantôme.
+- ✅ Tous les items restent en sécurité tant que l'annonce n'est pas confirmée.
+
+### 🪛 Correctif `WebMapSync`
+
+Le payload JSON envoyé à la carte web contenait des guillemets non échappés (`{"cx":...}` au lieu de `{\"cx\":...}`), ce qui cassait la désérialisation côté front. Corrigé : la map web se synchronise à nouveau correctement.
+
+### ☄ Rang MYTHIQUE — 1 000 000 de puissance
 
 - **🌌 1 000 000 de puissance requise** : la faction doit totaliser
   **1 000 000 points de puissance globale** pour accéder au rang
@@ -88,7 +99,7 @@ critiques héritées du travail de la v5.15.1.
 
 ### Avant / Après
 
-| Aspect | En v5.15.1 | En v5.15.2 |
+| Aspect | En v5.15.1 | En v5.15.3 |
 | --- | --- | --- |
 | Nombre de rangs | 7 (Pierre → Légendaire) | **8 (Pierre → MYTHIQUE)** |
 | Seuil du rang suprême | 250 000 (Légendaire) | **1 000 000 (MYTHIQUE)** |
@@ -316,7 +327,7 @@ rechargement du plugin.
 ## 📥 Installation
 
 1. Téléchargez la dernière release :
-   [**FactionPlugin-5.15.2.jar**](../../releases/download/v5.15.2/FactionPlugin-5.15.2.jar)
+   [**FactionPlugin-5.15.3.jar**](../../releases/download/v5.15.3/FactionPlugin-5.15.3.jar)
 2. Placez le fichier dans le dossier `plugins/` de votre serveur Paper 1.21.4+
 3. Démarrez (ou redémarrez) le serveur — la configuration se génère
    automatiquement dans `plugins/FactionPlugin/`
@@ -500,7 +511,7 @@ cd Faction-Create-Friends
 mvn clean package
 ```
 
-Le JAR est produit dans `target/FactionPlugin-5.15.2.jar` (≈ 480 KB).
+Le JAR est produit dans `target/FactionPlugin-5.15.3.jar` (≈ 480 KB).
 
 ### Stack technique
 - **Paper API 1.21.4** (`io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT`)
@@ -531,13 +542,12 @@ lancement :
 
 ## 🆕 Historique des versions
 
-### **v5.15.2** — *Rang MYTHIQUE — 1 000 000 de puissance* ☄💎🌌 *(version actuelle)*
+### **v5.15.3** — *Correctif boutique + rang MYTHIQUE* 🛒🛠️☄ *(version actuelle)*
 
-- **☄ Nouveau rang MYTHIQUE** au-dessus de LÉGENDAIRE, débloqué à **1 000 000 points de puissance**.
-- **🛡️ Buffs passifs ultimes** : Hâte IV + Régénération II + Force II + Résistance III + Absorption I.
-- **🌫️ Aura renforcée** portée à **20 blocs**.
-- **📌 Avantages** : 6 homes, 2 spawns supplémentaires, préfixe de chat exclusif `[☄]` violet gras.
-- **🔧 Corrections Paper 1.21.4** : imports JavaPlugin / Location / PostType, `cmdItem(...)` overload, `view` effectively-final, `MapPalette.matchColor(r,g,b)`, etc.
+- **🛒 Correction boutique** (`ShopCreateGUI`) : la duplication d'items via les boutons `+` / `-` et la sélection depuis le curseur a été éliminée — l'item à vendre n'est retiré du curseur **qu'à la confirmation**, et l'item servant de prix reste un modèle non retiré de l'inventaire (plus aucune duplication possible, plus aucun « restock » partiel à la fermeture).
+- **🪛 Correction `WebMapSync`** : échappement des guillemets dans le payload JSON envoyé à la map web (les `{"cx":...}` cassaient la sérialisation).
+- **☄ Rang MYTHIQUE** (hérité de v5.15.2) : toujours actif, 1 000 000 pts, Hâte IV + Régénération II + Force II + Résistance III + Absorption I, prefix `[☄]`, 6 homes, 2 spawns, icône `AMETHYST_SHARD`.
+- **🔧 Corrections Paper 1.21.4** (héritées) : imports `JavaPlugin` / `Location` / `PostType`, `cmdItem(...)` overload, `view` effectively-final, `MapPalette.matchColor(r,g,b)`, `EntitySleepEvent` → polling `Villager#isSleeping()`, etc.
 
 ### **v5.15.1** — *Villageois illimités, niveau max 100* 🏘️♾️📈
 
