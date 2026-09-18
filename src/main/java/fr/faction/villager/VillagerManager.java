@@ -91,11 +91,6 @@ public class VillagerManager implements Listener {
         new BukkitRunnable() {
             @Override public void run() { tickAll(); }
         }.runTaskTimer(plugin, 60L, interval);
-        // Polling de sommeil (remplace EntitySleepEvent supprimé en Paper 1.21.4)
-        long sleepPoll = plugin.getConfig().getLong("villager.sleep-poll-period", 20L);
-        new BukkitRunnable() {
-            @Override public void run() { sleepTickAll(); }
-        }.runTaskTimer(plugin, 60L, sleepPoll);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -755,6 +750,7 @@ public class VillagerManager implements Listener {
         for (RecruitedVillager rv : new ArrayList<>(villagers.values())) {
             Entity e = Bukkit.getEntity(rv.getEntityId());
             if (!(e instanceof Villager v) || v.isDead()) continue;
+            sleepTick(rv, v);
             feedTick(rv, v);
             switch (rv.getRole()) {
                 case CONSTRUCTEUR -> builderTick(rv, v);
@@ -876,26 +872,21 @@ public class VillagerManager implements Listener {
 
     // ════════════════════════════════════════════════════════════════════════
     // SOIN EN DORMANT DANS UN LIT
-    // EntitySleepEvent a été supprimé en Paper 1.21.4 — on détecte le sommeil
-    // par polling de Villager#isSleeping() et on déclenche la régénération
-    // uniquement à la transition endormi→éveillé pour ne pas soigner en boucle.
+    //
+    // Paper 1.21.4 a supprimé `EntitySleepEvent`. On détecte donc la transition
+    // éveillé -> endormi par polling de `Villager#isSleeping()` à chaque tick.
     // ════════════════════════════════════════════════════════════════════════
 
-    private final java.util.Map<UUID, Boolean> wasSleeping = new java.util.HashMap<>();
+    private final Map<UUID, Boolean> sleepState = new HashMap<>();
 
-    private void sleepTickAll() {
-        for (RecruitedVillager rv : new ArrayList<>(villagers.values())) {
-            Entity e = Bukkit.getEntity(rv.getEntityId());
-            if (!(e instanceof Villager v) || v.isDead()) {
-                wasSleeping.remove(rv.getEntityId());
-                continue;
-            }
-            boolean sleeping = v.isSleeping();
-            Boolean prev = wasSleeping.put(rv.getEntityId(), sleeping);
-            // Transition éveillé → endormi : on lance la régénération
-            if (sleeping && (prev == null || !prev)) {
-                startSleepHealing(rv);
-            }
+    /** Soin passif pendant que le villageois dort, déclenché sur transition éveillé -> endormi. */
+    private void sleepTick(RecruitedVillager rv, Villager v) {
+        boolean sleeping = v.isSleeping();
+        Boolean prev = sleepState.get(rv.getEntityId());
+        sleepState.put(rv.getEntityId(), sleeping);
+
+        if (sleeping && (prev == null || !prev)) {
+            startSleepHealing(rv);
         }
     }
 
@@ -909,11 +900,11 @@ public class VillagerManager implements Listener {
             int done = 0;
             @Override public void run() {
                 Entity e = Bukkit.getEntity(rv.getEntityId());
-                if (!(e instanceof Villager v) || v.isDead()) { cancel(); return; }
-                double max = getMaxHealth(v);
-                if (v.getHealth() < max) {
-                    v.setHealth(Math.min(max, v.getHealth() + healAmount));
-                    v.getWorld().playSound(v.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
+                if (!(e instanceof Villager vv) || vv.isDead()) { cancel(); return; }
+                double max = getMaxHealth(vv);
+                if (vv.getHealth() < max) {
+                    vv.setHealth(Math.min(max, vv.getHealth() + healAmount));
+                    vv.getWorld().playSound(vv.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.6f);
                 }
                 if (++done >= maxTicks) cancel();
             }

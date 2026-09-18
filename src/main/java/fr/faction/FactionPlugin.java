@@ -324,7 +324,7 @@ public class FactionPlugin extends JavaPlugin {
             getLogger().info("Purge des effets legacy effectuée.");
         }, 40L);
 
-        getLogger().info("FactionPlugin v5.15.4 — liaison site web sans SQL, fixes Paper 1.21.4 (Material/Enchantment/PotionEffectType/Sound/Particle)");
+        getLogger().info("FactionPlugin v5.15.5 — recrutement illimité, villageois niveau 100, rang Mythique, shop sécurisé et améliorations de stabilité");
     }
 
     private void handleSetHome(org.bukkit.entity.Player player, String name) {

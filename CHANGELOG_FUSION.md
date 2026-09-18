@@ -1,14 +1,11 @@
+
 ## v5.15.0 — Consolidation
 
 - Recrutement de villageois illimité par faction.
 - Progression des villageois étendue jusqu'au niveau 100 avec seuils d'XP rétrocompatibles pour les niveaux 1 à 5.
 - Nouveau rang **Mythique** à 1 000 000 de puissance, avec avantages exclusifs, 6 homes et préfixe `[☄]`.
 - Correction de `/fac shop` : aucune double restitution des objets, gestion distincte des objets pris au curseur et des références sélectionnées par Shift-clic, et drag verrouillé dans le GUI.
-- **Cause racine du tab HeroTab corrigée** : la classe `FactionTabSync` est créée, écrit dans la table MySQL `faction_tab_sync` lue par HeroTab, et synchronise l'onglet sur tous les événements de faction (recrutement, départ, kick, disband, renommage, montée de rang) sans aucun délai.
-- **Compilation Paper 1.21.4 nettoyée** : renommages d'API Bukkit/Paper 1.21 (`Enchantment.LUCK_OF_THE_SEA`, `PotionEffectType.STRENGTH`, `PotionEffectType.RESISTANCE`, `Material.YELLOW_STAINED_GLASS_PANE`, `Material.RED_BED`, `Particle.HAPPY_VILLAGER`, `Particle.WITCH`, `Sound.ENTITY_GENERIC_EAT`), surcharge `cmdItem(...)` 3 lignes, `MapPalette.matchColor(r,g,b)`, lambda `final MapView`, import `Location` ajouté, `PostType` importé dans `Contract`, et `EntitySleepEvent` (supprimé en 1.21) remplacé par un polling léger toutes les 60 ticks.
 - Version affichée au démarrage alignée sur `5.15.0`.
-
----
 
 # Fusion FactionPlugin v3.0 + FactionStats v1.0.0 → FactionPlugin v3.1.0
 
