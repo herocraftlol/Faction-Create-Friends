@@ -9,8 +9,8 @@ Cette version **supprime la dépendance à MySQL pour la commande `/lier`**. Vou
 **Avant la v5.15.4 :**
 - Obligation d'installer et configurer une **base MySQL partagée** entre le plugin et le backend Node.js du site (table `web_link_codes`).
 - Synchronisation manuelle entre les deux configurations (mêmes `host`/`user`/`password` côté plugin et côté site).
-- Maintenance lourde : droits à授, migrations, pannes silencieuses en cas de désynchronisation.
-- Impossible de faire fonctionner `/lier` en mode «单机 » (solo, sans backend MySQL).
+- Maintenance lourde : droits d'accès, migrations, pannes silencieuses en cas de désynchronisation.
+- Impossible de faire fonctionner `/lier` en mode «solo » (solo, sans backend MySQL).
 
 **Depuis la v5.15.4 :**
 - Le plugin **génère le code** de liaison côté Minecraft, puis l'envoie au site via `POST /api/faction/push/link-code`.
