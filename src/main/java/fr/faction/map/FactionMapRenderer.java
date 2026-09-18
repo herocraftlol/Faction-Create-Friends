@@ -278,8 +278,8 @@ public class FactionMapRenderer extends MapRenderer {
     /** Convertit une couleur Bukkit Color en index de palette MapPalette */
     @SuppressWarnings("deprecation")
     private static byte mapColor(Color color) {
-        // Paper 1.21.4 : MapPalette.matchColor attend java.awt.Color
-        java.awt.Color awtColor = new java.awt.Color(color.getRed(), color.getGreen(), color.getBlue());
-        return MapPalette.matchColor(awtColor);
+        // Paper 1.21.4 : MapPalette.matchColor(Color) a été supprimée — on passe
+        // par les composantes RGB directement.
+        return MapPalette.matchColor(color.getRed(), color.getGreen(), color.getBlue());
     }
 }

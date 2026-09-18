@@ -1133,9 +1133,9 @@ public class MainMenuGUI implements Listener {
                 "§8Réservé au §7Chef §8ou non disponible.");
     }
 
-    /** Surcharge avec plusieurs lignes de description pour cmdItem */
-    private ItemStack cmdItem(Material mat, String name, String l1, String l2, String l3, boolean enabled) {
-        if (enabled) return make(mat, name, l1, l2, l3, "", "§7Clic pour info");
+    /** Item avec tooltip à plusieurs lignes, grisé si disabled */
+    private ItemStack cmdItem(Material mat, String name, String desc, String extra, String tip, boolean enabled) {
+        if (enabled) return make(mat, name, desc, extra, tip);
         return make(Material.GRAY_STAINED_GLASS_PANE, "§8" + ChatColor.stripColor(name),
                 "§8Réservé au §7Chef §8ou non disponible.");
     }

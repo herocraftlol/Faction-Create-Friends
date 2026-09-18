@@ -97,7 +97,8 @@ public class FactionMapManager {
             save();
         }
 
-        // Retirer les renderers par défaut (fond vanilla gris)
+        // Retirer les renderers par défaut (fond vanilla gris).
+        // On capture `view` dans une variable finale pour le lambda.
         final MapView finalView = view;
         finalView.getRenderers().forEach(finalView::removeRenderer);
 
